@@ -330,12 +330,6 @@
 </head>
 <body>
 
-    <!-- Connection Status Indicator -->
-    <div id="connection-indicator" class="fixed top-3 left-3 z-[100] flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-slate-200">
-        <div id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
-        <span id="connection-text" class="text-xs font-bold text-slate-500">جاري التحقق من الاتصال...</span>
-    </div>
-
     <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
         <div class="bg-white rounded-[2rem] p-8 md:p-10 max-w-md w-full shadow-2xl animate-fade-in relative overflow-hidden">
@@ -976,20 +970,7 @@
         function setConnectionStatus(connected) {
             const changed = state.isServerConnected !== connected;
             state.isServerConnected = connected;
-            const dot = document.getElementById('connection-dot');
-            const text = document.getElementById('connection-text');
-            if (dot && text) {
-                if (connected) {
-                    dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-                    text.className = 'text-xs font-bold text-emerald-700';
-                    text.textContent = 'متصل بالسيرفر';
-                } else {
-                    dot.className = 'w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse';
-                    text.className = 'text-xs font-bold text-red-700';
-                    text.textContent = 'غير متصل بالسيرفر';
-                }
-            }
-            // حدّث الواجهة (مثل زر الحجز الجديد) عند تغيّر حالة الاتصال فقط
+            // حدّث الواجهة (أيقونة الاتصال بجانب زر الخروج + زر الحجز الجديد) عند تغيّر حالة الاتصال فقط
             if (changed && state.isLoggedIn && document.getElementById('app').style.display !== 'none') {
                 render();
             }
@@ -2315,7 +2296,12 @@ ${notesDisplay ? `
                             ` : ''}
 
                             <div class="h-6 sm:h-8 w-px bg-slate-200 mx-0.5 sm:mx-2 shrink-0"></div>
-                            
+
+                            <div id="connection-indicator" class="flex flex-col items-center justify-center gap-0.5 shrink-0 px-1" title="${state.isServerConnected ? 'متصل بالسيرفر' : 'غير متصل بالسيرفر'}">
+                                <i data-lucide="${state.isServerConnected ? 'wifi' : 'wifi-off'}" class="w-4 h-4 sm:w-5 sm:h-5 ${state.isServerConnected ? 'text-emerald-600' : 'text-red-600'}"></i>
+                                <span id="connection-text" class="text-[9px] sm:text-[10px] font-bold leading-none ${state.isServerConnected ? 'text-emerald-700' : 'text-red-700'}">${state.isServerConnected ? 'متصل' : 'غير متصل'}</span>
+                            </div>
+
                             <button onclick="logout()" class="flex items-center gap-1 sm:gap-2 text-sm font-bold text-red-600 hover:bg-red-50 p-2 sm:px-4 sm:py-2 rounded-xl transition-all border border-transparent hover:border-red-100 shrink-0" title="خروج">
                                 <span class="hidden sm:inline">خروج</span>
                                 <i data-lucide="log-out" class="w-5 h-5"></i>
