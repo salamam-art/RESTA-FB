@@ -1243,6 +1243,39 @@
             renderHeader(); // Refresh header to show badge
         }
 
+        // يحوّل زر الحفظ داخل الفورم إلى حالة "جاري الحفظ" مع أيقونة دوّارة، أو يعيده لحالته الطبيعية
+        function setFormSaving(form, saving, savingText = 'جاري الحفظ...') {
+            const btn = form && form.querySelector('button[type="submit"]');
+            if (!btn) return;
+            if (saving) {
+                if (btn.dataset.origHtml === undefined) btn.dataset.origHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.classList.add('opacity-70', 'cursor-not-allowed');
+                btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i><span>${savingText}</span>`;
+                if (typeof lucide !== "undefined") lucide.createIcons();
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
+                if (btn.dataset.origHtml !== undefined) {
+                    btn.innerHTML = btn.dataset.origHtml;
+                    delete btn.dataset.origHtml;
+                    if (typeof lucide !== "undefined") lucide.createIcons();
+                }
+            }
+        }
+
+        // يستبدل أزرار تأكيد الحذف بمؤشر "جاري الحذف" أثناء انتظار المزامنة
+        function setDeleteConfirmSaving(saving, text = 'جاري الحذف...') {
+            const btnsEl = document.getElementById('deleteConfirmButtons');
+            if (!btnsEl || !saving) return;
+            btnsEl.innerHTML = `
+                <div class="w-full py-3.5 flex items-center justify-center gap-2 text-sm font-black text-slate-500">
+                    <i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>
+                    <span>${text}</span>
+                </div>`;
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
         function showToast(message, type, bookingDate) {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -1713,7 +1746,9 @@
             });
 
             state.editingBookingId = null;
+            setFormSaving(form, true);
             const synced = await saveLocal();
+            setFormSaving(form, false);
             if (synced) {
                 showToast(logMsg, 'success', bookingData.startDate);
             } else {
@@ -1791,9 +1826,9 @@
         }
 
         async function confirmDeleteOneDay(id) {
-            closeDeleteConfirmModal();
             const booking = state.bookings.find(b => b.id === id);
-            if (!booking) return;
+            if (!booking) { closeDeleteConfirmModal(); return; }
+            setDeleteConfirmSaving(true, 'جاري حذف اليوم...');
 
             state.pendingDeletions.push(id);
             state.bookings = state.bookings.filter(b => b.id !== id);
@@ -1817,6 +1852,7 @@
             });
 
             const synced = await saveLocal();
+            closeDeleteConfirmModal();
             showToast(synced ? logMsg : logMsg + ' (حذف محلي، سيتم رفعه للسحابة عند توفر الاتصال)', 'error');
             render();
 
@@ -1833,9 +1869,9 @@
         }
 
         async function confirmDeleteAllDays(id, groupId) {
-            closeDeleteConfirmModal();
             const booking = state.bookings.find(b => b.id === id);
-            if (!booking) return;
+            if (!booking) { closeDeleteConfirmModal(); return; }
+            setDeleteConfirmSaving(true, 'جاري حذف الحجز...');
 
             const groupDays = state.bookings.filter(b => b.groupId === groupId || b.id === groupId);
             const toDeleteIds = groupDays.map(b => b.id);
@@ -1861,6 +1897,7 @@
             });
 
             const synced = await saveLocal();
+            closeDeleteConfirmModal();
             showToast(synced ? logMsg : logMsg + ' (حذف محلي، سيتم رفعه للسحابة عند توفر الاتصال)', 'error');
             render();
 
@@ -2886,7 +2923,9 @@ ${notesDisplay ? `
             });
 
             state.editingBookingId = null;
+            setFormSaving(form, true);
             const synced = await saveLocal();
+            setFormSaving(form, false);
             if (synced) {
                 showToast(logMsg, 'success', bookingData.startDate);
             } else {
