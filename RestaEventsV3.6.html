@@ -330,6 +330,12 @@
 </head>
 <body>
 
+    <!-- Connection Status Indicator -->
+    <div id="connection-indicator" class="fixed top-3 left-3 z-[100] flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-slate-200">
+        <div id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+        <span id="connection-text" class="text-xs font-bold text-slate-500">جاري التحقق من الاتصال...</span>
+    </div>
+
     <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
         <div class="bg-white rounded-[2rem] p-8 md:p-10 max-w-md w-full shadow-2xl animate-fade-in relative overflow-hidden">
@@ -871,6 +877,7 @@
             currentYear: new Date().getFullYear(),
             editingBookingId: null,
             isSyncing: false,
+            isServerConnected: false,
             // --- Race condition fix ---
             // يُزاد بمقدار 1 في كل عملية حذف/تعديل قبل أي fetch
             // الـ syncToCloud يتحقق منه بعد الـ fetch: لو تغيّر = فيه عملية أحدث → يتوقف
@@ -882,7 +889,9 @@
         // --- Core Functions ---
         window.onload = () => {
             init();
+            checkConnection();
             setInterval(autoSync, SYNC_INTERVAL);
+            setInterval(checkConnection, 15000);
             // Close sync dropdown on outside click
             document.addEventListener('click', function(e) {
                 const container = document.getElementById('syncDropdownContainer');
@@ -961,6 +970,39 @@
             dot.className = isError ? "w-3 h-3 bg-red-500 rounded-full" : `w-3 h-3 rounded-full animate-pulse-soft`;
             dot.style.backgroundColor = isError ? '#ef4444' : COLOR_GOLD;
             if(!isError) setTimeout(() => status.style.display = 'none', 3000);
+        }
+
+        // --- Server Connection Indicator ---
+        function setConnectionStatus(connected) {
+            const changed = state.isServerConnected !== connected;
+            state.isServerConnected = connected;
+            const dot = document.getElementById('connection-dot');
+            const text = document.getElementById('connection-text');
+            if (dot && text) {
+                if (connected) {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+                    text.className = 'text-xs font-bold text-emerald-700';
+                    text.textContent = 'متصل بالسيرفر';
+                } else {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse';
+                    text.className = 'text-xs font-bold text-red-700';
+                    text.textContent = 'غير متصل بالسيرفر';
+                }
+            }
+            // حدّث الواجهة (مثل زر الحجز الجديد) عند تغيّر حالة الاتصال فقط
+            if (changed && state.isLoggedIn && document.getElementById('app').style.display !== 'none') {
+                render();
+            }
+        }
+
+        async function checkConnection() {
+            if (!CLOUD_URL) { setConnectionStatus(false); return; }
+            try {
+                const res = await fetch(`${CLOUD_URL}?t=${Date.now()}`, { method: 'GET', cache: 'no-store' });
+                setConnectionStatus(!!res.ok);
+            } catch (e) {
+                setConnectionStatus(false);
+            }
         }
 
         async function autoSync() {
@@ -1540,6 +1582,10 @@
 
         function handleBookingSubmit(e) {
             e.preventDefault();
+            if (!state.isServerConnected) {
+                alert('لا يمكن إتمام الحجز حالياً. التطبيق غير متصل بالسيرفر.');
+                return;
+            }
             const form = e.target;
             const isEditing = !!state.editingBookingId;
             const bookingData = {
@@ -2221,7 +2267,7 @@ ${notesDisplay ? `
 
                         <div class="flex items-center gap-1 sm:gap-3 flex-nowrap justify-end">
                             <!-- زر حجز جديد -->
-                            <button onclick="toggleGlobalBookingModal()" class="fab-new-booking mr-1 sm:mr-4 shrink-0 w-10 h-10 sm:w-[42px] sm:h-[42px]" title="إضافة حجز جديد">
+                            <button onclick="${state.isServerConnected ? 'toggleGlobalBookingModal()' : "showToast('لا يمكن إضافة حجز، لا يوجد اتصال بالسيرفر', 'error')"}" class="fab-new-booking mr-1 sm:mr-4 shrink-0 w-10 h-10 sm:w-[42px] sm:h-[42px] ${state.isServerConnected ? '' : 'opacity-40 cursor-not-allowed'}" title="${state.isServerConnected ? 'إضافة حجز جديد' : 'غير متاح - لا يوجد اتصال بالسيرفر'}">
                                 <i data-lucide="plus" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                             </button>
 
@@ -2565,6 +2611,10 @@ ${notesDisplay ? `
 
         // ─── Open New Booking Modal Pre-filled for a Specific Date ───────
         function openNewBookingForDate(dateStr) {
+            if (!state.isServerConnected) {
+                showToast('لا يمكن إضافة حجز، لا يوجد اتصال بالسيرفر', 'error');
+                return;
+            }
             state.editingBookingId = null;
 
             // القاعة تُحذف من القائمة فقط إذا كانت محجوزة يوم كامل (بدون توقيت)
@@ -2692,6 +2742,10 @@ ${notesDisplay ? `
 
         function handleGlobalBookingSubmit(e) {
             e.preventDefault();
+            if (!state.isServerConnected) {
+                alert('لا يمكن إتمام الحجز حالياً. التطبيق غير متصل بالسيرفر.');
+                return;
+            }
             const form   = e.target;
             const hallId = form.hallId.value;
             const hall   = HALLS.find(h => h.id === hallId);
