@@ -999,12 +999,12 @@
         }
 
         async function syncToCloud(isSilent = false) {
-            if (!CLOUD_URL) return;
+            if (!CLOUD_URL) return false;
 
             // لو في مزامنة جارية، ضع علامة "ينتظر" واخرج
             if (state.isSyncing) {
                 state._syncPending = true;
-                return;
+                return false;
             }
 
             state.isSyncing = true;
@@ -1013,6 +1013,7 @@
 
             // سجّل نسخة العمليات الحالية قبل أي fetch
             const opsVersionAtStart = state._opsVersion;
+            let syncSucceeded = false;
 
             try {
                 const dirtyBookings     = state.bookings.filter(b => b._isDirty);
@@ -1029,9 +1030,9 @@
                 if (state._opsVersion !== opsVersionAtStart) {
                     state.isSyncing = false;
                     state._syncPending = true;
-                    // ابدأ دورة جديدة بعد تأخير قصير
-                    setTimeout(() => syncToCloud(isSilent), 500);
-                    return;
+                    // ابدأ دورة جديدة بعد تأخير قصير وانتظر نتيجتها الفعلية
+                    await new Promise(r => setTimeout(r, 500));
+                    return await syncToCloud(isSilent);
                 }
 
                 const serverData = await readResponse.json();
@@ -1041,8 +1042,8 @@
                 if (state._opsVersion !== opsVersionAtStart) {
                     state.isSyncing = false;
                     state._syncPending = true;
-                    setTimeout(() => syncToCloud(isSilent), 500);
-                    return;
+                    await new Promise(r => setTimeout(r, 500));
+                    return await syncToCloud(isSilent);
                 }
 
                 const serverBookings = serverData.bookings || [];
@@ -1097,8 +1098,8 @@
                     if (state._opsVersion !== opsVersionAtStart) {
                         state.isSyncing = false;
                         state._syncPending = true;
-                        setTimeout(() => syncToCloud(isSilent), 800);
-                        return;
+                        await new Promise(r => setTimeout(r, 800));
+                        return await syncToCloud(isSilent);
                     }
 
                 } else {
@@ -1163,11 +1164,13 @@
 
                 if (!isSilent) showSync("تمت المزامنة بنجاح ✓");
                 setConnectionStatus(true);
+                syncSucceeded = true;
 
             } catch (e) {
                 console.error("Sync Error:", e);
                 if (!isSilent) showSync("فشل المزامنة: " + e.message, true);
                 setConnectionStatus(false);
+                syncSucceeded = false;
             }
 
             state.isSyncing = false;
@@ -1178,6 +1181,8 @@
                 state._syncPending = false;
                 setTimeout(() => syncToCloud(true), 300);
             }
+
+            return syncSucceeded;
         }
 
         function mergeLogs(localLogs, serverLogs) {
@@ -1206,13 +1211,13 @@
             await syncToCloud(isSilent);
         }
 
-        function saveLocal() {
+        async function saveLocal() {
             // ارفع العداد أولاً — يُبطل أي دورة مزامنة جارية كانت بدأت قبل هذه العملية
             state._opsVersion++;
             localStorage.setItem('hotel_bookings_local', JSON.stringify(state.bookings));
             localStorage.setItem('hotel_logs_local', JSON.stringify(state.activityLogs));
             localStorage.setItem('hotel_deleted_ids', JSON.stringify(state.pendingDeletions));
-            syncToCloud();
+            return await syncToCloud();
         }
 
         function saveLocalStateOnly() {
@@ -1565,7 +1570,7 @@
             });
         }
 
-        function handleBookingSubmit(e) {
+        async function handleBookingSubmit(e) {
             e.preventDefault();
             if (!state.isServerConnected) {
                 alert('لا يمكن إتمام الحجز حالياً. التطبيق غير متصل بالسيرفر.');
@@ -1696,7 +1701,6 @@
             const logMsg = 'تم ' + logType + ' حجز - ' + bookingData.companyName + ' - بتاريخ ' + _fmtD1;
 
             addNotification(logMsg, 'add', bookingData.startDate);
-            showToast(logMsg, 'success', bookingData.startDate);
 
             state.activityLogs.unshift({
                 type:         logType,
@@ -1709,7 +1713,12 @@
             });
 
             state.editingBookingId = null;
-            saveLocal();
+            const synced = await saveLocal();
+            if (synced) {
+                showToast(logMsg, 'success', bookingData.startDate);
+            } else {
+                showToast(logMsg + ' (تم الحفظ محلياً فقط، وسيتم رفعه للسحابة عند توفر الاتصال)', 'error', bookingData.startDate);
+            }
             state.activeTab = 'calendar';
             render();
         }
@@ -1781,7 +1790,7 @@
             document.getElementById('deleteConfirmModal').classList.add('hidden');
         }
 
-        function confirmDeleteOneDay(id) {
+        async function confirmDeleteOneDay(id) {
             closeDeleteConfirmModal();
             const booking = state.bookings.find(b => b.id === id);
             if (!booking) return;
@@ -1796,7 +1805,6 @@
             const logMsg = 'تم حذف يوم من حجز - ' + booking.companyName + ' - بتاريخ ' + _fmtDel;
 
             addNotification(logMsg, 'delete', booking.startDate);
-            showToast(logMsg, 'error');
 
             state.activityLogs.unshift({
                 type:         'حذف',
@@ -1808,7 +1816,8 @@
                 isoTimestamp: new Date().toISOString()
             });
 
-            saveLocal();
+            const synced = await saveLocal();
+            showToast(synced ? logMsg : logMsg + ' (حذف محلي، سيتم رفعه للسحابة عند توفر الاتصال)', 'error');
             render();
 
             const detailsModal = document.getElementById('detailsModal');
@@ -1823,7 +1832,7 @@
             }
         }
 
-        function confirmDeleteAllDays(id, groupId) {
+        async function confirmDeleteAllDays(id, groupId) {
             closeDeleteConfirmModal();
             const booking = state.bookings.find(b => b.id === id);
             if (!booking) return;
@@ -1840,7 +1849,6 @@
             const logMsg = 'تم إلغاء الحجز بالكامل - ' + booking.companyName + ' - بتاريخ ' + _fmtDel;
 
             addNotification(logMsg, 'delete', booking.startDate);
-            showToast(logMsg, 'error');
 
             state.activityLogs.unshift({
                 type:         'حذف',
@@ -1852,7 +1860,8 @@
                 isoTimestamp: new Date().toISOString()
             });
 
-            saveLocal();
+            const synced = await saveLocal();
+            showToast(synced ? logMsg : logMsg + ' (حذف محلي، سيتم رفعه للسحابة عند توفر الاتصال)', 'error');
             render();
 
             const detailsModal = document.getElementById('detailsModal');
@@ -2730,7 +2739,7 @@ ${notesDisplay ? `
             }
         }
 
-        function handleGlobalBookingSubmit(e) {
+        async function handleGlobalBookingSubmit(e) {
             e.preventDefault();
             if (!state.isServerConnected) {
                 alert('لا يمكن إتمام الحجز حالياً. التطبيق غير متصل بالسيرفر.');
@@ -2865,7 +2874,6 @@ ${notesDisplay ? `
             const _fmtD2 = bookingData.startDate ? bookingData.startDate.split('-').reverse().join('/') : '';
             const logMsg  = 'تم ' + logType + ' حجز - ' + bookingData.companyName + ' - بتاريخ ' + _fmtD2;
             addNotification(logMsg, 'add', bookingData.startDate);
-            showToast(logMsg, 'success', bookingData.startDate);
 
             state.activityLogs.unshift({
                 type:         logType,
@@ -2878,7 +2886,12 @@ ${notesDisplay ? `
             });
 
             state.editingBookingId = null;
-            saveLocal();
+            const synced = await saveLocal();
+            if (synced) {
+                showToast(logMsg, 'success', bookingData.startDate);
+            } else {
+                showToast(logMsg + ' (تم الحفظ محلياً فقط، وسيتم رفعه للسحابة عند توفر الاتصال)', 'error', bookingData.startDate);
+            }
             toggleGlobalBookingModal();
             render();
         }
