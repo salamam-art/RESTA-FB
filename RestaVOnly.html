@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<link rel="icon" type="image/png" href="002.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resta Events Booking - View Only</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        /* --- الألوان المطلوبة --- */
+        :root {
+            --brand-red: #6E1418;
+            --brand-red-hover: #5a1013;
+            --brand-gold: #A88A45;
+            --brand-gold-hover: #8f753a;
+            --bg-body: #f4f7fb;
+        }
+
+        body { 
+            font-family: 'Noto Sans Arabic', sans-serif; 
+            background-color: var(--bg-body); 
+            color: #334155;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* تعديلات الألوان العامة */
+        .text-brand-red { color: var(--brand-red) !important; }
+        .bg-brand-red { background-color: var(--brand-red) !important; }
+        .text-brand-gold { color: var(--brand-gold) !important; }
+        .bg-brand-gold { background-color: var(--brand-gold) !important; }
+        .border-brand-gold { border-color: var(--brand-gold) !important; }
+        
+        /* Calendar Styles - Modern Grid */
+        .calendar-grid { 
+            display: grid; 
+            grid-template-columns: repeat(7, minmax(0, 1fr)); 
+            gap: 6px; 
+            padding: 6px;
+            background: #f1f5f9;
+            border-radius: 1.5rem;
+        }
+        
+        .day-cell { 
+            height: 150px; 
+            min-height: 0;
+            max-height: 150px;
+            transition: all 0.2s ease; 
+            position: relative; 
+            border: 1px solid transparent; 
+            background: #ffffff; 
+            border-radius: 1rem;
+            padding: 0.5rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .day-cell:hover { 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            transform: translateY(-2px);
+            border-color: #e2e8f0;
+            z-index: 10;
+        }
+        
+        /* Day Cell Today Highlight */
+        .day-cell.today-active {
+            background-color: #fffbf0;
+            border: 2px solid var(--brand-gold);
+            box-shadow: 0 4px 15px rgba(168, 138, 69, 0.15);
+        }
+
+        /* Mobile Scroll */
+        .calendar-scroll-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 10px; }
+        .calendar-fixed-width { min-width: 850px; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; border: 2px solid transparent; background-clip: padding-box; }
+
+        /* Booking Tag */
+        .booking-tag { 
+            font-size: 0.7rem; 
+            padding: 4px 8px; 
+            border-radius: 0.5rem; 
+            margin-bottom: 4px; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap; 
+            font-weight: 700; 
+            border-right: 4px solid currentColor; 
+            cursor: pointer; 
+            opacity: 0.95; 
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .booking-tag:hover {
+            opacity: 1;
+            transform: scale(1.02);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+
+        /* Utility Styles */
+        #sync-status { position: fixed; bottom: 24px; left: 24px; z-index: 1000; }
+        .modal-backdrop { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
+        
+        /* Animation */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes pulseSoft { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.95); } }
+        .animate-pulse-soft { animation: pulseSoft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+        /* Table Styles (Modals) */
+        .users-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 1rem; }
+        .users-table th, .users-table td { padding: 1rem; border-bottom: 1px solid #f1f5f9; text-align: right; }
+        .users-table th { background-color: #f8fafc; color: var(--brand-red); font-weight: 800; white-space: nowrap; font-size: 0.85rem; }
+        .users-table tr:hover td { background-color: #f8fafc; }
+        .users-table th:first-child { border-top-right-radius: 1rem; border-bottom-right-radius: 1rem; }
+        .users-table th:last-child { border-top-left-radius: 1rem; border-bottom-left-radius: 1rem; }
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        /* Notification Badge */
+        .notification-dot {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 10px;
+            height: 10px;
+            background-color: var(--brand-red);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px rgba(110, 20, 24, 0.2);
+        }
+
+        /* Sync Dropdown */
+        .sync-dropdown {
+            position: absolute;
+            top: calc(100% + 12px);
+            left: 0;
+            min-width: 220px;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+            z-index: 9999;
+            overflow: hidden;
+            transform-origin: top left;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .sync-dropdown button {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            text-align: right;
+            background: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #475569;
+        }
+        .sync-dropdown button:hover { background: #f8fafc; color: var(--brand-red); padding-right: 20px; }
+        .sync-dropdown button:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
+
+        /* Glass Panel */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main App -->
+    <div id="app" style="display: block;">
+        <!-- Content injected by JS -->
+    </div>
+
+    <!-- Details Modal -->
+    <div id="detailsModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in border border-slate-100">
+            <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20">
+                        <i data-lucide="calendar" class="w-6 h-6 text-[#A88A45]"></i>
+                    </div>
+                    <div>
+                        <h3 id="modalDateTitle" class="font-black text-xl tracking-wide">التفاصيل</h3>
+                        <p id="modalHallTitle" class="text-sm text-[#A88A45] opacity-90 font-medium mt-0.5"></p>
+                    </div>
+                </div>
+                <button onclick="closeDetailsModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="modalContent" class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+                <!-- Bookings Injected Here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- All Bookings List Modal -->
+    <div id="bookingsListModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
+            <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
+                        <i data-lucide="list-todo" class="w-5 h-5 text-[#A88A45]"></i>
+                    </div>
+                    <h3 class="font-black text-xl tracking-wide">قائمة الحجوزات القادمة</h3>
+                </div>
+                <button onclick="toggleBookingsListModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-0 overflow-y-auto flex-1 bg-white">
+                <div class="table-responsive">
+                    <table class="users-table mt-0">
+                        <thead class="bg-slate-50 border-b border-slate-200 shadow-sm sticky top-0 z-10">
+                            <tr>
+                                <th class="text-[#6E1418] py-4">اسم الشركة / الجهة</th>
+                                <th class="text-[#6E1418] py-4">القاعة</th>
+                                <th class="text-[#6E1418] py-4">من تاريخ</th>
+                                <th class="text-[#6E1418] py-4">إلى تاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allBookingsTableBody" class="divide-y divide-slate-50"></tbody>
+                    </table>
+                </div>
+                <div class="p-4 text-center text-sm font-bold text-slate-400 bg-slate-50 border-t border-slate-200">
+                    <i data-lucide="pointer" class="w-4 h-4 inline-block mr-1"></i> اضغط على الحجز لعرض التفاصيل الكاملة
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications History Modal -->
+    <div id="notificationsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden max-h-[85vh] flex flex-col animate-fade-in border border-slate-100">
+            <div class="p-5 bg-white border-b border-slate-100 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-[#A88A45] border border-amber-100">
+                        <i data-lucide="bell-ring" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-black text-xl text-slate-800 tracking-wide">الإشعارات</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="notif-clear-all-btn" onclick="clearAllNotifications()" style="display:none;" class="flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all border border-red-100 hover:border-red-200">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        حذف الكل
+                    </button>
+                    <button onclick="document.getElementById('notificationsModal').classList.add('hidden')" class="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full hover:bg-slate-200 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5 text-slate-500"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="notificationsList" class="p-0 overflow-y-auto flex-1 bg-slate-50/50">
+                <!-- Notifications injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 left-6 z-[9999] flex flex-col gap-3 pointer-events-none md:max-w-sm md:right-auto md:left-8">
+        <!-- Toasts injected here -->
+    </div>
+
+    <!-- Sync Indicator -->
+    <div id="sync-status" class="hidden items-center gap-3 bg-slate-900 text-white px-5 py-3 rounded-full shadow-2xl border border-slate-700 backdrop-blur-md bg-opacity-90">
+        <div id="sync-dot" class="w-3 h-3 bg-[#A88A45] rounded-full animate-pulse-soft"></div>
+        <span id="sync-text" class="text-sm font-bold tracking-wide">جاري تحديث البيانات...</span>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbzRq3GItUelYEXn8WUFhMTrJw9lTxbhEKtUIxUWdUCel9GeSbprpHed80no4VZ-ix3d8g/exec';
+        const SYNC_INTERVAL = 30000; 
+
+        // Colors for JS Injection
+        const COLOR_RED = '#6E1418';
+        const COLOR_GOLD = '#A88A45';
+
+        const HALLS = [
+            { id: 'yacht', name: 'قاعة اليخت', icon: 'ship', color: 'bg-blue-50 text-blue-700', border: 'border-blue-400' },
+            { id: 'italian', name: 'القاعة الإيطالية', icon: 'armchair', color: 'bg-red-50 text-red-700', border: 'border-red-400' },
+            { id: 'greenhouse', name: 'الجرين هاوس', icon: 'flower-2', color: 'bg-green-50 text-green-700', border: 'border-green-400' },
+            { id: 'bar', name: 'البار', icon: 'glass-water', color: 'bg-purple-50 text-purple-700', border: 'border-purple-400' },
+            { id: 'pool', name: 'حمام السباحة', icon: 'waves', color: 'bg-cyan-50 text-cyan-700', border: 'border-cyan-400' },
+        ];
+
+        let state = {
+            view: 'dashboard',
+            activeTab: 'calendar',
+            selectedHall: null,
+            bookings: JSON.parse(localStorage.getItem('hotel_bookings_readonly')) || [],
+            notifications: [], 
+            currentMonth: new Date().getMonth(),
+            currentYear: new Date().getFullYear(),
+            isSyncing: false
+        };
+
+        // --- Core Functions ---
+        window.onload = () => {
+            init();
+            setInterval(fetchFromCloud, SYNC_INTERVAL);
+            // Close sync dropdown on outside click
+            document.addEventListener('click', function(e) {
+                const container = document.getElementById('syncDropdownContainer');
+                const dd = document.getElementById('syncDropdown');
+                if (dd && container && !container.contains(e.target)) {
+                    dd.classList.add('hidden');
+                }
+            });
+        };
+
+        function init() {
+            if(typeof lucide!=="undefined") lucide.createIcons();
+            
+            // Bypass login completely for View Only version
+            document.getElementById('app').style.display = 'block';
+            render();
+            if(CLOUD_URL) fetchFromCloud();
+        }
+
+        function showSync(text = "جاري التحديث...", isError = false) {
+            const status = document.getElementById('sync-status');
+            const dot = document.getElementById('sync-dot');
+            const label = document.getElementById('sync-text');
+            status.style.display = 'flex';
+            label.innerText = text;
+            dot.className = isError ? "w-3 h-3 bg-red-500 rounded-full" : `w-3 h-3 rounded-full animate-pulse-soft`;
+            dot.style.backgroundColor = isError ? '#ef4444' : COLOR_GOLD;
+            if(!isError) setTimeout(() => status.style.display = 'none', 3000);
+        }
+
+        // Fetch data from cloud (Read Only mode - No POST requests)
+        async function fetchFromCloud(isSilent = false) {
+            if (!CLOUD_URL || state.isSyncing) return;
+            state.isSyncing = true;
+            if (!isSilent) showSync("جاري تحديث البيانات من السحابة...");
+
+            try {
+                const readResponse = await fetch(`${CLOUD_URL}?t=${Date.now()}`);
+                if (!readResponse.ok) throw new Error('فشل القراءة: HTTP ' + readResponse.status);
+
+                const serverData = await readResponse.json();
+                if (serverData.error) throw new Error('خطأ من السيرفر: ' + serverData.error);
+
+                // --- إضافة منطق الإشعارات والتحديثات ---
+                const oldBookings = state.bookings || [];
+                const newBookings = serverData.bookings || [];
+
+                if (oldBookings.length > 0) {
+                    // استخراج الحجوزات المضافة والمحذوفة
+                    const added = newBookings.filter(nb => !oldBookings.find(ob => ob.id === nb.id));
+                    const removed = oldBookings.filter(ob => !newBookings.find(nb => nb.id === ob.id));
+
+                    const now = new Date();
+                    const timeString = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+                    const dateString = now.toLocaleDateString('ar-EG');
+
+                    added.forEach(b => {
+                        const hallName = HALLS.find(h => h.id === b.hallId)?.name || 'القاعة';
+                        const bookingDateFormatted = b.startDate ? b.startDate.split('-').reverse().join('/') : '';
+                        const msg = `حجز جديد - ${b.companyName} - بتاريخ ${bookingDateFormatted}`;
+                        showToast(msg, 'success', b);
+                        state.notifications.unshift({ type: 'add', text: msg, time: timeString, date: dateString, booking: b });
+                    });
+
+                    removed.forEach(b => {
+                        const bookingDateFormatted = b.startDate ? b.startDate.split('-').reverse().join('/') : '';
+                        const msg = `تم حذف الحجز - ${b.companyName} - بتاريخ ${bookingDateFormatted}`;
+                        showToast(msg, 'error', b);
+                        state.notifications.unshift({ type: 'delete', text: msg, time: timeString, date: dateString, booking: b });
+                    });
+                }
+                // ------------------------------------------
+
+                state.bookings = newBookings;
+                
+                // Save locally just for fast load next time
+                localStorage.setItem('hotel_bookings_readonly', JSON.stringify(state.bookings));
+
+                if (!(state.view === 'hall_detail' && state.activeTab === 'form')) {
+                    render();
+                    const modal = document.getElementById('detailsModal');
+                    if (!modal.classList.contains('hidden')) {
+                        const dateTitle = document.getElementById('modalDateTitle').dataset.date;
+                        if (dateTitle) showDayDetails(dateTitle);
+                    }
+                }
+
+                if (!isSilent) showSync("تم التحديث بنجاح ✓");
+
+            } catch (e) {
+                console.error("Sync Error:", e);
+                if (!isSilent) showSync("فشل التحديث: " + e.message, true);
+            }
+
+            state.isSyncing = false;
+            if (!isSilent) setTimeout(() => document.getElementById('sync-status').style.display = 'none', 3000);
+        }
+
+        // --- Notification System ---
+        function showToast(message, type, booking) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'error' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200';
+            const textClass = type === 'error' ? 'text-red-800' : 'text-emerald-800';
+            const iconBg = type === 'error' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600';
+            const icon = type === 'error' ? 'trash-2' : 'check-circle';
+
+            toast.className = `pointer-events-auto p-4 rounded-2xl border shadow-xl flex items-center gap-4 animate-slide-up ${bgClass}`;
+            toast.innerHTML = `
+                <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center shrink-0">
+                    <i data-lucide="${icon}" class="w-5 h-5"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-bold ${textClass}">${message}</p>
+                </div>
+                <button onclick="this.closest('.pointer-events-auto').remove()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors shrink-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            `;
+            
+            container.appendChild(toast);
+            if(typeof lucide!=="undefined") lucide.createIcons();
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function renderNotificationsList() {
+            const list = document.getElementById('notificationsList');
+            if (state.notifications.length === 0) {
+                list.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-64 text-slate-400">
+                        <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                            <i data-lucide="bell-off" class="w-8 h-8 text-slate-300"></i>
+                        </div>
+                        <p class="text-sm font-bold">لا توجد إشعارات جديدة</p>
+                        <p class="text-xs mt-1 text-slate-400">سيتم عرض تحديثات النظام هنا</p>
+                    </div>
+                `;
+            } else {
+                list.innerHTML = state.notifications.map((n, idx) => {
+                    const b = n.booking;
+                    const hall = b ? HALLS.find(h => h.id === b.hallId) : null;
+                    const hallName = hall ? hall.name : '';
+                    const hallColor = hall ? hall.color : '';
+                    const bookingDateFormatted = b && b.startDate ? b.startDate.split('-').reverse().join('/') : '';
+                    const endDateFormatted = b && b.endDate ? b.endDate.split('-').reverse().join('/') : bookingDateFormatted;
+
+                    return `
+                    <div id="notif-item-${idx}" class="p-4 border-b border-slate-100 hover:bg-white transition-colors ${b && b.startDate ? 'cursor-pointer' : ''}" ${b && b.startDate ? `onclick="document.getElementById('notificationsModal').classList.add('hidden'); showDayDetails('${b.startDate}');"` : ''}>
+                        <div class="flex items-start gap-3">
+                            <div class="mt-1 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${n.type === 'delete' ? 'bg-red-500 shadow-red-200' : 'bg-emerald-500 shadow-emerald-200'}"></div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-slate-700 font-bold leading-relaxed">${n.text}</p>
+                                <p class="text-[11px] text-slate-400 mt-1 flex items-center gap-1 font-medium">
+                                    <i data-lucide="clock" class="w-3 h-3"></i> ${n.date} - ${n.time}
+                                </p>
+                                ${b ? `
+                                <div class="mt-3 rounded-xl border ${n.type === 'delete' ? 'border-red-100 bg-red-50/40' : 'border-emerald-100 bg-emerald-50/40'} p-3 space-y-2">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        ${hall ? `<span class="text-[11px] font-black px-2 py-0.5 rounded-md ${hallColor}">${hallName}</span>` : ''}
+                                        <span class="font-black text-slate-700 text-sm">${b.companyName}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-1.5 text-xs text-slate-600">
+                                        <div class="flex items-center gap-1.5">
+                                            <i data-lucide="calendar-days" class="w-3 h-3 text-[#A88A45] shrink-0"></i>
+                                            <span class="font-bold">${bookingDateFormatted}${b.endDate && b.endDate !== b.startDate ? ' ← ' + endDateFormatted : ''}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <i data-lucide="clock" class="w-3 h-3 text-[#A88A45] shrink-0"></i>
+                                            <span class="font-bold">${b.startTime || 'يوم كامل'}${b.endTime ? ' - ' + b.endTime : ''}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <i data-lucide="user" class="w-3 h-3 text-[#A88A45] shrink-0"></i>
+                                            <span class="font-medium truncate">${b.employee || 'غير محدد'}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <i data-lucide="phone" class="w-3 h-3 text-[#A88A45] shrink-0"></i>
+                                            <span class="font-medium font-mono">${b.phone || 'لا يوجد'}</span>
+                                        </div>
+                                    </div>
+                                    ${b.notes ? `<div class="flex items-start gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-2"><i data-lucide="info" class="w-3 h-3 mt-0.5 shrink-0 text-amber-600"></i><span>${b.notes}</span></div>` : ''}
+                                    ${b.createdBy ? `<div class="text-[10px] font-bold text-slate-400">بواسطة: ${b.createdBy.split('@')[0]}</div>` : ''}
+                                </div>
+                                ` : ''}
+                            </div>
+                            <button onclick="deleteNotification(${idx})" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all" title="حذف هذا الإشعار">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `}).join('');
+            }
+            // Update clear-all button visibility
+            const clearAllBtn = document.getElementById('notif-clear-all-btn');
+            if (clearAllBtn) clearAllBtn.style.display = state.notifications.length > 0 ? 'flex' : 'none';
+            if(typeof lucide!=="undefined") lucide.createIcons();
+        }
+
+        function deleteNotification(idx) {
+            state.notifications.splice(idx, 1);
+            renderNotificationsList();
+            // Update bell badge in header
+            render();
+            // Re-open modal since render() closes it
+            document.getElementById('notificationsModal').classList.remove('hidden');
+        }
+
+        function clearAllNotifications() {
+            state.notifications = [];
+            renderNotificationsList();
+            render();
+            document.getElementById('notificationsModal').classList.remove('hidden');
+        }
+
+        function toggleNotificationsModal() {
+            const modal = document.getElementById('notificationsModal');
+            if(modal.classList.contains('hidden')) {
+                renderNotificationsList();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        // --- Export to Excel ---
+        function exportToExcel() {
+            const bookings = [...state.bookings].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+            const wsData = [
+                ["الرقم المرجعي", "اسم الشركة/الجهة", "القاعة", "من تاريخ", "إلى تاريخ",
+                 "من وقت", "إلى وقت", "رقم الهاتف", "الموظف المسؤول",
+                 "ملاحظات", "الرابط المرفق", "تم الإنشاء بواسطة", "تاريخ الإنشاء"],
+                ...bookings.map(b => [
+                    b.id        || '',
+                    b.companyName || '',
+                    HALLS.find(h => h.id === b.hallId)?.name || b.hallId || '',
+                    b.startDate || '',
+                    b.endDate   || '',
+                    b.startTime || '',
+                    b.endTime   || '',
+                    b.phone     || '',
+                    b.employee  || '',
+                    (b.notes    || '').replace(/\n/g, ' '),
+                    b.link      || '',
+                    b.createdBy || '',
+                    b.createdAt ? b.createdAt.split('T')[0] : ''
+                ])
+            ];
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            ws['!cols'] = [
+                {wch:30},{wch:25},{wch:18},{wch:13},{wch:13},
+                {wch:10},{wch:10},{wch:15},{wch:18},
+                {wch:30},{wch:30},{wch:25},{wch:13}
+            ];
+
+            XLSX.utils.book_append_sheet(wb, ws, 'الحجوزات');
+            XLSX.writeFile(wb, 'Resta_Bookings_ReadOnly_' + new Date().toISOString().slice(0,10) + '.xlsx');
+        }
+
+        function toggleBookingsListModal() {
+            const modal = document.getElementById('bookingsListModal');
+            if (modal.classList.contains('hidden')) {
+                const tbody = document.getElementById('allBookingsTableBody');
+                const today = new Date().toISOString().split('T')[0];
+                const sortedBookings = [...state.bookings]
+                    .filter(b => b.startDate >= today)
+                    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+                if (sortedBookings.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-16 text-slate-400 font-bold bg-white"><div class="flex flex-col items-center justify-center"><i data-lucide="calendar-x" class="w-12 h-12 mb-3 text-slate-300"></i>لا توجد حجوزات قادمة مسجلة في النظام</div></td></tr>';
+                } else {
+                    tbody.innerHTML = sortedBookings.map(b => {
+                        const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
+                        return `
+                            <tr onclick="showDayDetails('${b.startDate}')" class="cursor-pointer hover:bg-slate-50 transition-all border-l-4 border-transparent hover:border-[#A88A45] bg-white group">
+                                <td class="font-bold text-[#6E1418] group-hover:pl-2 transition-all">${b.companyName}</td>
+                                <td><span class="text-xs px-3 py-1.5 rounded-lg font-bold ${hall.color}">${hall.name}</span></td>
+                                <td class="text-slate-600 dir-ltr font-mono text-xs">${b.startDate}</td>
+                                <td class="text-slate-600 dir-ltr font-mono text-xs">${b.endDate}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+                modal.classList.remove('hidden');
+                if(typeof lucide!=="undefined") lucide.createIcons();
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function showDayDetails(dateStr) {
+            let bookings = state.bookings.filter(b => b.startDate === dateStr);
+            if (state.view !== 'dashboard' && state.selectedHall) {
+                bookings = bookings.filter(b => b.hallId === state.selectedHall.id);
+            }
+            if (bookings.length === 0) return;
+
+            const modal = document.getElementById('detailsModal');
+            const content = document.getElementById('modalContent');
+            const title = document.getElementById('modalDateTitle');
+            const hallTitle = document.getElementById('modalHallTitle');
+
+            // Format date for display
+            const displayDateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const prettyDate = new Date(dateStr).toLocaleDateString('ar-EG', displayDateOptions);
+
+            title.innerText = prettyDate;
+            title.dataset.date = dateStr;
+            hallTitle.innerText = state.view === 'dashboard' ? 'سجل حجوزات اليوم لجميع القاعات' : state.selectedHall.name;
+
+            content.innerHTML = bookings.map(b => {
+                const hall = HALLS.find(h => h.id === b.hallId);
+
+                return `
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-5 shadow-sm border-r-4 ${hall.border} relative overflow-hidden group hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+                        <div class="flex justify-between items-start">
+                            <div class="w-full">
+                                <div class="flex items-center justify-between mb-2 w-full">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-black px-3 py-1 rounded-lg ${hall.color}">${hall.name}</span>
+                                    </div>
+                                </div>
+                                <h4 class="font-black text-xl text-[#6E1418] mt-3 mb-4">${b.companyName}</h4>
+                                <div class="grid grid-cols-2 gap-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.startTime || 'يوم كامل'} - ${b.endTime || 'يوم كامل'}</span></div>
+                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${b.employee || 'غير محدد'}</span></div>
+                                    <div class="flex items-center gap-2 col-span-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium font-mono dir-ltr">${b.phone || 'لا يوجد رقم'}</span></div>
+                                </div>
+                                
+                                ${b.notes ? `
+                                <div class="mt-4 p-3 bg-amber-50/50 rounded-xl text-sm text-amber-900 border border-amber-100/50 flex items-start gap-2">
+                                    <i data-lucide="info" class="w-4 h-4 mt-0.5 text-amber-600 shrink-0"></i>
+                                    <p class="leading-relaxed font-medium">${b.notes}</p>
+                                </div>` : ''}
+                                
+                                <div class="mt-4 flex items-center justify-between">
+                                    <div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg">
+                                        <i data-lucide="at-sign" class="w-3 h-3"></i> بواسطة: ${b.createdBy.split('@')[0]}
+                                    </div>
+                                    ${b.link ? `<a href="${b.link}" target="_blank" class="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> المرفقات</a>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            if(typeof lucide!=="undefined") lucide.createIcons();
+            modal.classList.remove('hidden');
+        }
+
+        function closeDetailsModal() {
+            document.getElementById('detailsModal').classList.add('hidden');
+        }
+
+        function navigate(view) {
+            state.view = 'dashboard';
+            state.selectedHall = null;
+            render();
+        }
+
+        function changeMonth(delta) {
+            state.currentMonth += delta;
+            if (state.currentMonth > 11) {
+                state.currentMonth = 0;
+                state.currentYear++;
+            } else if (state.currentMonth < 0) {
+                state.currentMonth = 11;
+                state.currentYear--;
+            }
+            render();
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                ${renderHeader()}
+                <main class="max-w-7xl mx-auto p-4 md:p-8 pb-24 space-y-8 animate-fade-in">
+                    ${renderDashboard()}
+                </main>
+            `;
+            if(typeof lucide!=="undefined") lucide.createIcons();
+        }
+
+        function renderHeader() {
+            return `
+                <header class="glass-panel sticky top-0 z-40 border-b border-slate-200 shadow-sm">
+                    <div class="max-w-7xl mx-auto px-2 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
+                        
+                        <!-- زر الرئيسية -->
+                        <div class="flex items-center cursor-pointer group shrink-0" onclick="navigate('dashboard')" title="الرئيسية">
+                            <div class="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-[#6E1418] to-[#8a1c22] rounded-xl flex items-center justify-center shadow-lg shadow-[#6E1418]/20 group-hover:scale-105 transition-transform">
+                                <i data-lucide="home" class="w-5 h-5 sm:w-6 sm:h-6 text-white"></i>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-1 sm:gap-3 flex-nowrap justify-end">
+                            
+                            <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 ${state.notifications.length > 0 ? 'pb-5' : ''} text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
+                                <i data-lucide="bell" class="w-5 h-5"></i>
+                                ${state.notifications.length > 0 ? `<span class="notification-dot animate-pulse"></span><span class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#6E1418] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap leading-none">${state.notifications.length} إشعارات</span>` : ''}
+                            </button>
+                            
+                            <button onclick="exportToExcel()" class="p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
+                                <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                            </button>
+                            
+                            <!-- زر المزامنة -->
+                            <div class="relative shrink-0" id="syncDropdownContainer">
+                                <button onclick="toggleSyncDropdown(event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="خيارات التحديث">
+                                    <i data-lucide="refresh-cw" class="w-5 h-5 ${state.isSyncing ? 'animate-spin text-[#A88A45]' : ''}"></i>
+                                </button>
+                                <div id="syncDropdown" class="sync-dropdown hidden border border-slate-100">
+                                    <button onclick="fetchFromCloud(); toggleSyncDropdown()">
+                                        <span class="w-8 h-8 rounded-lg bg-[#6E1418]/10 flex items-center justify-center shrink-0">
+                                            <i data-lucide="cloud-download" class="w-4 h-4 text-[#6E1418]"></i>
+                                        </span>
+                                        تحديث البيانات من السحابة
+                                    </button>
+                                    <button onclick="exportToIcal(); toggleSyncDropdown()">
+                                        <span class="w-8 h-8 rounded-lg bg-[#A88A45]/10 flex items-center justify-center shrink-0">
+                                            <i data-lucide="calendar-check" class="w-4 h-4 text-[#A88A45]"></i>
+                                        </span>
+                                        تصدير لـ Google Calendar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+            `;
+        }
+
+        function renderDashboard() {
+            const totalBookings = state.bookings.length;
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayCount = state.bookings.filter(b => b.startDate === todayStr).length;
+            const futureCount = state.bookings.filter(b => b.startDate >= todayStr).length;
+
+            return `
+                <!-- Summary Card -->
+                <div class="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row mb-2">
+                    <div class="bg-gradient-to-br from-[#6E1418] to-[#8a1c22] p-6 text-white md:w-1/3 flex flex-col justify-center relative overflow-hidden">
+                        <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                        <div class="absolute -left-8 -bottom-8 w-24 h-24 bg-[#A88A45]/30 rounded-full blur-xl"></div>
+                        
+                        <h2 class="text-xl font-black mb-1 relative z-10">نظرة عامة سريعة</h2>
+                        <p class="text-sm text-white/70 mb-6 relative z-10 font-medium">إحصائيات الحجوزات لجميع القاعات</p>
+                        
+                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                                <p class="text-xs text-white/80 font-bold mb-1">إجمالي الحجوزات</p>
+                                <p class="text-2xl font-black text-white">${totalBookings}</p>
+                            </div>
+                            <div class="bg-[#A88A45]/30 backdrop-blur-sm rounded-xl p-4 border border-[#A88A45]/50">
+                                <p class="text-xs text-white/80 font-bold mb-1">حجوزات اليوم</p>
+                                <p class="text-2xl font-black text-white">${todayCount}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 p-0 overflow-x-auto">
+                        <table class="w-full text-sm text-right">
+                            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                                <tr>
+                                    <th class="px-6 py-4">القاعة</th>
+                                    <th class="px-6 py-4 text-center">النسبة من الإجمالي</th>
+                                    <th class="px-6 py-4 text-center">الإجمالي</th>
+                                    <th class="px-6 py-4 text-center">القادمة</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${HALLS.map((hall) => {
+                                    const total  = state.bookings.filter(b => b.hallId === hall.id).length;
+                                    const future = state.bookings.filter(b => b.hallId === hall.id && b.startDate >= todayStr).length;
+                                    const pct    = totalBookings > 0 ? Math.round((total / totalBookings) * 100) : 0;
+                                    return `
+                                        <tr class="hover:bg-slate-50/50 transition-colors">
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="flex items-center gap-3">
+                                                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${hall.color}">
+                                                        <i data-lucide="${hall.icon}" class="w-4 h-4"></i>
+                                                    </span>
+                                                    <span class="font-bold text-slate-700">${hall.name}</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 text-center w-1/3">
+                                                <div class="flex items-center gap-3 justify-center">
+                                                    <div class="w-full max-w-[120px] bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+                                                        <div class="bg-[#6E1418] h-2 rounded-full transition-all duration-1000 ease-out" style="width: ${pct}%"></div>
+                                                    </div>
+                                                    <span class="text-xs font-bold text-slate-400 w-8">${pct}%</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 text-center font-black text-slate-700">${total}</td>
+                                            <td class="px-6 py-4 text-center font-black text-emerald-600">${future}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-3 font-bold text-lg group">
+                    <i data-lucide="list-video" class="w-6 h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
+                    <span>عرض جدول الحجوزات القادمة بالتفصيل</span>
+                    <i data-lucide="arrow-left" class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
+                </button>
+
+                <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-8 mt-6">
+                    <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-[#A88A45]/10 rounded-xl flex items-center justify-center text-[#A88A45]">
+                                <i data-lucide="calendar" class="w-5 h-5"></i>
+                            </div>
+                            <h2 class="text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
+                        </div>
+                        <div class="flex bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-sm">
+                            <button onclick="changeMonth(-1)" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                            <span class="px-6 py-2 text-base font-black text-[#6E1418] flex items-center min-w-[140px] justify-center tracking-wide">
+                                ${new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <button onclick="changeMonth(1)" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                        </div>
+                    </div>
+                    ${renderCalendar(true)}
+                </div>
+            `;
+        }
+
+        function renderCalendar(isDashboard) {
+            const year = state.currentYear;
+            const month = state.currentMonth;
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const paddingDays = (firstDayIndex + 1) % 7;
+            const days = [];
+
+            for (let i = 0; i < paddingDays; i++) {
+                days.push('<div class="rounded-xl bg-transparent"></div>');
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                let dayBookings = state.bookings.filter(b => b.startDate === dateStr);
+                
+                if (!isDashboard) {
+                    dayBookings = dayBookings.filter(b => b.hallId === state.selectedHall.id);
+                }
+                
+                dayBookings.sort((a, b) => {
+                    if (!a.startTime) return -1;
+                    if (!b.startTime) return 1;
+                    return a.startTime.localeCompare(b.startTime);
+                });
+
+                const maxVisible = 3;
+                const visibleBookings = dayBookings.slice(0, maxVisible);
+                const extraCount = dayBookings.length - maxVisible;
+                const content = visibleBookings.map(b => {
+                    const hall = HALLS.find(h => h.id === b.hallId);
+                    return `
+                        <div class="booking-tag ${hall.color} ${hall.border}" title="${hall.name}: ${b.companyName}" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; display:flex; max-width:100%;">
+                            <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0"></div>
+                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">${b.companyName}</span>
+                        </div>
+                    `;
+                }).join('') + (extraCount > 0 ? `<div style="font-size:0.65rem; font-weight:800; color:#94a3b8; padding:2px 4px;">+${extraCount} أخرى</div>` : '');
+
+                const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                days.push(`
+                    <div onclick="showDayDetails('${dateStr}')" class="day-cell flex flex-col gap-2 ${isToday ? 'today-active z-10' : ''} cursor-pointer group">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
+                            ${dayBookings.length > 0 ? `<span class="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">${dayBookings.length} حجوزات</span>` : ''}
+                        </div>
+                        <div class="flex flex-col gap-1 overflow-hidden flex-1">
+                            ${content}
+                        </div>
+                    </div>
+                `);
+            }
+
+            const weekDays = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+            return `
+                <div class="calendar-scroll-wrapper">
+                    <div class="calendar-fixed-width">
+                        <div style="display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:6px; padding:0 6px; margin-bottom:0.75rem;">
+                            ${weekDays.map(d => `<div class="text-center text-sm font-black text-slate-400 py-2 uppercase tracking-wider" style="overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">${d}</div>`).join('')}
+                        </div>
+                        <div class="calendar-grid shadow-inner border border-slate-100">
+                            ${days.join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ─── Sync Dropdown ────────────────────────────────────────────────
+        function toggleSyncDropdown(e) {
+            if (e) e.stopPropagation();
+            const dd = document.getElementById('syncDropdown');
+            if (dd) dd.classList.toggle('hidden');
+        }
+
+        // ─── Export to iCal (Google Calendar) ────────────────────────────
+        function exportToIcal() {
+            if (state.bookings.length === 0) {
+                showToast('لا توجد حجوزات لتصديرها', 'error');
+                return;
+            }
+
+            const seen = new Set();
+            const unique = state.bookings.filter(b => {
+                const key = b.groupId || b.id.toString().split('_d')[0];
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+
+            const events = unique.map(b => {
+                const hall = HALLS.find(h => h.id === b.hallId);
+                const summary = `${hall ? hall.name : b.hallId} - ${b.companyName}`;
+
+                let startDateStr = b.startDate;
+                let endDateStr   = b.endDate || b.startDate;
+                if (b.originalRange && b.originalRange.includes(' to ')) {
+                    const parts  = b.originalRange.split(' to ');
+                    startDateStr = parts[0];
+                    endDateStr   = parts[1];
+                }
+
+                const endPlusOne = new Date(endDateStr);
+                endPlusOne.setDate(endPlusOne.getDate() + 1);
+                const endPlusStr = endPlusOne.toISOString().split('T')[0].replace(/-/g,'');
+                const startClean = startDateStr.replace(/-/g,'');
+                const uid = 'RESTA-' + b.id.toString().replace(/[^a-zA-Z0-9]/g,'').slice(0, 20);
+
+                let dtStart, dtEnd;
+                if (b.startTime) {
+                    const st = b.startTime.replace(':','') + '00';
+                    const et = (b.endTime || b.startTime).replace(':','') + '00';
+                    dtStart = `DTSTART;TZID=Africa/Cairo:${startClean}T${st}`;
+                    dtEnd   = `DTEND;TZID=Africa/Cairo:${startClean}T${et}`;
+                } else {
+                    dtStart = `DTSTART;VALUE=DATE:${startClean}`;
+                    dtEnd   = `DTEND;VALUE=DATE:${endPlusStr}`;
+                }
+
+                const descParts = [
+                    b.employee ? 'الموظف: ' + b.employee : '',
+                    b.phone    ? 'هاتف: '    + b.phone    : '',
+                    b.notes    ? 'ملاحظات: ' + b.notes    : '',
+                    'بواسطة: ' + b.createdBy
+                ].filter(Boolean);
+
+                return [
+                    'BEGIN:VEVENT',
+                    'UID:' + uid + '@resta-events',
+                    'DTSTAMP:' + new Date().toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z',
+                    dtStart,
+                    dtEnd,
+                    'SUMMARY:' + summary.replace(/[\r\n,;\\]/g,' '),
+                    descParts.length ? 'DESCRIPTION:' + descParts.join('\n') : '',
+                    hall ? 'LOCATION:' + hall.name : '',
+                    'END:VEVENT'
+                ].filter(Boolean).join('\r\n');
+            });
+
+            const ical = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//Resta Hotels//Events Booking//AR',
+                'CALSCALE:GREGORIAN',
+                'METHOD:PUBLISH',
+                'X-WR-CALNAME:Resta Events - Port Said',
+                'X-WR-TIMEZONE:Africa/Cairo',
+                ...events,
+                'END:VCALENDAR'
+            ].join('\r\n');
+
+            const blob = new Blob(['\uFEFF' + ical], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'RestaEvents_ReadOnly_' + new Date().toISOString().slice(0,10) + '.ics';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('تم تصدير ' + unique.length + ' حجز! استورد الملف في Google Calendar', 'success');
+        }
+
+    </script>
+</body>
+</html>
