@@ -978,6 +978,8 @@
 
         async function checkConnection() {
             if (!CLOUD_URL) { setConnectionStatus(false); return; }
+            // لو المزامنة شغالة دلوقتي، متعملش فحص منفصل (تجنبًا لتضارب الطلبات على نفس الرابط)
+            if (state.isSyncing) return;
             try {
                 const res = await fetch(`${CLOUD_URL}?t=${Date.now()}`, { method: 'GET', cache: 'no-store' });
                 setConnectionStatus(!!res.ok);
@@ -1160,10 +1162,12 @@
                 }
 
                 if (!isSilent) showSync("تمت المزامنة بنجاح ✓");
+                setConnectionStatus(true);
 
             } catch (e) {
                 console.error("Sync Error:", e);
                 if (!isSilent) showSync("فشل المزامنة: " + e.message, true);
+                setConnectionStatus(false);
             }
 
             state.isSyncing = false;
