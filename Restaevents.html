@@ -815,6 +815,9 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const CLOUD_ENABLED = true; // Firebase مفعّل دائماً (بديل عن فحص وجود رابط GAS القديم)
+        // آخر قيمة معروفة لـ meta/updatedAt — تُستخدم في الاشتراك اللحظي لتفادي إعادة
+        // مزامنة غير ضرورية عندما يكون التغيير صادراً من كتابتنا نحن أنفسنا
+        let _lastKnownUpdatedAt = null;
 
         const ADMIN_EMAIL = "salama.m@gmail.com";
 
@@ -854,6 +857,7 @@
                 db.ref('users').set(usersForCloud),
                 db.ref('meta/updatedAt').set(now)
             ]);
+            _lastKnownUpdatedAt = now; // تسجيل فوري لتفادي إعادة مزامنة ذاتية عند وصول حدث المستمع اللحظي
             return now;
         }
 
@@ -934,7 +938,8 @@
         // --- Core Functions ---
         window.onload = () => {
             init();
-            setInterval(autoSync, SYNC_INTERVAL);
+            // تم استبدال الفحص الدوري (setInterval كل SYNC_INTERVAL) بالاشتراك اللحظي
+            // على meta/updatedAt — يتم تفعيله داخل init() / performLogin() عبر setupRealtimeSync()
             // Close sync dropdown on outside click
             document.addEventListener('click', function(e) {
                 const container = document.getElementById('syncDropdownContainer');
@@ -996,7 +1001,7 @@
                 document.getElementById('loginModal').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
                 render();
-                if(CLOUD_ENABLED) loadFromCloud();
+                if(CLOUD_ENABLED) setupRealtimeSync();
             }
         }
 
@@ -1211,6 +1216,29 @@
             await syncToCloud(isSilent);
         }
 
+        // ─── الاشتراك اللحظي في تحديثات السحابة ─────────────────────────
+        // يحل محل "تحميل مرة واحدة + فحص دوري كل SYNC_INTERVAL": بدل السؤال عن
+        // وجود تحديث كل عدة ثوانٍ، نستمع مباشرة لتغيّر meta/updatedAt في Firebase،
+        // فتتم المزامنة فوراً عند أي تغيير حقيقي فقط (من نفس المستخدم على جهاز آخر
+        // أو من مستخدم آخر)، مع تجاهل الأصداء الناتجة عن كتابتنا نحن أنفسنا.
+        function setupRealtimeSync() {
+            if (!CLOUD_ENABLED) return;
+            db.ref('meta/updatedAt').on('value', (snap) => {
+                const newVal = snap.val();
+                if (newVal === _lastKnownUpdatedAt) return; // نفس القيمة (غالباً صدى كتابتنا) — تجاهل
+                _lastKnownUpdatedAt = newVal;
+                if (state.isSyncing) {
+                    state._syncPending = true;
+                    return;
+                }
+                syncToCloud(true);
+            });
+        }
+
+        function teardownRealtimeSync() {
+            db.ref('meta/updatedAt').off('value');
+        }
+
         function saveLocal() {
             // ارفع العداد أولاً — يُبطل أي دورة مزامنة جارية كانت بدأت قبل هذه العملية
             state._opsVersion++;
@@ -1409,7 +1437,7 @@
             document.getElementById('loginModal').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             render();
-            if (CLOUD_ENABLED) loadFromCloud();
+            if (CLOUD_ENABLED) setupRealtimeSync();
         }
 
         function loginAsGuest() {
@@ -1417,6 +1445,7 @@
         }
 
         function logout() {
+            if (CLOUD_ENABLED) teardownRealtimeSync();
             state.currentUserEmail = '';
             state.isLoggedIn = false;
             localStorage.removeItem('hotel_app_email');
