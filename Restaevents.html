@@ -922,6 +922,7 @@
             activityLogs: JSON.parse(localStorage.getItem('hotel_logs_local')) || [],
             pendingDeletions: JSON.parse(localStorage.getItem('hotel_deleted_ids')) || [],
             pendingDeletedUsers: JSON.parse(localStorage.getItem('hotel_deleted_users')) || [],
+            dirtyUserEmails: JSON.parse(localStorage.getItem('hotel_dirty_users')) || [],
             notifications: JSON.parse(localStorage.getItem('hotel_notifications')) || [], 
             currentMonth: new Date().getMonth(),
             currentYear: new Date().getFullYear(),
@@ -964,6 +965,7 @@
             } else {
                 state.users.push({ email: ADMIN_EMAIL, password: ADMIN_PASS, createdAt: new Date().toISOString() });
                 saveUsers();
+                markUserDirty(ADMIN_EMAIL);
             }
 
             // تنظيف لمرة واحدة: حذف جميع الحسابات والإبقاء فقط على الحسابات المسموح بها
@@ -1007,6 +1009,16 @@
 
         function saveUsers() {
             localStorage.setItem('hotel_users_db', JSON.stringify(state.users));
+        }
+
+        // يعلّم مستخدم معيّن كـ"معدَّل محليًا" (إضافة/تغيير باسورد) عشان يتبعت فعليًا للسحابة
+        // في المزامنة الجاية، بدل الاعتماد على استنتاج الفرق بين القوائم
+        function markUserDirty(email) {
+            if (!state.dirtyUserEmails.includes(email)) {
+                state.dirtyUserEmails.push(email);
+            }
+            state._opsVersion++;
+            localStorage.setItem('hotel_dirty_users', JSON.stringify(state.dirtyUserEmails));
         }
 
         function showSync(text = "جاري المزامنة...", isError = false) {
@@ -1068,12 +1080,27 @@
                 const serverLogs     = serverData.logs     || [];
                 const serverUsers    = serverData.users    || [];
 
-                // مستخدمون مضافون محليًا وغير موجودين على السحابة بعد (يجب رفعهم)
-                const serverEmailsSet = new Set(serverUsers.map(su => su.email));
-                const hasNewLocalUsers = state.users.some(u => !serverEmailsSet.has(u.email));
-                const shouldPushUsers = hasPendingChanges || hasNewLocalUsers;
+                // ── حماية: لو حساب المستخدم الحالي اتحذف من مكان تاني (السيرفر ما عادش فيه إيميله) ──
+                // نعمل له تسجيل خروج فوري بدل ما نسيبه شغال بحساب محذوف، ونمنع أي رفع بيانات لحسابه
+                const serverEmailsSetCheck = new Set(serverUsers.map(su => su.email));
+                if (state.currentUserEmail && state.currentUserEmail !== GUEST_EMAIL &&
+                    state.currentUserEmail !== ADMIN_EMAIL && !serverEmailsSetCheck.has(state.currentUserEmail)) {
+                    state.isSyncing = false;
+                    showToast('تم حذف حسابك من قبل المدير. سيتم تسجيل خروجك.', 'error');
+                    setTimeout(logout, 1000);
+                    return;
+                }
+
+                // مستخدمون تم تعديلهم محليًا (إضافة جديدة أو تغيير باسورد) عبر action صريح
+                // بنعتمد على قائمة صريحة (dirtyUserEmails) بدل استنتاج "الفرق" بين القوائم،
+                // عشان أي جهاز (حتى جهاز الأدمن نفسه لو فاتح من كذا متصفح) ولسه شايل نسخة محلية
+                // قديمة، ميرجّعش يبعت مستخدمين اتحذفوا من جهاز تاني للسحابة تاني من غير قصد
+                const pendingUserChanges = [...(state.dirtyUserEmails || [])];
+                const hasPendingUserChanges = pendingUserChanges.length > 0;
+                const shouldPushUsers = hasPendingChanges || hasPendingUserChanges;
 
                 let finalBookings;
+                let usersForCloud;
 
                 if (shouldPushUsers) {
                     const bookingsMap = new Map(serverBookings.map(b => [String(b.id), b]));
@@ -1085,19 +1112,20 @@
                     pendingDels.forEach(id => bookingsMap.delete(String(id)));
                     finalBookings = Array.from(bookingsMap.values());
 
-                    // ── حذف المستخدمين نهائياً من السحابة ──
-                    // نبني قائمة المستخدمين النهائية بحيث:
-                    // 1. نأخذ المستخدمين المحليين (بعد الحذف)
-                    // 2. نضيف أي مستخدم من السحابة غير موجود محلياً وغير محذوف
-                    // 3. لا نُضيف أي مستخدم في قائمة pendingDelUsers نهائياً
+                    // ── بناء قائمة المستخدمين اللي هتتبعت للسحابة ──
+                    // الأساس هو قائمة السحابة نفسها (المصدر الموثوق)، وفوقها بس بنطبّق:
+                    // 1. حذف المستخدمين اللي في pendingDelUsers
+                    // 2. تحديث/إضافة المستخدمين اللي فعليًا اتغيّروا محليًا (pendingUserChanges)
+                    // كده أي مستخدم تاني موجود محليًا بس ملوش تغيير صريح، مش هيتبعت تاني للسحابة
                     const deletedUsersSet = new Set(pendingDelUsers);
-                    const localEmails = new Set(state.users.map(u => u.email));
-                    const usersForCloud = [...state.users];
-                    serverUsers.forEach(su => {
-                        if (!deletedUsersSet.has(su.email) && !localEmails.has(su.email)) {
-                            usersForCloud.push(su);
-                        }
+                    const usersMap = new Map(serverUsers.map(su => [su.email, su]));
+                    deletedUsersSet.forEach(email => usersMap.delete(email));
+                    pendingUserChanges.forEach(email => {
+                        if (deletedUsersSet.has(email)) return;
+                        const localUser = state.users.find(u => u.email === email);
+                        if (localUser) usersMap.set(email, localUser);
                     });
+                    usersForCloud = Array.from(usersMap.values());
 
                     await pushCloudSnapshot(
                         finalBookings,
@@ -1141,25 +1169,21 @@
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
                 // ── بناء القائمة النهائية للمستخدمين بعد المزامنة ──
-                // لا نستخدم mergeUsers هنا لأن pendingDeletedUsers سيُصفَّر بعد هذا مباشرة
-                // بدلاً من ذلك نعتمد على state.users المحدّثة (بعد الحذف) كمصدر موثوق
-                const deletedUsersSetFinal = new Set(state.pendingDeletedUsers || []);
-                const localEmailsFinal = new Set(state.users.map(u => u.email));
-                const finalUsers = [...state.users];
-                serverUsers.forEach(su => {
-                    if (!deletedUsersSetFinal.has(su.email) && !localEmailsFinal.has(su.email)) {
-                        finalUsers.push(su);
-                    }
-                });
+                // السحابة هي المصدر الموثوق دايمًا. لو كنا بعتنا تعديلات (shouldPushUsers)
+                // فالقائمة اللي اتبعتت (usersForCloud) هي الصح، وإلا فقائمة السحابة نفسها كما هي.
+                // كده أي نسخة محلية قديمة (فيها مستخدم متحذف من جهاز تاني) بتتصفّى تلقائيًا بعد كل مزامنة
+                const finalUsers = shouldPushUsers ? usersForCloud : serverUsers;
 
                 state.bookings          = finalBookings;   
                 state.pendingDeletions  = [];
                 state.pendingDeletedUsers = [];
+                state.dirtyUserEmails    = [];
                 state.activityLogs      = finalLogs;
                 state.users             = finalUsers;
 
                 localStorage.setItem('hotel_deleted_ids', JSON.stringify([]));
                 localStorage.setItem('hotel_deleted_users', JSON.stringify([]));
+                localStorage.setItem('hotel_dirty_users', JSON.stringify([]));
                 saveLocalStateOnly();
 
                 if (!(state.view === 'hall_detail' && state.activeTab === 'form')) {
@@ -1511,6 +1535,7 @@
                 const userIndex = state.users.findIndex(u => u.email === email);
                 if(userIndex !== -1) {
                     state.users[userIndex].password = newPass.trim();
+                    markUserDirty(email);
                     saveUsers();
                     syncToCloud();
                     renderUsersTable();
@@ -1548,6 +1573,7 @@
 
             // Create user
             state.users.push({ email: email, password: password, createdAt: new Date().toISOString() });
+            markUserDirty(email);
             saveUsers();
             syncToCloud();
             renderUsersTable();
