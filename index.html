@@ -896,6 +896,13 @@
         function getDefaultEmployeeName() {
             return DEFAULT_EMPLOYEE_BY_EMAIL[(state.currentUserEmail || '').toLowerCase()] || '';
         }
+        // ─── اسم المستخدم الحالي المعروض في الواجهة (أو "زائر" في وضع الزيارة) ────
+        function getCurrentUserDisplayName() {
+            if (isGuest()) return 'زائر';
+            const mappedName = DEFAULT_EMPLOYEE_BY_EMAIL[(state.currentUserEmail || '').toLowerCase()];
+            if (mappedName) return mappedName;
+            return state.currentUserEmail || 'زائر';
+        }
         const LOGO_PATH = "./001.png"; 
         const SYNC_INTERVAL = 10000; 
 
@@ -2389,7 +2396,7 @@ ${notesDisplay ? `
                         <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
                         <div class="absolute -left-8 -bottom-8 w-24 h-24 bg-[#A88A45]/30 rounded-full blur-xl"></div>
                         
-                        <h2 class="text-xl font-black mb-1 relative z-10">نظرة عامة سريعة</h2>
+                        <h2 class="text-xl font-black mb-1 relative z-10">${getCurrentUserDisplayName()}</h2>
                         <p class="text-sm text-white/70 mb-6 relative z-10 font-medium">إحصائيات الحجوزات لجميع القاعات</p>
                         
                         <div class="grid grid-cols-2 gap-4 relative z-10">
