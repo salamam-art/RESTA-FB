@@ -2208,6 +2208,9 @@
                                         ${b.createdAt ? `<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg"><i data-lucide="calendar-clock" class="w-3 h-3"></i> تاريخ الإنشاء: ${new Date(b.createdAt).toLocaleDateString('ar-EG', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>` : ''}
                                     </div>
                                     ${b.link ? `<a href="${b.link}" target="_blank" class="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> المرفقات</a>` : ''}
+                                    <button onclick="emailBooking('${b.id}')" class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-white hover:bg-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-100">
+                                        <i data-lucide="mail" class="w-3.5 h-3.5"></i> إرسال بالبريد
+                                    </button>
                                     <button onclick="printSingleBooking('${b.id}')" class="inline-flex items-center gap-1 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#6E1418]/10">
                                         <i data-lucide="printer" class="w-3.5 h-3.5"></i> طباعة تفاصيل الحجز
                                     </button>
@@ -2472,6 +2475,80 @@ ${notesDisplay ? `
             win.document.close();
         }
 
+        // --- Email Booking Details ---
+        const BOOKING_EMAIL_RECIPIENTS = [
+            'Ayman.Eltabey@restahotels.com',
+            'islam.farhood@restahotels.com',
+            'Metwally.Khalil@restahotels.com',
+            'mohamed.zaki@restahotels.com',
+            'waleed.fahmy@restahotels.com'
+        ];
+
+        function emailBooking(bookingId) {
+            const b = state.bookings.find(x => x.id == bookingId || x.id === bookingId);
+            if (!b) {
+                showToast('لم يتم العثور على بيانات الحجز', 'error');
+                return;
+            }
+
+            const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف' };
+
+            // تحديد نطاق التاريخ الفعلي (بنفس منطق الطباعة)
+            let startDate = b.startDate, endDate = b.endDate || b.startDate;
+            if (b.originalRange && b.originalRange.includes(' to ')) {
+                const p = b.originalRange.split(' to ');
+                startDate = p[0]; endDate = p[1];
+            } else {
+                const gKey = b.groupId || b.id.toString().split('_d')[0];
+                const groupDays = state.bookings
+                    .filter(x => (x.groupId === gKey) || (x.id === gKey))
+                    .map(x => x.startDate).sort();
+                if (groupDays.length > 0) {
+                    startDate = groupDays[0];
+                    endDate   = groupDays[groupDays.length - 1];
+                }
+            }
+
+            const fmtDate = d => d ? d.split('-').reverse().join('/') : '-';
+            const dateRow = (startDate !== endDate)
+                ? `${fmtDate(startDate)} إلى ${fmtDate(endDate)}`
+                : fmtDate(startDate);
+
+            const timeDisplay = (b.startTime && b.endTime)
+                ? `${b.startTime} - ${b.endTime}`
+                : (b.startTime || 'يوم كامل');
+
+            const createdAtDisplay = b.createdAt
+                ? new Date(b.createdAt).toLocaleDateString('ar-EG', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})
+                : '-';
+
+            const lines = [
+                'تفاصيل الحجز - رستا بورسعيد',
+                '----------------------------------------',
+                `الشركة / الجهة: ${b.companyName || '-'}`,
+                `القاعة: ${hall.name}`,
+                `التاريخ: ${dateRow}`,
+                `الوقت: ${timeDisplay}`,
+                `الموظف المسؤول: ${b.employee || 'غير محدد'}`,
+                `رقم الهاتف: ${b.phone || 'لا يوجد رقم'}`,
+                `تم الإنشاء بواسطة: ${(b.createdBy || '-').split('@')[0]}`,
+                `تاريخ الإنشاء: ${createdAtDisplay}`,
+            ];
+
+            if (b.notes) {
+                lines.push('', `ملاحظات: ${b.notes}`);
+            }
+
+            if (b.link) {
+                lines.push('', 'مرفقات (رابط):', b.link);
+            }
+
+            const subject = `تفاصيل الحجز - ${b.companyName || ''} - ${hall.name}`;
+            const body = lines.join('\n');
+
+            const mailtoUrl = `mailto:${BOOKING_EMAIL_RECIPIENTS.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.location.href = mailtoUrl;
+        }
 
         function cancelEdit() {
             state.editingBookingId = null;
@@ -2595,7 +2672,7 @@ ${notesDisplay ? `
                         <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
                         <div class="absolute -left-8 -bottom-8 w-24 h-24 bg-[#A88A45]/30 rounded-full blur-xl"></div>
                         
-                        <h2 class="text-xl font-black mb-1 relative z-10">نظرة عامة سريعة</h2>
+                        <h2 class="text-xl font-black mb-1 relative z-10">${isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر')}</h2>
                         <p class="text-sm text-white/70 mb-6 relative z-10 font-medium">إحصائيات الحجوزات لجميع القاعات</p>
                         
                         <div class="grid grid-cols-2 gap-4 relative z-10">
