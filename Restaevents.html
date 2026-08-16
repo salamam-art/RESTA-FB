@@ -199,10 +199,26 @@
         }
         .booking-tag[draggable="true"] {
             cursor: grab;
+            /* يمنع المتصفح من التقاط اللمسة الطويلة لنفسه (تحديد نص / سحب أصلي / سكرول)
+               عشان كود اللمس بتاعنا يقدر يمسك السحب كامل من غير ما يتلغي فجأة */
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
         .booking-tag.dragging {
             opacity: 0.35;
             cursor: grabbing;
+        }
+
+        /* Touch drag ghost (mobile long-press drag) */
+        .touch-drag-ghost {
+            position: fixed;
+            z-index: 9999;
+            pointer-events: none;
+            transform: translate(-50%, -130%) scale(1.06);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+            opacity: 0.95;
         }
 
         /* Drag & Drop day-cell target highlight */
@@ -1846,6 +1862,179 @@
             });
         }
 
+        // ─── Touch-based Drag & Drop (Mobile long-press) ──────────────────
+        // HTML5's native drag events don't work reliably via touch on mobile
+        // browsers, so this reimplements the same "move booking to another
+        // day" behavior using touchstart/touchmove/touchend + a long-press,
+        // reusing moveBookingToDate() so the underlying logic stays identical.
+        let touchDragId = null;
+        let touchDragTimer = null;
+        let touchDragActive = false;
+        let touchStartX = 0, touchStartY = 0;
+        let touchGhostEl = null;
+        let touchCurrentDayCell = null;
+        let touchSourceEl = null;
+
+        const TOUCH_LONG_PRESS_MS = 350;
+        const TOUCH_MOVE_TOLERANCE = 10;
+
+        function clearTouchDragTimer() {
+            if (touchDragTimer) {
+                clearTimeout(touchDragTimer);
+                touchDragTimer = null;
+            }
+        }
+
+        function handleBookingTouchStart(e, id) {
+            const booking = state.bookings.find(b => b.id === id);
+            const canDrag = booking && (state.currentUserEmail === ADMIN_EMAIL || booking.createdBy === state.currentUserEmail);
+            if (!canDrag) return;
+
+            const touch = e.touches[0];
+            if (!touch) return;
+
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            touchDragId = id;
+            touchDragActive = false;
+            touchSourceEl = e.currentTarget;
+            clearTouchDragTimer();
+
+            // نلغي قدرة العنصر على بدء سحب HTML5 الأصلي أثناء اللمس، لأن
+            // كروم/إيدج على أندرويد بيحاولوا ياخدوا التحكم في اللمسة الطويلة
+            // لأنفسهم (سحب أصلي/تحديد) ده بيلغي لمساتنا فجأة (touchcancel)
+            // وبيرجّع العنصر مكانه. بنرجّع draggable=true تاني بعد ما اللمس يخلص
+            // عشان السحب بالماوس على الديسكتوب يفضل شغال زي ما هو.
+            touchSourceEl.setAttribute('draggable', 'false');
+
+            touchDragTimer = setTimeout(() => {
+                touchDragTimer = null;
+                startTouchDrag(touch.clientX, touch.clientY);
+            }, TOUCH_LONG_PRESS_MS);
+        }
+
+        function startTouchDrag(x, y) {
+            if (!touchDragId || !touchSourceEl) return;
+            touchDragActive = true;
+            touchSourceEl.classList.add('dragging');
+
+            if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
+
+            touchGhostEl = touchSourceEl.cloneNode(true);
+            touchGhostEl.classList.add('touch-drag-ghost');
+            touchGhostEl.style.width = touchSourceEl.offsetWidth + 'px';
+            document.body.appendChild(touchGhostEl);
+            positionTouchGhost(x, y);
+        }
+
+        function positionTouchGhost(x, y) {
+            if (!touchGhostEl) return;
+            touchGhostEl.style.left = x + 'px';
+            touchGhostEl.style.top = y + 'px';
+        }
+
+        function restoreTouchDraggable() {
+            if (touchSourceEl) touchSourceEl.setAttribute('draggable', 'true');
+        }
+
+        function handleBookingTouchMove(e) {
+            if (!touchDragId) return;
+            const touch = e.touches[0];
+            if (!touch) return;
+
+            if (!touchDragActive) {
+                // لسه مستنيين الضغطة المطولة تكتمل - لو المستخدم حرّك إصبعه
+                // بشكل واضح، يبقى غالبًا بيعمل سكرول عادي، فنلغي محاولة السحب
+                const dx = Math.abs(touch.clientX - touchStartX);
+                const dy = Math.abs(touch.clientY - touchStartY);
+                if (dx > TOUCH_MOVE_TOLERANCE || dy > TOUCH_MOVE_TOLERANCE) {
+                    clearTouchDragTimer();
+                    restoreTouchDraggable();
+                    touchDragId = null;
+                    touchSourceEl = null;
+                }
+                return;
+            }
+
+            // وضع السحب الفعلي: امنع سكرول الصفحة الافتراضي وحرّك العنصر الوهمي
+            e.preventDefault();
+            positionTouchGhost(touch.clientX, touch.clientY);
+            dragPointerY = touch.clientY;
+            startDragAutoScroll();
+
+            const elUnder = document.elementFromPoint(touch.clientX, touch.clientY);
+            const dayCell = elUnder ? elUnder.closest('.day-cell[data-date]') : null;
+            const navBtn = elUnder ? elUnder.closest('[data-month-nav]') : null;
+
+            if (navBtn) {
+                if (touchCurrentDayCell) { touchCurrentDayCell.classList.remove('drag-over'); touchCurrentDayCell = null; }
+                if (!navBtn.classList.contains('drag-over')) {
+                    document.querySelectorAll('[data-month-nav].drag-over').forEach(b => b.classList.remove('drag-over'));
+                    navBtn.classList.add('drag-over');
+                }
+                if (!monthSwitchTimer) {
+                    const delta = parseInt(navBtn.getAttribute('data-month-nav'), 10);
+                    monthSwitchTimer = setTimeout(() => {
+                        monthSwitchTimer = null;
+                        if (touchDragActive) changeMonth(delta);
+                    }, 650);
+                }
+                return;
+            }
+
+            document.querySelectorAll('[data-month-nav].drag-over').forEach(b => b.classList.remove('drag-over'));
+            clearMonthSwitchTimer();
+
+            if (dayCell !== touchCurrentDayCell) {
+                if (touchCurrentDayCell) touchCurrentDayCell.classList.remove('drag-over');
+                touchCurrentDayCell = dayCell;
+                if (touchCurrentDayCell) touchCurrentDayCell.classList.add('drag-over');
+            }
+        }
+
+        function cleanupTouchDrag() {
+            if (touchGhostEl) { touchGhostEl.remove(); touchGhostEl = null; }
+            restoreTouchDraggable();
+            document.querySelectorAll('.booking-tag.dragging').forEach(elx => elx.classList.remove('dragging'));
+            if (touchCurrentDayCell) touchCurrentDayCell.classList.remove('drag-over');
+            touchCurrentDayCell = null;
+            document.querySelectorAll('[data-month-nav].drag-over').forEach(b => b.classList.remove('drag-over'));
+            clearMonthSwitchTimer();
+            touchDragActive = false;
+            touchDragId = null;
+            touchSourceEl = null;
+            stopDragAutoScroll();
+        }
+
+        function handleBookingTouchEnd(e) {
+            clearTouchDragTimer();
+
+            if (!touchDragActive) {
+                restoreTouchDraggable();
+                touchDragId = null;
+                touchSourceEl = null;
+                return;
+            }
+
+            const id = touchDragId;
+            const dayCell = touchCurrentDayCell;
+            cleanupTouchDrag();
+
+            if (dayCell && id) {
+                const newDate = dayCell.getAttribute('data-date');
+                if (newDate) moveBookingToDate(id, newDate);
+            }
+
+            // امنع الـ "click" الوهمي اللي بيولّده المتصفح بعد اللمس، عشان
+            // منفتحش تفاصيل اليوم بالغلط بعد إتمام عملية السحب
+            e.preventDefault();
+        }
+
+        function handleBookingTouchCancel() {
+            clearTouchDragTimer();
+            cleanupTouchDrag();
+        }
+
         function handleBookingSubmit(e) {
             e.preventDefault();
             const form = e.target;
@@ -2773,11 +2962,11 @@ ${notesDisplay ? `
                             <h2 class="text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
                         </div>
                         <div class="flex bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-sm">
-                            <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                            <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="-1" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
                             <span class="px-6 py-2 text-base font-black text-[#6E1418] flex items-center min-w-[140px] justify-center tracking-wide">
                                 ${new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' })} (شهر ${state.currentMonth + 1})
                             </span>
-                            <button onclick="changeMonth(1)" ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <button onclick="changeMonth(1)" ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="1" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
                         </div>
                     </div>
                     ${renderCalendar(true)}
@@ -2828,7 +3017,11 @@ ${notesDisplay ? `
                              title="${hall.name}: ${b.companyName}${canDrag ? ' (اسحب لنقل الحجز ليوم آخر)' : ''}"
                              draggable="${canDrag}"
                              ondragstart="${canDrag ? `handleBookingDragStart(event, '${b.id}')` : ''}"
-                             ondragend="${canDrag ? 'handleBookingDragEnd(event)' : ''}">
+                             ondragend="${canDrag ? 'handleBookingDragEnd(event)' : ''}"
+                             ontouchstart="${canDrag ? `handleBookingTouchStart(event, '${b.id}')` : ''}"
+                             ontouchmove="${canDrag ? 'handleBookingTouchMove(event)' : ''}"
+                             ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
+                             ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
                             <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" style="min-width:6px;"></div>
                             <span>${b.companyName}</span>
                         </div>
@@ -2845,6 +3038,7 @@ ${notesDisplay ? `
                          ondragover="handleDayDragOver(event)"
                          ondragleave="handleDayDragLeave(event)"
                          ondrop="handleDayDrop(event, '${dateStr}')"
+                         data-date="${dateStr}"
                          class="day-cell ${isToday ? 'today-active z-10' : ''} cursor-pointer group">
                         <div class="flex items-center justify-between mb-1" style="flex-shrink:0;">
                             <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
