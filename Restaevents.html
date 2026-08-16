@@ -197,14 +197,20 @@
             opacity: 1; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
         }
-        .booking-tag[draggable="true"] {
-            cursor: grab;
+        .booking-tag[draggable] {
             /* يمنع المتصفح من التقاط اللمسة الطويلة لنفسه (تحديد نص / سحب أصلي / سكرول)
-               عشان كود اللمس بتاعنا يقدر يمسك السحب كامل من غير ما يتلغي فجأة */
+               عشان كود اللمس بتاعنا يقدر يمسك السحب كامل من غير ما يتلغي فجأة.
+               مهم: نستخدم [draggable] مش [draggable="true"] لأن كود اللمس بيغيّر
+               draggable لـ false مؤقتاً أثناء السحب، ولو الحماية مربوطة بـ "true"
+               فقط، هتختفي بالظبط في اللحظة اللي محتاجينها فيها فتظهر قائمة
+               تحديد النص الأصلية بدل السحب. */
             touch-action: none;
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
+        }
+        .booking-tag[draggable="true"] {
+            cursor: grab;
         }
         .booking-tag.dragging {
             opacity: 0.35;
@@ -996,6 +1002,11 @@
                 if (dd && container && !container.contains(e.target)) {
                     dd.classList.add('hidden');
                 }
+                const moreContainer = document.getElementById('moreMenuContainer');
+                const moreDd = document.getElementById('moreMenuDropdown');
+                if (moreDd && moreContainer && !moreContainer.contains(e.target)) {
+                    moreDd.classList.add('hidden');
+                }
             });
 
             // تمرير تلقائي للصفحة لأعلى/لأسفل أثناء سحب حجز (يفيد خصوصاً على الموبايل
@@ -1673,6 +1684,10 @@
 
         // ─── Drag & Drop: Move a booking to another day ──────────────────
         let draggedBookingId = null;
+        // ─── Undo/Redo لعمليات نقل الحجوزات (سحب وإفلات) ──────────────────
+        let moveUndoStack = [];
+        let moveRedoStack = [];
+        const MOVE_HISTORY_LIMIT = 50;
         let monthSwitchTimer = null;
         let dragAutoScrollRAF = null;
         let dragPointerY = null;
@@ -1795,7 +1810,7 @@
             moveBookingToDate(id, newDate);
         }
 
-        function moveBookingToDate(id, newDate) {
+        function moveBookingToDate(id, newDate, _skipHistory) {
             const booking = state.bookings.find(b => b.id === id);
             if (!booking) return;
 
@@ -1817,6 +1832,12 @@
             const oldDate = booking.startDate;
             booking.startDate = newDate;
             booking._isDirty = true;
+
+            if (!_skipHistory) {
+                moveUndoStack.push({ id, oldDate, newDate });
+                if (moveUndoStack.length > MOVE_HISTORY_LIMIT) moveUndoStack.shift();
+                moveRedoStack = [];
+            }
 
             // إبقاء نطاق العرض متزامناً مع أيام المجموعة الفعلية
             const groupId = booking.groupId || booking.id;
@@ -1848,6 +1869,41 @@
             render();
         }
 
+        function performUndo() {
+            if (!moveUndoStack.length) return;
+            const action = moveUndoStack[moveUndoStack.length - 1];
+            const booking = state.bookings.find(b => b.id === action.id);
+            if (!booking || booking.startDate !== action.newDate) {
+                // الحجز اتغيّر أو اتحذف من وقتها، نلغي هذه العملية من السجل
+                moveUndoStack.pop();
+                render();
+                return;
+            }
+            moveBookingToDate(action.id, action.oldDate, true);
+            if (booking.startDate === action.oldDate) {
+                moveUndoStack.pop();
+                moveRedoStack.push(action);
+            }
+            render();
+        }
+
+        function performRedo() {
+            if (!moveRedoStack.length) return;
+            const action = moveRedoStack[moveRedoStack.length - 1];
+            const booking = state.bookings.find(b => b.id === action.id);
+            if (!booking || booking.startDate !== action.oldDate) {
+                moveRedoStack.pop();
+                render();
+                return;
+            }
+            moveBookingToDate(action.id, action.newDate, true);
+            if (booking.startDate === action.newDate) {
+                moveRedoStack.pop();
+                moveUndoStack.push(action);
+            }
+            render();
+        }
+
         function checkConflict(hallId, date, startTime, endTime, ignoreId = null, ignoreGroup = false) {
             return state.bookings.some(b => {
                 if (ignoreId) {
@@ -1875,7 +1931,7 @@
         let touchCurrentDayCell = null;
         let touchSourceEl = null;
 
-        const TOUCH_LONG_PRESS_MS = 350;
+        const TOUCH_LONG_PRESS_MS = 1000;
         const TOUCH_MOVE_TOLERANCE = 10;
 
         function clearTouchDragTimer() {
@@ -2820,24 +2876,75 @@ ${notesDisplay ? `
 
                             <div class="h-6 sm:h-8 w-px bg-slate-200 mx-0.5 sm:mx-1 shrink-0"></div>
 
+                            <div class="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5 shrink-0">
+                                <button onclick="performUndo()" ${moveUndoStack.length === 0 ? 'disabled' : ''} class="p-1.5 sm:p-2 text-slate-500 hover:text-[#6E1418] hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500" title="تراجع عن آخر نقل">
+                                    <i data-lucide="undo-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                                </button>
+                                <button onclick="performRedo()" ${moveRedoStack.length === 0 ? 'disabled' : ''} class="p-1.5 sm:p-2 text-slate-500 hover:text-[#6E1418] hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500" title="إعادة آخر نقل">
+                                    <i data-lucide="redo-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                                </button>
+                            </div>
+
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
                                 ${state.notifications.length > 0 ? '<span class="notification-dot animate-pulse"></span>' : ''}
                             </button>
                             ` : ''}
-                            <button onclick="exportToExcel()" class="p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
+
+                            <!-- زر المزيد (موبايل فقط) -->
+                            <div class="relative shrink-0 sm:hidden" id="moreMenuContainer">
+                                <button onclick="toggleMoreMenu(event)" class="p-2 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all" title="المزيد">
+                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                </button>
+                                <div id="moreMenuDropdown" class="sync-dropdown hidden border border-slate-100">
+                                    <button onclick="exportToExcel(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+                                        </span>
+                                        تصدير (Excel)
+                                    </button>
+                                    <button onclick="printUpcomingBookings(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="printer" class="w-4 h-4 text-violet-600"></i>
+                                        </span>
+                                        طباعة الحجوزات القادمة
+                                    </button>
+                                    ${!isGuest() ? `
+                                    <button onclick="toggleDeletedBookingsModal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="trash-2" class="w-4 h-4 text-red-600"></i>
+                                        </span>
+                                        الحجوزات المحذوفة
+                                    </button>
+                                    <button onclick="syncToCloud(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-[#6E1418]/10 flex items-center justify-center shrink-0">
+                                            <i data-lucide="cloud-upload" class="w-4 h-4 text-[#6E1418]"></i>
+                                        </span>
+                                        مزامنة مع السحابة فوراً
+                                    </button>
+                                    <button onclick="exportToIcal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-[#A88A45]/10 flex items-center justify-center shrink-0">
+                                            <i data-lucide="calendar-check" class="w-4 h-4 text-[#A88A45]"></i>
+                                        </span>
+                                        تصدير لـ Google Calendar
+                                    </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+
+                            <button onclick="exportToExcel()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
                                 <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
                             </button>
-                            <button onclick="printUpcomingBookings()" class="p-2 sm:p-2.5 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all shrink-0" title="طباعة الحجوزات القادمة">
+                            <button onclick="printUpcomingBookings()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all shrink-0" title="طباعة الحجوزات القادمة">
                                 <i data-lucide="printer" class="w-5 h-5"></i>
                             </button>
                             ${!isGuest() ? `
-                            <button onclick="toggleDeletedBookingsModal()" class="p-2 sm:p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0" title="الحجوزات المحذوفة">
+                            <button onclick="toggleDeletedBookingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0" title="الحجوزات المحذوفة">
                                 <i data-lucide="trash-2" class="w-5 h-5"></i>
                             </button>
                             
                             <!-- زر المزامنة -->
-                            <div class="relative shrink-0" id="syncDropdownContainer">
+                            <div class="relative shrink-0 hidden sm:block" id="syncDropdownContainer">
                                 <button onclick="toggleSyncDropdown(event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="خيارات المزامنة">
                                     <i data-lucide="refresh-cw" class="w-5 h-5 ${state.isSyncing ? 'animate-spin text-[#A88A45]' : ''}"></i>
                                 </button>
@@ -3071,6 +3178,13 @@ ${notesDisplay ? `
         function toggleSyncDropdown(e) {
             if (e) e.stopPropagation();
             const dd = document.getElementById('syncDropdown');
+            if (dd) dd.classList.toggle('hidden');
+        }
+
+        // ─── قائمة المزيد (موبايل) ──────────────────────────────────────
+        function toggleMoreMenu(e) {
+            if (e) e.stopPropagation();
+            const dd = document.getElementById('moreMenuDropdown');
             if (dd) dd.classList.toggle('hidden');
         }
 
