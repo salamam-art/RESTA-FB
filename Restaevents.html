@@ -2916,18 +2916,6 @@ ${notesDisplay ? `
                                         </span>
                                         الحجوزات المحذوفة
                                     </button>
-                                    <button onclick="syncToCloud(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-[#6E1418]/10 flex items-center justify-center shrink-0">
-                                            <i data-lucide="cloud-upload" class="w-4 h-4 text-[#6E1418]"></i>
-                                        </span>
-                                        مزامنة مع السحابة فوراً
-                                    </button>
-                                    <button onclick="exportToIcal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-[#A88A45]/10 flex items-center justify-center shrink-0">
-                                            <i data-lucide="calendar-check" class="w-4 h-4 text-[#A88A45]"></i>
-                                        </span>
-                                        تصدير لـ Google Calendar
-                                    </button>
                                     ` : ''}
                                 </div>
                             </div>
@@ -2945,23 +2933,9 @@ ${notesDisplay ? `
                             
                             <!-- زر المزامنة -->
                             <div class="relative shrink-0 hidden sm:block" id="syncDropdownContainer">
-                                <button onclick="toggleSyncDropdown(event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="خيارات المزامنة">
+                                <button onclick="syncToCloud()" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="مزامنة مع السحابة">
                                     <i data-lucide="refresh-cw" class="w-5 h-5 ${state.isSyncing ? 'animate-spin text-[#A88A45]' : ''}"></i>
                                 </button>
-                                <div id="syncDropdown" class="sync-dropdown hidden border border-slate-100">
-                                    <button onclick="syncToCloud(); toggleSyncDropdown()">
-                                        <span class="w-8 h-8 rounded-lg bg-[#6E1418]/10 flex items-center justify-center shrink-0">
-                                            <i data-lucide="cloud-upload" class="w-4 h-4 text-[#6E1418]"></i>
-                                        </span>
-                                        مزامنة مع السحابة فوراً
-                                    </button>
-                                    <button onclick="exportToIcal(); toggleSyncDropdown()">
-                                        <span class="w-8 h-8 rounded-lg bg-[#A88A45]/10 flex items-center justify-center shrink-0">
-                                            <i data-lucide="calendar-check" class="w-4 h-4 text-[#A88A45]"></i>
-                                        </span>
-                                        تصدير لـ Google Calendar
-                                    </button>
-                                </div>
                             </div>
                             ` : ''}
 
