@@ -344,6 +344,36 @@
         .sync-dropdown button:hover { background: #f8fafc; color: var(--brand-red); padding-right: 20px; }
         .sync-dropdown button:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
 
+        /* Attachment Dropdown (real <a> links so it works inside Android WebView apps
+           that don't implement window.open() / onCreateWindow) */
+        .attachment-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            min-width: 160px;
+            background: white;
+            border-radius: 0.85rem;
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+            z-index: 9999;
+            overflow: hidden;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .attachment-dropdown a {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: right;
+            background: white;
+            color: #1d4ed8;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .attachment-dropdown a:hover { background: #eff6ff; color: #1e40af; padding-right: 18px; }
+        .attachment-dropdown a:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
+
         /* FAB New Booking Button */
         .fab-new-booking {
             width: 42px;
@@ -1007,6 +1037,13 @@
                 if (moreDd && moreContainer && !moreContainer.contains(e.target)) {
                     moreDd.classList.add('hidden');
                 }
+                // Close any open attachment dropdowns when clicking outside them
+                document.querySelectorAll('.attachment-dropdown-container').forEach(cont => {
+                    if (!cont.contains(e.target)) {
+                        const dd = cont.querySelector('.attachment-dropdown');
+                        if (dd) dd.classList.add('hidden');
+                    }
+                });
             });
 
             // تمرير تلقائي للصفحة لأعلى/لأسفل أثناء سحب حجز (يفيد خصوصاً على الموبايل
@@ -2468,11 +2505,13 @@
                                         if (bLinks.length === 1) {
                                             return `<a href="${bLinks[0]}" target="_blank" class="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> المرفقات</a>`;
                                         }
-                                        const options = bLinks.map((url, i) => `<option value="${url}">مرفق ${i + 1}</option>`).join('');
-                                        return `<select onchange="openAttachmentLink(this)" class="text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-100 cursor-pointer outline-none">
-                                            <option value="">📎 المرفقات (${bLinks.length})</option>
-                                            ${options}
-                                        </select>`;
+                                        const items = bLinks.map((url, i) => `<a href="${url}" target="_blank" rel="noopener"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> مرفق ${i + 1}</a>`).join('');
+                                        return `<div class="relative attachment-dropdown-container inline-block">
+                                            <button type="button" onclick="toggleAttachmentDropdown(this, event)" class="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-100 cursor-pointer">
+                                                <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> المرفقات (${bLinks.length})
+                                            </button>
+                                            <div class="attachment-dropdown hidden">${items}</div>
+                                        </div>`;
                                     })()}
                                     <button onclick="emailBooking('${b.id}')" class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-white hover:bg-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-100">
                                         <i data-lucide="mail" class="w-3.5 h-3.5"></i> إرسال بالبريد
@@ -3361,11 +3400,21 @@ ${notesDisplay ? `
             return [];
         }
 
-        // Called from the attachments dropdown when more than one link exists
-        function openAttachmentLink(selectEl) {
-            const url = selectEl.value;
-            if (url) window.open(url, '_blank');
-            selectEl.selectedIndex = 0;
+        // Called from the attachments button when more than one link exists.
+        // Toggles a dropdown of real <a target="_blank"> links instead of using
+        // window.open() from JS, because some Android WebView-based apps don't
+        // implement onCreateWindow()/setSupportMultipleWindows() and silently
+        // block window.open() while still handling normal anchor-tag clicks.
+        function toggleAttachmentDropdown(btn, evt) {
+            if (evt) evt.stopPropagation();
+            const container = btn.closest('.attachment-dropdown-container');
+            const dd = container ? container.querySelector('.attachment-dropdown') : null;
+            if (!dd) return;
+            // Close any other open attachment dropdowns first
+            document.querySelectorAll('.attachment-dropdown').forEach(el => {
+                if (el !== dd) el.classList.add('hidden');
+            });
+            dd.classList.toggle('hidden');
         }
 
         // ─── Global New Booking Modal ─────────────────────────────────────
