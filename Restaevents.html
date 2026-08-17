@@ -1037,11 +1037,13 @@
                 if (moreDd && moreContainer && !moreContainer.contains(e.target)) {
                     moreDd.classList.add('hidden');
                 }
-                // Close any open attachment dropdowns when clicking outside them
-                document.querySelectorAll('.attachment-dropdown-container').forEach(cont => {
-                    if (!cont.contains(e.target)) {
-                        const dd = cont.querySelector('.attachment-dropdown');
-                        if (dd) dd.classList.add('hidden');
+                // Close any open attachment dropdowns when clicking outside
+                // both the dropdown itself (now living under <body>) and its
+                // trigger button.
+                document.querySelectorAll('.attachment-dropdown:not(.hidden)').forEach(dd => {
+                    const btn = dd._ownerBtn;
+                    if (!dd.contains(e.target) && !(btn && btn.contains(e.target))) {
+                        dd.classList.add('hidden');
                     }
                 });
             });
@@ -2463,6 +2465,11 @@
                 ` : '';
             }
 
+            // Remove any leftover attachment dropdowns from a previous render
+            // before wiping the list (they live under <body>, not under
+            // #modalContent, since toggleAttachmentDropdown() reparents them).
+            cleanupAttachmentDropdowns();
+
             content.innerHTML = bookings.map(b => {
                 const hall = HALLS.find(h => h.id === b.hallId);
                 const isOwner = b.createdBy === state.currentUserEmail;
@@ -2507,10 +2514,10 @@
                                         }
                                         const items = bLinks.map((url, i) => `<a href="${url}" target="_blank" rel="noopener"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> مرفق ${i + 1}</a>`).join('');
                                         return `<div class="relative attachment-dropdown-container inline-block">
-                                            <button type="button" onclick="toggleAttachmentDropdown(this, event)" class="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-100 cursor-pointer">
+                                            <button type="button" data-attach-target="attach-dd-${b.id}" onclick="toggleAttachmentDropdown(this, event)" class="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-100 cursor-pointer">
                                                 <i data-lucide="paperclip" class="w-3.5 h-3.5"></i> المرفقات (${bLinks.length})
                                             </button>
-                                            <div class="attachment-dropdown hidden">${items}</div>
+                                            <div id="attach-dd-${b.id}" class="attachment-dropdown hidden">${items}</div>
                                         </div>`;
                                     })()}
                                     <button onclick="emailBooking('${b.id}')" class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-white hover:bg-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-100">
@@ -2542,6 +2549,7 @@
 
         function closeDetailsModal() {
             document.getElementById('detailsModal').classList.add('hidden');
+            cleanupAttachmentDropdowns();
         }
 
         function printSingleBooking(bookingId) {
@@ -3405,16 +3413,47 @@ ${notesDisplay ? `
         // window.open() from JS, because some Android WebView-based apps don't
         // implement onCreateWindow()/setSupportMultipleWindows() and silently
         // block window.open() while still handling normal anchor-tag clicks.
+        // Called from the attachments button when more than one link exists.
+        // Uses real <a target="_blank"> links inside a dropdown instead of
+        // window.open() from JS (see note on Android WebView above the old
+        // implementation this replaced).
+        //
+        // The dropdown is temporarily moved to <body> and positioned with
+        // "position: fixed" next to the button. This is necessary because the
+        // booking card it lives in uses "overflow: hidden" + "transform" (for
+        // its hover animation), which clips/repositions any absolutely
+        // positioned child — that's why only the first attachment used to be
+        // visible while the rest were clipped off.
         function toggleAttachmentDropdown(btn, evt) {
             if (evt) evt.stopPropagation();
-            const container = btn.closest('.attachment-dropdown-container');
-            const dd = container ? container.querySelector('.attachment-dropdown') : null;
+            const dd = document.getElementById(btn.dataset.attachTarget);
             if (!dd) return;
             // Close any other open attachment dropdowns first
             document.querySelectorAll('.attachment-dropdown').forEach(el => {
                 if (el !== dd) el.classList.add('hidden');
             });
+            const willOpen = dd.classList.contains('hidden');
             dd.classList.toggle('hidden');
+            if (willOpen) {
+                document.body.appendChild(dd);
+                const rect = btn.getBoundingClientRect();
+                dd.style.position = 'fixed';
+                dd.style.top = (rect.bottom + 6) + 'px';
+                dd.style.left = rect.left + 'px';
+                dd.style.minWidth = rect.width + 'px';
+                // Keep the button reachable from the dropdown so outside-click
+                // detection (which checks .attachment-dropdown-container) still
+                // works after the dropdown has been reparented to <body>.
+                dd._ownerBtn = btn;
+            }
+        }
+
+        // Removes any attachment dropdowns that were reparented to <body> by
+        // toggleAttachmentDropdown(). Must be called whenever the bookings
+        // list that owns them is re-rendered or its modal is closed, otherwise
+        // the moved elements would be orphaned in the DOM.
+        function cleanupAttachmentDropdowns() {
+            document.querySelectorAll('body > .attachment-dropdown').forEach(el => el.remove());
         }
 
         // ─── Global New Booking Modal ─────────────────────────────────────
