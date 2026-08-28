@@ -4314,25 +4314,88 @@ ${notesDisplay ? `
                 };
 
                 const json = JSON.stringify(backup, null, 2);
-                const blob = new Blob([json], { type: 'application/json' });
-                const url  = URL.createObjectURL(blob);
-                const a    = document.createElement('a');
                 const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                a.href     = url;
-                a.download = `resta-backup-${dateStr}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                const fileName = `resta-backup-${dateStr}.json`;
+
+                // الطريقة الأولى: Blob + رابط تحميل (Desktop وأغلب المتصفحات)
+                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                let downloaded = false;
+
+                if (!isMobile) {
+                    try {
+                        const blob = new Blob([json], { type: 'application/json' });
+                        const url  = URL.createObjectURL(blob);
+                        const a    = document.createElement('a');
+                        a.href     = url;
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(url), 3000);
+                        downloaded = true;
+                    } catch (_) {}
+                }
+
+                // الطريقة الثانية: Data URI في tab جديد (موبايل)
+                // المستخدم يضغط "مشاركة" أو "حفظ" من المتصفح مباشرة
+                if (!downloaded) {
+                    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
+                    const win = window.open(dataUri, '_blank');
+                    if (!win) {
+                        // إذا حُجب popup — نعرض نافذة نسخ يدوي
+                        showBackupCopyModal(json, fileName);
+                        return;
+                    }
+                }
 
                 showToast(
-                    `✅ تم تصدير النسخة الاحتياطية بنجاح (${backup.bookings.length} حجز، ${backup.logs.length} سجل)`,
+                    `✅ تم تصدير النسخة الاحتياطية (${backup.bookings.length} حجز، ${backup.logs.length} سجل)` +
+                    (isMobile ? ' — احفظ الصفحة من متصفحك' : ''),
                     'success'
                 );
             } catch (err) {
                 console.error('Backup export error:', err);
                 showToast('حدث خطأ أثناء تصدير النسخة الاحتياطية: ' + err.message, 'error');
             }
+        }
+
+        // نافذة احتياطية: نسخ JSON يدوياً لو الموبايل حجب كل الطرق
+        function showBackupCopyModal(json, fileName) {
+            const existing = document.getElementById('backupCopyModal');
+            if (existing) existing.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'backupCopyModal';
+            modal.className = 'fixed inset-0 z-[300] flex items-center justify-center modal-backdrop p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in border border-slate-100">
+                    <div class="px-6 py-4 bg-gradient-to-l from-indigo-700 to-indigo-900 text-white flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="hard-drive-download" class="w-6 h-6 text-indigo-200"></i>
+                            <h3 class="font-black text-lg">النسخة الاحتياطية جاهزة</h3>
+                        </div>
+                        <button onclick="document.getElementById('backupCopyModal').remove()" class="w-9 h-9 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="p-5 space-y-4">
+                        <p class="text-sm text-slate-600 font-medium bg-amber-50 border border-amber-200 rounded-xl p-3">
+                            📱 متصفحك على الموبايل لا يدعم التحميل التلقائي. انسخ النص أدناه واحفظه في ملف باسم <strong>${fileName}</strong>
+                        </p>
+                        <textarea readonly rows="8" class="w-full text-xs font-mono border border-slate-200 rounded-xl p-3 bg-slate-50 outline-none resize-none dir-ltr text-left" id="backupJsonText">${json.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+                        <button onclick="
+                            const t = document.getElementById('backupJsonText');
+                            t.select(); t.setSelectionRange(0,99999);
+                            navigator.clipboard ? navigator.clipboard.writeText(t.value).then(()=>showToast('تم النسخ ✅','success')) : document.execCommand('copy');
+                        " class="w-full py-3 font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="copy" class="w-5 h-5"></i>
+                            نسخ النص كاملاً
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
         // --- فتح منتقي الملفات لاستيراد النسخة الاحتياطية ---
