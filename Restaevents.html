@@ -832,6 +832,20 @@
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة رابط آخر
                             </button>
                         </div>
+                        <div class="input-group">
+                            <label>صور الحجز <span class="text-xs text-slate-400 font-normal">(اختياري)</span></label>
+                            <div class="flex flex-wrap items-center gap-2 mb-3">
+                                <button type="button" onclick="triggerImageFileInput()" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-2 rounded-lg transition-colors border border-[#6E1418]/10">
+                                    <i data-lucide="image-plus" class="w-3.5 h-3.5"></i> تحميل من الملفات
+                                </button>
+                                <button type="button" onclick="openCameraCapture()" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-2 rounded-lg transition-colors border border-[#6E1418]/10">
+                                    <i data-lucide="camera" class="w-3.5 h-3.5"></i> التقاط بالكاميرا
+                                </button>
+                                <input type="file" id="imageFileInput" accept="image/*" multiple class="hidden" onchange="handleImageFilesSelected(event)">
+                                <span class="text-[11px] text-slate-400 font-medium">سيتم تصغير حجم الصور تلقائياً قبل الحفظ</span>
+                            </div>
+                            <div id="imageThumbsContainer" class="flex flex-wrap gap-3"></div>
+                        </div>
                     </div>
 
                     <div class="pt-2">
@@ -843,6 +857,51 @@
                 </form>
             </div>
         </div>
+    </div>
+
+    <!-- Camera Capture Modal -->
+    <div id="cameraModal" class="hidden fixed inset-0 z-[85] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in border border-slate-100">
+            <div class="px-5 py-4 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center">
+                <div class="flex items-center gap-2 font-bold">
+                    <i data-lucide="camera" class="w-5 h-5 text-[#A88A45]"></i> التقاط صورة
+                </div>
+                <button type="button" onclick="closeCameraCapture()" class="w-9 h-9 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-4 bg-black">
+                <div class="relative rounded-2xl overflow-hidden bg-black">
+                    <video id="cameraVideo" autoplay playsinline muted class="w-full max-h-[60vh] object-contain"></video>
+                </div>
+            </div>
+            <div class="p-4 flex items-center justify-between gap-3 bg-slate-50">
+                <button type="button" onclick="switchCamera()" id="cameraSwitchBtn" class="hidden inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-100">
+                    <i data-lucide="switch-camera" class="w-4 h-4"></i> تبديل الكاميرا
+                </button>
+                <button type="button" onclick="capturePhotoFromCamera()" class="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#6E1418] to-[#8a1c22] text-white font-black py-3 rounded-xl shadow-lg active:scale-[0.98] transition-all">
+                    <i data-lucide="circle-dot" class="w-5 h-5 text-[#A88A45]"></i> التقاط
+                </button>
+                <button type="button" onclick="closeCameraCapture()" class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-100">
+                    تم (<span id="cameraCapturedCount">0</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Lightbox -->
+    <div id="imageLightbox" class="hidden fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4" onclick="if(event.target===this) closeImageLightbox()">
+        <button type="button" onclick="closeImageLightbox()" class="absolute top-5 left-5 w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all text-white z-10">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <button type="button" onclick="lightboxNav(-1)" id="lightboxPrevBtn" class="absolute right-3 sm:right-6 w-11 h-11 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all text-white">
+            <i data-lucide="chevron-right" class="w-6 h-6"></i>
+        </button>
+        <img id="lightboxImg" src="" class="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain">
+        <button type="button" onclick="lightboxNav(1)" id="lightboxNextBtn" class="absolute left-3 sm:left-6 w-11 h-11 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all text-white">
+            <i data-lucide="chevron-left" class="w-6 h-6"></i>
+        </button>
+        <div id="lightboxCounter" class="absolute bottom-5 text-white/80 text-xs font-bold bg-white/10 px-3 py-1.5 rounded-full"></div>
     </div>
 
     <!-- Backup Restore Confirmation Modal -->
@@ -2534,6 +2593,18 @@
                                     <i data-lucide="info" class="w-4 h-4 mt-0.5 text-amber-600 shrink-0"></i>
                                     <p class="leading-relaxed font-medium">${b.notes}</p>
                                 </div>` : ''}
+
+                                ${(() => {
+                                    const bImages = getBookingImages(b);
+                                    if (!bImages.length) return '';
+                                    const thumbs = bImages.map((img, i) =>
+                                        `<img src="${img.data}" onclick="openBookingImageLightbox('${b.id}', ${i})" class="w-14 h-14 rounded-lg object-cover border border-slate-200 shadow-sm cursor-zoom-in hover:opacity-90 transition-opacity shrink-0">`
+                                    ).join('');
+                                    return `<div class="mt-4">
+                                        <div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mb-2"><i data-lucide="image" class="w-3.5 h-3.5"></i> الصور (${bImages.length})</div>
+                                        <div class="flex flex-wrap gap-2">${thumbs}</div>
+                                    </div>`;
+                                })()}
                                 
                                 <div class="mt-4 flex items-center justify-between flex-wrap gap-2">
                                     <div class="flex items-center gap-2 flex-wrap">
@@ -3467,6 +3538,214 @@ ${notesDisplay ? `
             return [];
         }
 
+        // ─── Booking Images: upload, camera capture, resize/compress, lightbox ──
+        let formImages = [];           // {id, data} images attached to the currently open booking form
+        let cameraStream = null;       // active getUserMedia stream for the camera modal
+        let cameraFacingMode = 'environment';
+        let lightboxImages = [];       // images shown in the current lightbox session
+        let lightboxIndex = 0;
+
+        const IMAGE_MAX_DIMENSION = 1280; // px, longest side after resize
+        const IMAGE_JPEG_QUALITY  = 0.72;
+
+        function genImageId() {
+            return 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        }
+
+        // Returns the images of a booking as a normalized {id, data} array.
+        function getBookingImages(b) {
+            if (!b || !Array.isArray(b.images)) return [];
+            return b.images.map(img => (typeof img === 'string') ? { id: genImageId(), data: img } : img).filter(img => img && img.data);
+        }
+
+        // Resizes/compresses an image File (or a raw dataURL) down to IMAGE_MAX_DIMENSION
+        // on its longest side and re-encodes it as JPEG to keep the payload small,
+        // since every save re-uploads the full bookings tree to Firebase.
+        function resizeImageSource(source) {
+            return new Promise((resolve, reject) => {
+                const finish = (dataUrl) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let { width, height } = img;
+                        if (width > IMAGE_MAX_DIMENSION || height > IMAGE_MAX_DIMENSION) {
+                            if (width >= height) {
+                                height = Math.round(height * (IMAGE_MAX_DIMENSION / width));
+                                width  = IMAGE_MAX_DIMENSION;
+                            } else {
+                                width  = Math.round(width * (IMAGE_MAX_DIMENSION / height));
+                                height = IMAGE_MAX_DIMENSION;
+                            }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', IMAGE_JPEG_QUALITY));
+                    };
+                    img.onerror = () => reject(new Error('تعذّرت قراءة الصورة'));
+                    img.src = dataUrl;
+                };
+                if (typeof source === 'string') {
+                    finish(source);
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = () => finish(reader.result);
+                    reader.onerror = () => reject(new Error('تعذّرت قراءة الملف'));
+                    reader.readAsDataURL(source);
+                }
+            });
+        }
+
+        function triggerImageFileInput() {
+            const input = document.getElementById('imageFileInput');
+            if (input) input.click();
+        }
+
+        async function handleImageFilesSelected(event) {
+            const files = Array.from(event.target.files || []).filter(f => f.type.startsWith('image/'));
+            for (const file of files) {
+                try {
+                    const dataUrl = await resizeImageSource(file);
+                    formImages.push({ id: genImageId(), data: dataUrl });
+                } catch (err) {
+                    alert('تعذّر تحميل إحدى الصور: ' + err.message);
+                }
+            }
+            event.target.value = ''; // allow re-selecting the same file
+            renderImageThumbs();
+        }
+
+        function setFormImages(images) {
+            formImages = getBookingImages({ images: images || [] });
+            renderImageThumbs();
+        }
+
+        function removeFormImage(id) {
+            formImages = formImages.filter(img => img.id !== id);
+            renderImageThumbs();
+        }
+
+        function renderImageThumbs() {
+            const container = document.getElementById('imageThumbsContainer');
+            if (!container) return;
+            container.innerHTML = formImages.map((img, i) => `
+                <div class="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm group shrink-0">
+                    <img src="${img.data}" onclick="openImageLightbox(formImages.map(x=>x.data), ${i})" class="w-full h-full object-cover cursor-zoom-in">
+                    <button type="button" onclick="removeFormImage('${img.id}')" title="حذف الصورة"
+                        class="absolute top-1 left-1 w-6 h-6 flex items-center justify-center rounded-full bg-red-600/90 text-white shadow hover:bg-red-700 transition-colors">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            `).join('') || '<p class="text-xs text-slate-400">لا توجد صور مرفقة بعد</p>';
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
+        // ─── Camera capture (works for mobile browsers and desktop webcams) ──
+        async function openCameraCapture() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('المتصفح لا يدعم الوصول إلى الكاميرا. يمكنك استخدام "تحميل من الملفات" بدلاً من ذلك.');
+                return;
+            }
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: false });
+            } catch (err) {
+                alert('تعذّر الوصول إلى الكاميرا: ' + (err.message || 'تم رفض الإذن أو لا توجد كاميرا متاحة'));
+                return;
+            }
+            const video = document.getElementById('cameraVideo');
+            video.srcObject = cameraStream;
+
+            // Only show the "switch camera" button when more than one camera is available (typical on mobile)
+            const switchBtn = document.getElementById('cameraSwitchBtn');
+            if (switchBtn) {
+                switchBtn.classList.add('hidden');
+                if (navigator.mediaDevices.enumerateDevices) {
+                    navigator.mediaDevices.enumerateDevices().then(devices => {
+                        const cams = devices.filter(d => d.kind === 'videoinput');
+                        if (cams.length > 1) switchBtn.classList.remove('hidden');
+                    }).catch(() => {});
+                }
+            }
+
+            document.getElementById('cameraCapturedCount').textContent = '0';
+            document.getElementById('cameraModal').classList.remove('hidden');
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
+        async function switchCamera() {
+            cameraFacingMode = (cameraFacingMode === 'environment') ? 'user' : 'environment';
+            if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: false });
+                document.getElementById('cameraVideo').srcObject = cameraStream;
+            } catch (err) {
+                alert('تعذّر تبديل الكاميرا: ' + (err.message || ''));
+            }
+        }
+
+        async function capturePhotoFromCamera() {
+            const video = document.getElementById('cameraVideo');
+            if (!video || !video.videoWidth) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            const rawDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            try {
+                const dataUrl = await resizeImageSource(rawDataUrl);
+                formImages.push({ id: genImageId(), data: dataUrl });
+                renderImageThumbs();
+                const counter = document.getElementById('cameraCapturedCount');
+                if (counter) counter.textContent = String(formImages.length);
+            } catch (err) {
+                alert('تعذّر معالجة الصورة الملتقطة: ' + err.message);
+            }
+        }
+
+        function closeCameraCapture() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+                cameraStream = null;
+            }
+            document.getElementById('cameraModal').classList.add('hidden');
+        }
+
+        // ─── Image lightbox (used both from the form and from the booking details card) ──
+        // Looks up a booking by id at click-time so thumbnails don't need to embed
+        // the full image list (which can be large) in the HTML.
+        function openBookingImageLightbox(bookingId, index) {
+            const booking = state.bookings.find(b => b.id === bookingId);
+            if (!booking) return;
+            openImageLightbox(getBookingImages(booking).map(img => img.data), index);
+        }
+
+        function openImageLightbox(images, index) {
+            lightboxImages = images || [];
+            lightboxIndex = index || 0;
+            if (!lightboxImages.length) return;
+            renderLightbox();
+            document.getElementById('imageLightbox').classList.remove('hidden');
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
+        function renderLightbox() {
+            document.getElementById('lightboxImg').src = lightboxImages[lightboxIndex];
+            const multi = lightboxImages.length > 1;
+            document.getElementById('lightboxPrevBtn').classList.toggle('hidden', !multi);
+            document.getElementById('lightboxNextBtn').classList.toggle('hidden', !multi);
+            document.getElementById('lightboxCounter').textContent = multi ? (lightboxIndex + 1) + ' / ' + lightboxImages.length : '';
+        }
+
+        function lightboxNav(delta) {
+            if (!lightboxImages.length) return;
+            lightboxIndex = (lightboxIndex + delta + lightboxImages.length) % lightboxImages.length;
+            renderLightbox();
+        }
+
+        function closeImageLightbox() {
+            document.getElementById('imageLightbox').classList.add('hidden');
+        }
+
         // Called from the attachments button when more than one link exists.
         // Toggles a dropdown of real <a target="_blank"> links instead of using
         // window.open() from JS, because some Android WebView-based apps don't
@@ -3560,6 +3839,7 @@ ${notesDisplay ? `
             form.querySelector('input[name="employee"]').value   = booking.employee   || '';
             form.querySelector('textarea[name="notes"]').value   = booking.notes      || '';
             setLinksInForm(getBookingLinks(booking));
+            setFormImages(getBookingImages(booking));
 
             form.querySelector('button[type="submit"]').innerHTML =
                 '<i data-lucide="check-circle" class="w-6 h-6 text-[#A88A45]"></i><span>حفظ التعديلات المطبقة</span>';
@@ -3589,6 +3869,7 @@ ${notesDisplay ? `
                 form.querySelector('input[name="dateTo"]').value   = today;
                 form.querySelector('input[name="employee"]').value = getDefaultEmployeeName();
                 setLinksInForm([]);
+                setFormImages([]);
                 form.querySelector('button[type="submit"]').innerHTML =
                     '<i data-lucide="check-circle" class="w-6 h-6 text-[#A88A45]"></i><span>حفظ بيانات الحجز</span>';
                 const titleEl = document.getElementById('globalModalTitle');
@@ -3622,6 +3903,7 @@ ${notesDisplay ? `
                 endTime:     form.timeTo.value,
                 notes:       form.notes.value,
                 links:       getLinksFromForm(form),
+                images:      formImages.slice(),
                 createdBy:   isEditing
                     ? (state.bookings.find(b =>
                         b.groupId === state.editingBookingId || b.id === state.editingBookingId
@@ -3683,6 +3965,7 @@ ${notesDisplay ? `
                             endTime:       bookingData.endTime,
                             notes:         bookingData.notes,
                             links:         bookingData.links,
+                            images:        bookingData.images,
                             originalRange: bookingData.startDate + ' to ' + bookingData.endDate,
                             _isDirty:      true
                         };
