@@ -279,6 +279,11 @@
         /* Utility Styles */
         #sync-status { position: fixed; bottom: 24px; left: 24px; z-index: 1000; }
         .modal-backdrop { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
+        /* "التقاط بالكاميرا" مفيدة فقط على الديسكتوب (كاميرا الويب)، لأن اختيار
+           الملفات على الموبايل بالفعل يعرض خيار الكاميرا من نظام التشغيل نفسه. */
+        @media (hover: hover) and (pointer: fine) {
+            .desktop-camera-btn { display: inline-flex !important; }
+        }
         
         /* Animation */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
@@ -836,12 +841,9 @@
                             <label>صور الحجز <span class="text-xs text-slate-400 font-normal">(اختياري)</span></label>
                             <div class="flex flex-wrap items-center gap-2 mb-3">
                                 <button type="button" onclick="triggerImageFileInput()" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-2 rounded-lg transition-colors border border-[#6E1418]/10">
-                                    <i data-lucide="image-plus" class="w-3.5 h-3.5"></i> تحميل من الملفات
+                                    <i data-lucide="image-plus" class="w-3.5 h-3.5"></i> تحميل صورة
                                 </button>
-                                <button type="button" onclick="openCameraCapture()" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-2 rounded-lg transition-colors border border-[#6E1418]/10">
-                                    <i data-lucide="camera" class="w-3.5 h-3.5"></i> التقاط بالكاميرا
-                                </button>
-                                <input type="file" id="imageFileInput" accept="image/*" multiple class="hidden" onchange="handleImageFilesSelected(event)">
+                                <input type="file" id="imageFileInput" class="hidden" onchange="handleImageFilesSelected(event)">
                                 <span class="text-[11px] text-slate-400 font-medium">سيتم تصغير حجم الصور تلقائياً قبل الحفظ</span>
                             </div>
                             <div id="imageThumbsContainer" class="flex flex-wrap gap-3"></div>
