@@ -5031,40 +5031,29 @@ ${notesDisplay ? `
                 const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
                 const fileName = `resta-backup-${dateStr}.json`;
 
-                // الطريقة الأولى: Blob + رابط تحميل (Desktop وأغلب المتصفحات)
-                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                // Blob + رابط تحميل مباشر (يعمل على جميع الأجهزة والمتصفحات وتطبيقات الأندرويد)
                 let downloaded = false;
+                try {
+                    const blob = new Blob([json], { type: 'application/json' });
+                    const url  = URL.createObjectURL(blob);
+                    const a    = document.createElement('a');
+                    a.href     = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 3000);
+                    downloaded = true;
+                } catch (_) {}
 
-                if (!isMobile) {
-                    try {
-                        const blob = new Blob([json], { type: 'application/json' });
-                        const url  = URL.createObjectURL(blob);
-                        const a    = document.createElement('a');
-                        a.href     = url;
-                        a.download = fileName;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        setTimeout(() => URL.revokeObjectURL(url), 3000);
-                        downloaded = true;
-                    } catch (_) {}
-                }
-
-                // الطريقة الثانية: Data URI في tab جديد (موبايل)
-                // المستخدم يضغط "مشاركة" أو "حفظ" من المتصفح مباشرة
+                // إذا فشل Blob (نادراً) — نعرض نافذة نسخ يدوي
                 if (!downloaded) {
-                    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
-                    const win = window.open(dataUri, '_blank');
-                    if (!win) {
-                        // إذا حُجب popup — نعرض نافذة نسخ يدوي
-                        showBackupCopyModal(json, fileName);
-                        return;
-                    }
+                    showBackupCopyModal(json, fileName);
+                    return;
                 }
 
                 showToast(
-                    `✅ تم تصدير النسخة الاحتياطية (${backup.bookings.length} حجز، ${backup.logs.length} سجل)` +
-                    (isMobile ? ' — احفظ الصفحة من متصفحك' : ''),
+                    `✅ تم تصدير النسخة الاحتياطية (${backup.bookings.length} حجز، ${backup.logs.length} سجل)`,
                     'success'
                 );
             } catch (err) {
