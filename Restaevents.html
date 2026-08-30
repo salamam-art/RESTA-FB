@@ -2681,7 +2681,7 @@
                                 <div class="grid grid-cols-2 gap-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.startTime || 'يوم كامل'} - ${b.endTime || 'يوم كامل'}</span></div>
                                     <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${b.employee || 'غير محدد'}</span></div>
-                                    <div class="flex items-center gap-2 col-span-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium font-mono dir-ltr">${b.phone || 'لا يوجد رقم'}</span></div>
+                                    <div class="flex items-center gap-2 col-span-2">${b.phone ? `<a href="tel:${b.phone}" class="flex items-center gap-2 group" title="اتصال بـ ${b.phone}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover:bg-green-50 group-active:bg-green-100 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45] group-hover:text-green-600 transition-colors"></i></div><span class="font-medium font-mono dir-ltr group-hover:text-green-600 transition-colors underline-offset-2 group-hover:underline">${b.phone}</span></a>` : `<div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div><span class="font-medium text-slate-400">لا يوجد رقم</span>`}</div>
                                 </div>
                                 
                                 ${b.notes ? `
@@ -3069,7 +3069,7 @@ ${notesDisplay ? `
             const subject = `تفاصيل الحجز - ${b.companyName || ''} - ${hall.name}`;
             const body = lines.join('\n');
 
-            const mailtoUrl = `mailto:${BOOKING_EMAIL_RECIPIENTS.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            const mailtoUrl = `mailto:${BOOKING_EMAIL_RECIPIENTS.join(';')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
             window.location.href = mailtoUrl;
         }
 
