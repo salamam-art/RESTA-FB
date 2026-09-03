@@ -1941,8 +1941,33 @@
             return buffer;
         }
 
+        // ===================== كشف بيئة التشغيل: تطبيق أندرويد (WebView Wrapper) أم متصفح =====================
+        // التطبيق متاح كصفحة ويب عادية، وكمان متجمّع كتطبيق أندرويد عن طريق WebView بسيط
+        // (Wrapper) من غير أي كود Native بيتكلم مع الصفحة. الـ WebView من هذا النوع مش بيدعم
+        // WebAuthn (البصمة) بشكل موثوق، فلو حاولنا نستخدمه هيفشل برسائل غير مفهومة للمستخدم.
+        // عشان كده: نكتشف تلقائيًا لو إحنا شغالين جوه الـ WebView ده، ولو كذلك نعطّل خاصية
+        // البصمة بالكامل ونسيب فقط تسجيل الدخول العادي بكلمة المرور (اللي بيشتغل بشكل طبيعي).
+        // لو الصفحة مفتوحة من متصفح حقيقي (Chrome / Safari / Edge...) البصمة تفضل شغالة زي ما هي.
+        function isAndroidWebViewWrapper() {
+            try {
+                const ua = navigator.userAgent || '';
+                // علامة "; wv)" هي العلامة المعروفة لـ Android System WebView المُضمّن جوه
+                // تطبيقات الـ Wrapper (زي WebViewGold أو MIT App Inventor)، وهي غير موجودة
+                // في متصفح Chrome أو Safari العاديين على الموبايل.
+                return /Android/i.test(ua) && /;\s*wv\)/i.test(ua);
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function isBiometricEnvironmentSupported() {
+            return !isAndroidWebViewWrapper();
+        }
+        // ===================== نهاية كشف بيئة التشغيل =====================
+
         async function isBiometricAvailable() {
             try {
+                if (!isBiometricEnvironmentSupported()) return false;
                 return !!(window.PublicKeyCredential &&
                     typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function' &&
                     await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
@@ -2004,6 +2029,15 @@
         }
 
         async function registerBiometric(email) {
+            // لو شغالين جوه تطبيق الأندرويد (WebView Wrapper) بدون كود Native للبصمة،
+            // البصمة مش هتشتغل أصلًا — نوضّح للمستخدم بدل ما يواجه خطأ WebAuthn مش مفهوم.
+            if (!isBiometricEnvironmentSupported()) {
+                showBiometricUnsupportedModal(
+                    'البصمة غير متاحة داخل تطبيق الأندرويد الحالي',
+                    'خاصية الدخول بالبصمة تعتمد على المتصفح ولا تعمل داخل نسخة تطبيق الأندرويد الحالية. افتح رابط النظام مباشرة من متصفح Chrome لتفعيل البصمة، أو استمر بتسجيل الدخول بكلمة المرور.'
+                );
+                return;
+            }
             // التحقق من أن البيئة تدعم WebAuthn (يشترط HTTPS أو localhost)
             const proto = location.protocol;
             if (proto !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -2189,6 +2223,7 @@
 
         // --- إظهار زر البصمة في شاشة اللوجين إذا كانت مسجّلة ---
         function initLoginBiometricButton() {
+            if (!isBiometricEnvironmentSupported()) return; // البصمة غير مدعومة جوه تطبيق الأندرويد الحالي
             const stored = getBiometricCredential();
             if (!stored) return; // لا توجد بصمة مسجّلة على الإطلاق
             // أظهر الزر بغض النظر عن HTTPS — لو البصمة مش متاحة سيظهر خطأ واضح عند الضغط
@@ -2198,6 +2233,13 @@
 
         // --- الدخول بالبصمة مباشرةً من شاشة اللوجين ---
         async function loginWithBiometricFromLoginScreen() {
+            if (!isBiometricEnvironmentSupported()) {
+                showBiometricUnsupportedModal(
+                    'البصمة غير متاحة داخل تطبيق الأندرويد الحالي',
+                    'افتح رابط النظام من متصفح Chrome لاستخدام البصمة، أو سجّل الدخول بكلمة المرور من هنا.'
+                );
+                return;
+            }
             const stored = getBiometricCredential();
             if (!stored) {
                 showToast('لا توجد بصمة مسجّلة على هذا الجهاز', 'error');
