@@ -504,6 +504,20 @@
                 <h2 class="text-3xl font-black text-[#6E1418] tracking-tight">مرحباً بك</h2>
                 <p class="text-slate-500 mt-2 text-sm">نظام إدارة حجوزات قاعات رستا</p>
             </div>
+            <!-- زر الدخول بالبصمة — يظهر فقط إذا كانت البصمة مسجّلة على الجهاز -->
+            <div id="loginBiometricSection" class="hidden mb-5">
+                <button type="button" onclick="loginWithBiometricFromLoginScreen()" 
+                    class="w-full bg-gradient-to-l from-[#6E1418] to-[#8a1c22] hover:from-[#5a1013] hover:to-[#6E1418] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-3">
+                    <i data-lucide="fingerprint" class="w-5 h-5"></i>
+                    <span>الدخول بالبصمة</span>
+                </button>
+                <div class="flex items-center gap-3 mt-5 mb-1">
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                    <span class="text-xs text-slate-400 font-medium">أو سجّل الدخول بكلمة المرور</span>
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                </div>
+            </div>
+
             <form onsubmit="handleLogin(event)" class="space-y-5">
                 <div class="input-group">
                     <label>البريد الإلكتروني</label>
@@ -1422,6 +1436,9 @@
 
             if (state.isLoggedIn) {
                 attemptAutoUnlock();
+            } else {
+                // أظهر زر البصمة في شاشة اللوجين لو البصمة مسجّلة
+                initLoginBiometricButton();
             }
         }
 
@@ -2169,6 +2186,77 @@
         function useBiometricFallbackPassword() {
             hideBiometricLockScreen();
             document.getElementById('loginModal').style.display = 'flex';
+            // أخفِ زر البصمة هنا لأن المستخدم اختار كلمة المرور بدلاً منها
+            const section = document.getElementById('loginBiometricSection');
+            if (section) section.classList.add('hidden');
+        }
+
+        // --- إظهار زر البصمة في شاشة اللوجين إذا كانت مسجّلة ---
+        async function initLoginBiometricButton() {
+            const stored = getBiometricCredential();
+            if (!stored) return; // لا توجد بصمة مسجّلة على الإطلاق
+            const available = await isBiometricAvailable();
+            if (!available) return; // الجهاز لا يدعم
+            // أظهر القسم
+            const section = document.getElementById('loginBiometricSection');
+            if (section) section.classList.remove('hidden');
+        }
+
+        // --- الدخول بالبصمة مباشرةً من شاشة اللوجين ---
+        async function loginWithBiometricFromLoginScreen() {
+            const stored = getBiometricCredential();
+            if (!stored) {
+                showToast('لا توجد بصمة مسجّلة على هذا الجهاز', 'error');
+                return;
+            }
+
+            // تأكد من أن المستخدم صاحب البصمة موجود في النظام
+            await loadLocalState();
+            const userExists = state.users && state.users.find(u => u.email === stored.email);
+            if (!userExists) {
+                showToast('المستخدم المرتبط بهذه البصمة غير موجود في النظام', 'error');
+                removeBiometricCredential();
+                document.getElementById('loginBiometricSection')?.classList.add('hidden');
+                return;
+            }
+
+            // اطلب التحقق بالبصمة
+            const btn = document.querySelector('#loginBiometricSection button');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i><span>جاري التحقق...</span>'; if (typeof lucide !== 'undefined') lucide.createIcons(); }
+
+            try {
+                const challenge = crypto.getRandomValues(new Uint8Array(32));
+                const publicKey = {
+                    challenge,
+                    allowCredentials: [{ id: base64urlToBuffer(stored.credId), type: 'public-key' }],
+                    userVerification: 'required',
+                    timeout: 60000
+                };
+                const assertion = await navigator.credentials.get({ publicKey });
+                if (!assertion) throw new Error('no assertion');
+
+                // نجح التحقق — سجّل الدخول
+                state.currentUserEmail = stored.email;
+                state.currentUserRole  = userExists.role || 'user';
+                saveLocal();
+                document.getElementById('loginModal').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                render();
+                if (CLOUD_ENABLED) setupRealtimeSync();
+                showToast('مرحباً! تم الدخول بالبصمة ✅', 'success');
+            } catch (err) {
+                console.warn('Biometric login from screen failed:', err);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="fingerprint" class="w-5 h-5"></i><span>الدخول بالبصمة</span>';
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+                if (err.name === 'NotAllowedError') {
+                    showToast('تم إلغاء التحقق. حاول مرة أخرى.', 'error');
+                } else {
+                    showToast('تعذر التحقق بالبصمة. جرّب كلمة المرور.', 'error');
+                }
+            }
         }
         // ===================== End Biometric Login =====================
 
