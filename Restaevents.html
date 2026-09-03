@@ -504,20 +504,6 @@
                 <h2 class="text-3xl font-black text-[#6E1418] tracking-tight">مرحباً بك</h2>
                 <p class="text-slate-500 mt-2 text-sm">نظام إدارة حجوزات قاعات رستا</p>
             </div>
-            <!-- زر الدخول بالبصمة — يظهر فقط إذا كانت البصمة مسجّلة على الجهاز -->
-            <div id="loginBiometricSection" class="hidden mb-5">
-                <button type="button" onclick="loginWithBiometricFromLoginScreen()" 
-                    class="w-full bg-gradient-to-l from-[#6E1418] to-[#8a1c22] hover:from-[#5a1013] hover:to-[#6E1418] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-3">
-                    <i data-lucide="fingerprint" class="w-5 h-5"></i>
-                    <span>الدخول بالبصمة</span>
-                </button>
-                <div class="flex items-center gap-3 mt-5 mb-1">
-                    <div class="flex-1 h-px bg-slate-200"></div>
-                    <span class="text-xs text-slate-400 font-medium">أو سجّل الدخول بكلمة المرور</span>
-                    <div class="flex-1 h-px bg-slate-200"></div>
-                </div>
-            </div>
-
             <form onsubmit="handleLogin(event)" class="space-y-5">
                 <div class="input-group">
                     <label>البريد الإلكتروني</label>
@@ -537,10 +523,18 @@
                         <input type="password" id="loginPassword" required class="text-left pl-12" dir="ltr" placeholder="••••••••">
                     </div>
                 </div>
-                <button type="submit" class="w-full bg-[#6E1418] hover:bg-[#5a1013] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] mt-4 flex items-center justify-center gap-2">
-                    <span>تسجيل الدخول</span>
-                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                </button>
+                <div class="flex items-center gap-3 mt-4">
+                    <button type="submit" class="flex-1 bg-[#6E1418] hover:bg-[#5a1013] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2">
+                        <span>تسجيل الدخول</span>
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    </button>
+                    <div id="loginBiometricSection" class="hidden">
+                        <button type="button" onclick="loginWithBiometricFromLoginScreen()" title="الدخول بالبصمة"
+                            class="w-14 h-14 flex items-center justify-center bg-slate-100 hover:bg-[#6E1418] hover:text-white text-[#6E1418] rounded-xl border border-slate-200 hover:border-[#6E1418] shadow-sm transition-all duration-300 active:scale-[0.95]">
+                            <i data-lucide="fingerprint" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                </div>
             </form>
             <button type="button" onclick="loginAsGuest()" class="w-full mt-4 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold py-3.5 rounded-xl border border-slate-200 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2">
                 <i data-lucide="eye" class="w-4 h-4"></i>
