@@ -1911,6 +1911,56 @@
             updateLoginScreenBiometricButton();
         }
 
+        // ===================== Auto Logout (خروج تلقائي بعد فترة عدم نشاط) =====================
+        // إضافة مستقلة لا تعدّل أي منطق أو تصميم موجود: بتسجّل خروج المستخدم تلقائيًا
+        // لو التطبيق فضل بدون أي تفاعل (لمس/ضغط/كتابة) أو بدون ظهور على الشاشة
+        // لمدة أطول من AUTO_LOGOUT_MINUTES. تعمل نفس الطريقة سواء اتفتح من متصفح
+        // عادي أو من داخل تطبيق الأندرويد (WebView).
+        const AUTO_LOGOUT_MINUTES = 3; // غيّر الرقم ده لتعديل مدة الخمول المسموحة
+        const AUTO_LOGOUT_MS = AUTO_LOGOUT_MINUTES * 60 * 1000;
+        const LAST_ACTIVITY_KEY = 'hotel_last_activity_ts';
+        let _lastActivityWriteAt = 0;
+
+        function recordActivityTimestamp() {
+            if (!state.isLoggedIn) return;
+            const now = Date.now();
+            // لتقليل عدد الكتابات على localStorage وقت الحركة المستمرة (mousemove/scroll)
+            if (now - _lastActivityWriteAt < 5000) return;
+            _lastActivityWriteAt = now;
+            localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
+        }
+
+        function checkAutoLogout() {
+            if (!state.isLoggedIn) return;
+            const last = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || '0', 10);
+            if (last && (Date.now() - last) > AUTO_LOGOUT_MS) {
+                logout();
+            } else {
+                recordActivityTimestamp();
+            }
+        }
+
+        ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(function(evt) {
+            document.addEventListener(evt, recordActivityTimestamp, { passive: true });
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                // التطبيق ظهر تاني (سواء اترجع من الخلفية في الأندرويد أو رجّع تاب في المتصفح)
+                checkAutoLogout();
+            } else {
+                // هيتم اعتبار وقت الاختفاء كآخر نشاط، عشان لو رجع بعد وقت طويل يتسجل خروجه
+                recordActivityTimestamp();
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', function() {
+            recordActivityTimestamp();
+        });
+
+        setInterval(checkAutoLogout, 60 * 1000);
+        // ===================== End Auto Logout =====================
+
         // ===================== Biometric (Fingerprint / Face ID) Login =====================
         // نظام دخول بالبصمة على مستوى الجهاز: بعد أول تسجيل دخول ناجح بكلمة المرور،
         // نعرض على المستخدم تفعيل البصمة. لو وافق، نسجل بيانات اعتماد محليًا على هذا
