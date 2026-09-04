@@ -1948,12 +1948,6 @@
             if (document.visibilityState === 'visible') {
                 // التطبيق ظهر تاني (سواء اترجع من الخلفية في الأندرويد أو رجّع تاب في المتصفح)
                 checkAutoLogout();
-                // إجبار Firebase على إعادة الاتصال فورًا (كان ممكن ينقطع في الخلفية على الموبايل)
-                // ثم عمل مزامنة صامتة عشان أي تغييرات فاتت وانت في الخلفية تظهر من غير الحاجة لـ refresh يدوي
-                if (typeof CLOUD_ENABLED !== 'undefined' && CLOUD_ENABLED && state.isLoggedIn) {
-                    try { firebase.database().goOnline(); } catch (e) {}
-                    syncToCloud(true);
-                }
             } else {
                 // هيتم اعتبار وقت الاختفاء كآخر نشاط، عشان لو رجع بعد وقت طويل يتسجل خروجه
                 recordActivityTimestamp();
