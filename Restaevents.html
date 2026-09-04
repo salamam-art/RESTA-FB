@@ -523,18 +523,10 @@
                         <input type="password" id="loginPassword" required class="text-left pl-12" dir="ltr" placeholder="••••••••">
                     </div>
                 </div>
-                <div class="flex items-center gap-3 mt-4">
-                    <button type="submit" class="flex-1 bg-[#6E1418] hover:bg-[#5a1013] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2">
-                        <span>تسجيل الدخول</span>
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                    </button>
-                    <div id="loginBiometricSection" class="hidden">
-                        <button type="button" onclick="loginWithBiometricFromLoginScreen()" title="الدخول بالبصمة"
-                            class="w-14 h-14 flex items-center justify-center bg-slate-100 hover:bg-[#6E1418] hover:text-white text-[#6E1418] rounded-xl border border-slate-200 hover:border-[#6E1418] shadow-sm transition-all duration-300 active:scale-[0.95]">
-                            <i data-lucide="fingerprint" class="w-6 h-6"></i>
-                        </button>
-                    </div>
-                </div>
+                <button type="submit" class="w-full bg-[#6E1418] hover:bg-[#5a1013] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] mt-4 flex items-center justify-center gap-2">
+                    <span>تسجيل الدخول</span>
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                </button>
             </form>
             <button type="button" onclick="loginAsGuest()" class="w-full mt-4 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold py-3.5 rounded-xl border border-slate-200 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2">
                 <i data-lucide="eye" class="w-4 h-4"></i>
@@ -1430,9 +1422,6 @@
 
             if (state.isLoggedIn) {
                 attemptAutoUnlock();
-            } else {
-                // أظهر زر البصمة في شاشة اللوجين لو البصمة مسجّلة
-                initLoginBiometricButton();
             }
         }
 
@@ -1913,17 +1902,19 @@
             document.getElementById('app').style.display = 'none';
             document.getElementById('loginEmail').value = '';
             document.getElementById('loginPassword').value = '';
-            // أعد إظهار زر البصمة لو البصمة مسجّلة
-            initLoginBiometricButton();
         }
 
         // ===================== Biometric (Fingerprint / Face ID) Login =====================
         // نظام دخول بالبصمة على مستوى الجهاز: بعد أول تسجيل دخول ناجح بكلمة المرور،
-        // نعرض على المستخدم تفعيل البصمة. لو وافق، نسجل بيانات اعتماد WebAuthn محليًا
-        // على هذا الجهاز فقط. في المرات القادمة، بدل عرض شاشة الدخول العادية مباشرة
-        // نطلب تحقق بالبصمة، ولو نجح نفتح التطبيق تلقائيًا بدون أي نقر على زر الدخول.
-        // ملحوظة: هذا تحقق محلي على مستوى الجهاز (Platform Authenticator) وليس تحقق
-        // مركزي عبر سيرفر، وهو مناسب تمامًا لطبيعة النظام الحالي (لا يوجد باك إند مصادقة).
+        // نعرض على المستخدم تفعيل البصمة. لو وافق، نسجل بيانات اعتماد محليًا على هذا
+        // الجهاز فقط. في المرات القادمة، بدل عرض شاشة الدخول العادية مباشرة نطلب تحقق
+        // بالبصمة، ولو نجح نفتح التطبيق تلقائيًا بدون أي نقر على زر الدخول.
+        // فيه مساران للتحقق:
+        //  1) جسر تطبيق أندرويد الأصلي (WebView) عبر window.Android.authenticateBiometric()
+        //     - يُستخدم تلقائيًا لو التطبيق شغال جوه تطبيق أندرويد يوفر الجسر ده.
+        //  2) WebAuthn (Platform Authenticator) للمتصفحات العادية على الموبايل/الديسكتوب.
+        // ملحوظة: الاتنين تحقق محلي على مستوى الجهاز وليس تحقق مركزي عبر سيرفر، وهو
+        // مناسب تمامًا لطبيعة النظام الحالي (لا يوجد باك إند مصادقة).
 
         function bufferToBase64url(buffer) {
             const bytes = new Uint8Array(buffer);
@@ -1941,23 +1932,40 @@
             return buffer;
         }
 
-        // ===================== كشف بيئة التشغيل: تطبيق أندرويد (WebView) أم متصفح =====================
-        // التطبيق Native حقيقي (Android Studio) وشغال بـ WebView جوه التطبيق. لو الـ WebView
-        // مُفعَّل عليه دعم WebAuthn من الكود الـ Native (WebSettingsCompat.setWebAuthenticationSupport
-        // + Digital Asset Links) هتشتغل البصمة تلقائيًا زي أي متصفح عادي من غير أي تغيير هنا.
-        // الدالة دي متاحة كمعلومة/تشخيص بس (مش بتقفل البصمة تلقائيًا)، تقدر تستخدمها لاحقًا
-        // لو حبيت تفرّق سلوك معيّن بين الوضعين.
-        function isAndroidWebViewApp() {
-            try {
-                const ua = navigator.userAgent || '';
-                return /Android/i.test(ua) && /;\s*wv\)/i.test(ua);
-            } catch (_) {
-                return false;
+        // --- جسر تطبيق أندرويد الأصلي (WebView) ---
+        function hasAndroidBiometricBridge() {
+            return !!(window.Android && typeof window.Android.authenticateBiometric === 'function');
+        }
+
+        let _androidBiometricResolver = null;
+
+        // دالة لطلب البصمة من تطبيق الأندرويد (بترجع Promise تتحل لما يوصل الرد)
+        function requestBiometricAuth() {
+            return new Promise((resolve) => {
+                if (hasAndroidBiometricBridge()) {
+                    _androidBiometricResolver = resolve;
+                    window.Android.authenticateBiometric();
+                } else {
+                    console.log('هذه الميزة متاحة فقط داخل تطبيق الأندرويد.');
+                    resolve(false);
+                }
+            });
+        }
+
+        // هذه الدالة يستدعيها تطبيق الأندرويد تلقائيًا بعد عملية البصمة
+        function onBiometricResult(success, message) {
+            if (_androidBiometricResolver) {
+                const resolve = _androidBiometricResolver;
+                _androidBiometricResolver = null;
+                resolve(!!success);
+            }
+            if (!success && message) {
+                console.warn('Biometric auth failed:', message);
             }
         }
-        // ===================== نهاية كشف بيئة التشغيل =====================
 
         async function isBiometricAvailable() {
+            if (hasAndroidBiometricBridge()) return true;
             try {
                 return !!(window.PublicKeyCredential &&
                     typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function' &&
@@ -2020,34 +2028,16 @@
         }
 
         async function registerBiometric(email) {
-            // التحقق من أن البيئة تدعم WebAuthn (يشترط HTTPS أو localhost)
-            const proto = location.protocol;
-            if (proto !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-                showBiometricUnsupportedModal(
-                    'البصمة تتطلب رفع الملف على خادم HTTPS',
-                    'ميزة الدخول بالبصمة (WebAuthn) تشتغل فقط عند فتح التطبيق عبر رابط HTTPS وليس من ملف محلي. ارفع الملف على استضافة أو شغّله عبر رابط آمن.'
-                );
-                return;
-            }
-            if (!window.PublicKeyCredential) {
-                showBiometricUnsupportedModal(
-                    'المتصفح لا يدعم البصمة',
-                    'متصفحك الحالي لا يدعم ميزة WebAuthn. جرّب Chrome أو Safari أو Edge بإصدار حديث.'
-                );
-                return;
-            }
             try {
-                const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-                if (!available) {
-                    showBiometricUnsupportedModal(
-                        'الجهاز لا يدعم البصمة',
-                        'جهازك الحالي ليس لديه مستشعر بصمة مفعّل أو لا يدعم Platform Authenticator. تأكد من تفعيل قفل الشاشة (PIN أو بصمة) في إعدادات الجهاز.'
-                    );
+                if (hasAndroidBiometricBridge()) {
+                    // تأكيد فوري إن البصمة شغالة على الجهاز قبل تفعيلها في التطبيق
+                    const ok = await requestBiometricAuth();
+                    if (!ok) throw new Error('android biometric test failed');
+                    localStorage.setItem('hotel_biometric_cred_id', 'android-native');
+                    localStorage.setItem('hotel_biometric_email', email);
+                    showToast('تم تفعيل الدخول بالبصمة على هذا الجهاز ✅', 'success');
                     return;
                 }
-            } catch (_) {}
-
-            try {
                 const challenge = crypto.getRandomValues(new Uint8Array(32));
                 const userId = new TextEncoder().encode(email);
                 const publicKey = {
@@ -2066,45 +2056,8 @@
                 showToast('تم تفعيل الدخول بالبصمة على هذا الجهاز ✅', 'success');
             } catch (err) {
                 console.error('Biometric registration error:', err);
-                // رسائل خطأ واضحة حسب نوع الخطأ
-                if (err.name === 'NotAllowedError') {
-                    showToast('تم إلغاء التسجيل أو انتهت المهلة. حاول مرة أخرى.', 'error');
-                } else if (err.name === 'SecurityError') {
-                    showBiometricUnsupportedModal(
-                        'خطأ أمني - يلزم HTTPS',
-                        'لا يمكن تفعيل البصمة من ملف محلي. افتح التطبيق عبر رابط HTTPS.'
-                    );
-                } else if (err.name === 'InvalidStateError') {
-                    showToast('البصمة مسجّلة بالفعل على هذا الجهاز لهذا المستخدم.', 'error');
-                } else {
-                    showToast('تعذر تفعيل البصمة: ' + (err.message || err.name), 'error');
-                }
+                showToast('تعذر تفعيل البصمة على هذا الجهاز', 'error');
             }
-        }
-
-        function showBiometricUnsupportedModal(title, message) {
-            const existing = document.getElementById('biometricUnsupportedModal');
-            if (existing) existing.remove();
-            const modal = document.createElement('div');
-            modal.id = 'biometricUnsupportedModal';
-            modal.className = 'fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4';
-            modal.innerHTML = `
-                <div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden animate-fade-in border border-slate-100 text-center">
-                    <div class="px-6 py-5 bg-gradient-to-l from-amber-600 to-red-700 text-white">
-                        <i data-lucide="fingerprint" class="w-10 h-10 mx-auto mb-2 opacity-80"></i>
-                        <h3 class="font-black text-lg">${title}</h3>
-                    </div>
-                    <div class="p-6 space-y-4">
-                        <p class="text-sm text-slate-600 leading-relaxed">${message}</p>
-                        <button onclick="document.getElementById('biometricUnsupportedModal').remove()" 
-                            class="w-full py-3 font-black text-white bg-[#6E1418] hover:bg-[#5a1013] rounded-xl transition-all">
-                            حسناً، فهمت
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
         async function toggleBiometricForCurrentUser() {
@@ -2122,6 +2075,9 @@
             const stored = getBiometricCredential();
             if (!stored || stored.email !== state.currentUserEmail) return false;
             try {
+                if (hasAndroidBiometricBridge()) {
+                    return await requestBiometricAuth();
+                }
                 const challenge = crypto.getRandomValues(new Uint8Array(32));
                 const publicKey = {
                     challenge,
@@ -2198,93 +2154,6 @@
         function useBiometricFallbackPassword() {
             hideBiometricLockScreen();
             document.getElementById('loginModal').style.display = 'flex';
-            // أخفِ زر البصمة هنا لأن المستخدم اختار كلمة المرور بدلاً منها
-            const section = document.getElementById('loginBiometricSection');
-            if (section) section.classList.add('hidden');
-        }
-
-        // --- إظهار زر البصمة في شاشة اللوجين إذا كانت مسجّلة ---
-        function initLoginBiometricButton() {
-            const stored = getBiometricCredential();
-            if (!stored) return; // لا توجد بصمة مسجّلة على الإطلاق
-            // أظهر الزر بغض النظر عن HTTPS — لو البصمة مش متاحة سيظهر خطأ واضح عند الضغط
-            const section = document.getElementById('loginBiometricSection');
-            if (section) section.classList.remove('hidden');
-        }
-
-        // --- الدخول بالبصمة مباشرةً من شاشة اللوجين ---
-        async function loginWithBiometricFromLoginScreen() {
-            const stored = getBiometricCredential();
-            if (!stored) {
-                showToast('لا توجد بصمة مسجّلة على هذا الجهاز', 'error');
-                return;
-            }
-
-            // تأكد من أن المستخدم صاحب البصمة موجود في النظام (state محمّل من localStorage)
-            const userExists = state.users && state.users.find(u => u.email === stored.email);
-            if (!userExists) {
-                showToast('المستخدم المرتبط بهذه البصمة غير موجود في النظام', 'error');
-                removeBiometricCredential();
-                const sec = document.getElementById('loginBiometricSection');
-                if (sec) sec.classList.add('hidden');
-                return;
-            }
-
-            // فحص دعم WebAuthn
-            if (!window.PublicKeyCredential) {
-                showBiometricUnsupportedModal('المتصفح لا يدعم البصمة', 'جرّب Chrome أو Safari بإصدار حديث.');
-                return;
-            }
-            const proto = location.protocol;
-            if (proto !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-                showBiometricUnsupportedModal(
-                    'البصمة تتطلب HTTPS',
-                    'ميزة البصمة تشتغل فقط عبر رابط HTTPS. افتح التطبيق من رابط آمن وليس من ملف محلي.'
-                );
-                return;
-            }
-
-            // اطلب التحقق بالبصمة
-            const btn = document.querySelector('#loginBiometricSection button');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i><span>جاري التحقق...</span>';
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            }
-
-            const resetBtn = () => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i data-lucide="fingerprint" class="w-5 h-5"></i><span>الدخول بالبصمة</span>';
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                }
-            };
-
-            try {
-                const challenge = crypto.getRandomValues(new Uint8Array(32));
-                const publicKey = {
-                    challenge,
-                    allowCredentials: [{ id: base64urlToBuffer(stored.credId), type: 'public-key' }],
-                    userVerification: 'required',
-                    timeout: 60000
-                };
-                const assertion = await navigator.credentials.get({ publicKey });
-                if (!assertion) throw new Error('no assertion');
-
-                // نجح التحقق — سجّل الدخول بنفس طريقة performLogin
-                performLogin(stored.email);
-                showToast('مرحباً! تم الدخول بالبصمة ✅', 'success');
-            } catch (err) {
-                console.warn('Biometric login from screen failed:', err);
-                resetBtn();
-                if (err.name === 'NotAllowedError') {
-                    showToast('تم إلغاء التحقق. حاول مرة أخرى.', 'error');
-                } else if (err.name === 'SecurityError') {
-                    showBiometricUnsupportedModal('خطأ أمني - يلزم HTTPS', 'افتح التطبيق عبر رابط HTTPS لاستخدام البصمة.');
-                } else {
-                    showToast('تعذر التحقق بالبصمة: ' + (err.message || err.name), 'error');
-                }
-            }
         }
         // ===================== End Biometric Login =====================
 
@@ -3742,7 +3611,7 @@ ${notesDisplay ? `
                                 </button>
                             ` : ''}
 
-                            ${(window.PublicKeyCredential && state.currentUserEmail !== GUEST_EMAIL) ? `
+                            ${((window.PublicKeyCredential || hasAndroidBiometricBridge()) && state.currentUserEmail !== GUEST_EMAIL) ? `
                                 <button onclick="toggleBiometricForCurrentUser()" class="p-2 sm:p-2.5 ${isBiometricRegisteredForCurrentUser() ? 'text-[#6E1418] bg-red-50' : 'text-slate-500 hover:text-[#6E1418] hover:bg-red-50'} rounded-xl transition-all shrink-0" title="${isBiometricRegisteredForCurrentUser() ? 'إلغاء الدخول بالبصمة' : 'تفعيل الدخول بالبصمة'}">
                                     <i data-lucide="fingerprint" class="w-5 h-5"></i>
                                 </button>
