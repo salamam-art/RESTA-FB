@@ -279,12 +279,6 @@
         /* Utility Styles */
         #sync-status { position: fixed; bottom: 24px; left: 24px; z-index: 1000; }
         .modal-backdrop { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
-        /* "التقاط بالكاميرا" مفيدة فقط على الديسكتوب (كاميرا الويب)، لأن اختيار
-           الملفات على الموبايل بالفعل يعرض خيار الكاميرا من نظام التشغيل نفسه. */
-        @media (hover: hover) and (pointer: fine) {
-            .desktop-camera-btn { display: inline-flex !important; }
-        }
-        
         /* Animation */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -716,65 +710,6 @@
         </div>
     </div>
 
-    <!-- Logs Modal -->
-    <div id="logsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
-        <div class="bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
-            <div class="px-6 py-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-[#A88A45]/20 rounded-xl flex items-center justify-center">
-                        <i data-lucide="scroll-text" class="w-5 h-5 text-[#A88A45]"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-black text-xl tracking-wide">سجل العمليات</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">جميع العمليات المسجلة مرتبة من الأحدث للأقدم</p>
-                    </div>
-                </div>
-                <button onclick="document.getElementById('logsModal').classList.add('hidden')" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <!-- Search Bar -->
-            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 shrink-0 flex items-center gap-3">
-                <div class="relative flex-1">
-                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
-                    </div>
-                    <input id="logsSearchInput" type="text" oninput="filterLogs()" placeholder="بحث في السجل (اسم الشركة، نوع العملية، المستخدم...)"
-                        class="w-full pr-10 pl-4 py-2.5 border border-slate-200 rounded-xl bg-white text-sm outline-none focus:border-[#A88A45] focus:ring-2 focus:ring-[#A88A45]/20 transition-all font-medium">
-                </div>
-                <div id="logsCountBadge" class="text-xs font-bold text-slate-400 whitespace-nowrap shrink-0 bg-slate-100 px-3 py-2 rounded-xl"></div>
-            </div>
-            <!-- Table -->
-            <div class="overflow-y-auto flex-1">
-                <div class="table-responsive">
-                    <table class="users-table mt-0">
-                        <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-                            <tr>
-                                <th class="text-slate-500 py-3 w-10 text-center">#</th>
-                                <th class="text-[#6E1418] py-3">نوع العملية</th>
-                                <th class="text-[#6E1418] py-3">اسم الشركة / الجهة</th>
-                                <th class="text-[#6E1418] py-3">القاعة</th>
-                                <th class="text-[#6E1418] py-3">التوقيت</th>
-                                <th class="text-[#6E1418] py-3">المستخدم (الإيميل)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logsTableBody">
-                            <tr><td colspan="7" class="text-center py-12 text-slate-400 font-bold">
-                                <div class="flex flex-col items-center gap-3">
-                                    <i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i>
-                                    <span>جاري تحميل السجل...</span>
-                                </div>
-                            </td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="p-3 bg-slate-50 border-t border-slate-100 text-center text-xs text-slate-400 font-medium shrink-0">
-                البيانات محملة من سجل العمليات في Google Sheets
-            </div>
-        </div>
-    </div>
-
     <!-- Deleted Bookings Modal -->
     <div id="deletedBookingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
         <div class="bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
@@ -1054,36 +989,6 @@
         </div>
     </div>
 
-    <!-- Camera Capture Modal -->
-    <div id="cameraModal" class="hidden fixed inset-0 z-[85] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4">
-        <div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in border border-slate-100">
-            <div class="px-5 py-4 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center">
-                <div class="flex items-center gap-2 font-bold">
-                    <i data-lucide="camera" class="w-5 h-5 text-[#A88A45]"></i> التقاط صورة
-                </div>
-                <button type="button" onclick="closeCameraCapture()" class="w-9 h-9 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <div class="p-4 bg-black">
-                <div class="relative rounded-2xl overflow-hidden bg-black">
-                    <video id="cameraVideo" autoplay playsinline muted class="w-full max-h-[60vh] object-contain"></video>
-                </div>
-            </div>
-            <div class="p-4 flex items-center justify-between gap-3 bg-slate-50">
-                <button type="button" onclick="switchCamera()" id="cameraSwitchBtn" class="hidden inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-100">
-                    <i data-lucide="switch-camera" class="w-4 h-4"></i> تبديل الكاميرا
-                </button>
-                <button type="button" onclick="capturePhotoFromCamera()" class="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#6E1418] to-[#8a1c22] text-white font-black py-3 rounded-xl shadow-lg active:scale-[0.98] transition-all">
-                    <i data-lucide="circle-dot" class="w-5 h-5 text-[#A88A45]"></i> التقاط
-                </button>
-                <button type="button" onclick="closeCameraCapture()" class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-100">
-                    تم (<span id="cameraCapturedCount">0</span>)
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Image Lightbox -->
     <div id="imageLightbox" class="hidden fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4" onclick="if(event.target===this) closeImageLightbox()">
         <button type="button" onclick="closeImageLightbox()" class="absolute top-5 left-5 w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all text-white z-10">
@@ -1332,13 +1237,7 @@
             hideRestaSplashScreen();
             // تم استبدال الفحص الدوري (setInterval كل SYNC_INTERVAL) بالاشتراك اللحظي
             // على meta/updatedAt — يتم تفعيله داخل init() / performLogin() عبر setupRealtimeSync()
-            // Close sync dropdown on outside click
             document.addEventListener('click', function(e) {
-                const container = document.getElementById('syncDropdownContainer');
-                const dd = document.getElementById('syncDropdown');
-                if (dd && container && !container.contains(e.target)) {
-                    dd.classList.add('hidden');
-                }
                 const moreContainer = document.getElementById('moreMenuContainer');
                 const moreDd = document.getElementById('moreMenuDropdown');
                 if (moreDd && moreContainer && !moreContainer.contains(e.target)) {
@@ -1455,16 +1354,6 @@
             dot.className = isError ? "w-3 h-3 bg-red-500 rounded-full" : `w-3 h-3 rounded-full animate-pulse-soft`;
             dot.style.backgroundColor = isError ? '#ef4444' : COLOR_GOLD;
             if(!isError) setTimeout(() => status.style.display = 'none', 3000);
-        }
-
-        async function autoSync() {
-            if (!state.isLoggedIn || !CLOUD_ENABLED) return;
-            if (state.isSyncing) {
-                // ضع علامة "في انتظار مزامنة" بدل تجاهل الطلب
-                state._syncPending = true;
-                return;
-            }
-            await syncToCloud(true);
         }
 
         async function syncToCloud(isSilent = false) {
@@ -1664,21 +1553,6 @@
                 .filter((v, i, a) => a.findIndex(t => t.time === v.time && t.date === v.date && t.company === v.company) === i)
                 .sort((a, b) => new Date(b.date) - new Date(a.date))
                 .slice(0, 100);
-        }
-
-        function mergeUsers(localUsers, serverUsers) {
-            // نستخدم هذه الدالة فقط في حالات القراءة الصافية (بدون تغييرات معلّقة)
-            // عند وجود pendingDeletedUsers، يتم التعامل معها مباشرة في syncToCloud
-            const deletedSet = new Set(state.pendingDeletedUsers || []);
-            const localEmails = new Set(localUsers.map(u => u.email));
-            const merged = [...localUsers];
-            serverUsers.forEach(su => {
-                // لا تُضف محذوفاً نهائياً، ولا موجوداً مسبقاً
-                if (!deletedSet.has(su.email) && !localEmails.has(su.email)) {
-                    merged.push(su);
-                }
-            });
-            return merged;
         }
 
         async function loadFromCloud(isSilent = false) {
@@ -2820,168 +2694,6 @@
             cleanupTouchDrag();
         }
 
-        function handleBookingSubmit(e) {
-            e.preventDefault();
-            const form = e.target;
-            const isEditing = !!state.editingBookingId;
-            const bookingData = {
-                hallId: state.selectedHall.id,
-                hallName: state.selectedHall.name,
-                companyName: form.company.value,
-                phone: form.phone.value,
-                employee: form.employee.value,
-                startDate: form.dateFrom.value,
-                endDate: form.dateTo.value,
-                startTime: form.timeFrom.value,
-                endTime: form.timeTo.value,
-                notes: form.notes.value,
-                link: form.link.value,
-                createdBy: isEditing
-                    ? (state.bookings.find(b => b.groupId === state.editingBookingId || b.id === state.editingBookingId)?.createdBy || state.currentUserEmail)
-                    : state.currentUserEmail,
-                createdAt: new Date().toISOString()
-            };
-
-            const start = new Date(bookingData.startDate);
-            const end = new Date(bookingData.endDate);
-
-            if (end < start) {
-                alert("تاريخ النهاية يجب أن يكون بعد تاريخ البداية");
-                return;
-            }
-
-            // Build new dates list
-            const newDates = [];
-            let cur = new Date(start);
-            while (cur <= end) {
-                newDates.push(cur.toISOString().split('T')[0]);
-                cur.setDate(cur.getDate() + 1);
-            }
-
-            // Conflict check – ignore all days in the group being edited
-            for (const ds of newDates) {
-                if (checkConflict(bookingData.hallId, ds, bookingData.startTime, bookingData.endTime, state.editingBookingId, true)) {
-                    alert('عذراً، يوجد حجز مسبق في نفس التوقيت يوم ' + ds + ' في ' + bookingData.hallName + '.');
-                    return;
-                }
-            }
-
-            const groupId = isEditing
-                ? state.editingBookingId
-                : String(Date.now()) + '_' + Math.random().toString(36).slice(2);
-
-            if (isEditing) {
-                // ── Smart merge ──────────────────────────────────────────────
-                const existingGroupDays = state.bookings.filter(b =>
-                    b.groupId === groupId || b.id === groupId
-                );
-                const existingDates = existingGroupDays.map(b => b.startDate);
-
-                // Remove days no longer in new range
-                const idsToRemove = existingGroupDays
-                    .filter(b => !newDates.includes(b.startDate))
-                    .map(b => b.id);
-                // نسجّل كل يوم بيتشال بسبب تعديل النطاق كـ "حذف" في السجل، عشان
-                // إشعار "تم حذف حجز بواسطة..." يقدر ينسب العملية لصاحبها الصحيح بدل ما يفشل يلاقي اسم
-                existingGroupDays
-                    .filter(b => idsToRemove.includes(b.id))
-                    .forEach(b => {
-                        state.activityLogs.unshift({
-                            type:         'حذف',
-                            company:      b.companyName,
-                            hallName:     b.hallName || '',
-                            user:         state.currentUserEmail,
-                            bookingId:    b.id || '',
-                            startDate:    b.startDate || '',
-                            date:         new Date().toLocaleDateString('ar-EG'),
-                            time:         new Date().toLocaleTimeString('ar-EG'),
-                            isoTimestamp: new Date().toISOString()
-                        });
-                    });
-                idsToRemove.forEach(did => state.pendingDeletions.push(did));
-                state.bookings = state.bookings.filter(b => !idsToRemove.includes(b.id));
-
-                // Update shared metadata on remaining days
-                state.bookings = state.bookings.map(b => {
-                    if (b.groupId === groupId || b.id === groupId) {
-                        return {
-                            ...b,
-                            hallId: bookingData.hallId,
-                            hallName: bookingData.hallName,
-                            companyName: bookingData.companyName,
-                            phone: bookingData.phone,
-                            employee: bookingData.employee,
-                            startTime: bookingData.startTime,
-                            endTime: bookingData.endTime,
-                            notes: bookingData.notes,
-                            link: bookingData.link,
-                            originalRange: bookingData.startDate + ' to ' + bookingData.endDate,
-                            _isDirty: true
-                        };
-                    }
-                    return b;
-                });
-
-                // Add new days not previously in the group
-                // Reuse removed IDs when possible to avoid orphan records on the server
-                const datesToAdd = newDates.filter(d => !existingDates.includes(d));
-                const reuseIds = idsToRemove.slice();
-                let dayIndex = existingGroupDays.length;
-                datesToAdd.forEach(ds => {
-                    let newId;
-                    if (reuseIds.length > 0) {
-                        newId = reuseIds.shift();
-                        state.pendingDeletions = state.pendingDeletions.filter(pid => pid !== newId);
-                    } else {
-                        newId = groupId + '_d' + dayIndex;
-                        dayIndex++;
-                    }
-                    state.bookings.push({
-                        ...bookingData,
-                        id: newId,
-                        groupId: groupId,
-                        startDate: ds,
-                        originalRange: bookingData.startDate + ' to ' + bookingData.endDate,
-                        _isDirty: true
-                    });
-                });
-            } else {
-                // New booking – create all days
-                newDates.forEach((ds, dayIndex) => {
-                    state.bookings.push({
-                        ...bookingData,
-                        id: groupId + '_d' + dayIndex,
-                        groupId: groupId,
-                        startDate: ds,
-                        originalRange: bookingData.startDate + ' to ' + bookingData.endDate,
-                        _isDirty: true
-                    });
-                });
-            }
-
-            const logType = isEditing ? 'تعديل' : 'إضافة';
-            const _fmtD1 = bookingData.startDate ? bookingData.startDate.split('-').reverse().join('/') : '';
-            const logMsg = 'تم ' + logType + ' حجز - ' + bookingData.companyName + ' - بتاريخ ' + _fmtD1;
-
-            addNotification(logMsg, 'add', bookingData.startDate);
-            showToast(logMsg, 'success', bookingData.startDate);
-
-            state.activityLogs.unshift({
-                type:         logType,
-                company:      bookingData.companyName,
-                hallName:     bookingData.hallName || '',
-                user:         state.currentUserEmail,
-                date:         new Date().toLocaleDateString('ar-EG'),
-                time:         new Date().toLocaleTimeString('ar-EG'),
-                isoTimestamp: new Date().toISOString()
-            });
-
-            state.editingBookingId = null;
-            saveLocal();
-            state.activeTab = 'calendar';
-            render();
-        }
-
         function editBooking(id) {
             const booking = state.bookings.find(b => b.id === id);
             if (!booking) return;
@@ -3603,20 +3315,6 @@ ${notesDisplay ? `
             window.location.href = mailtoUrl;
         }
 
-        function cancelEdit() {
-            state.editingBookingId = null;
-            state.activeTab = 'calendar';
-            render();
-        }
-
-        function navigate(view) {
-            state.view = 'dashboard';
-            state.selectedHall = null;
-            render();
-        }
-
-        function selectHall(id) {} // Display only
-
         function changeMonth(delta) {
             state.currentMonth += delta;
             if (state.currentMonth > 11) {
@@ -3961,104 +3659,11 @@ ${notesDisplay ? `
             `;
         }
 
-        // ─── Sync Dropdown ────────────────────────────────────────────────
-        function toggleSyncDropdown(e) {
-            if (e) e.stopPropagation();
-            const dd = document.getElementById('syncDropdown');
-            if (dd) dd.classList.toggle('hidden');
-        }
-
         // ─── قائمة المزيد (موبايل) ──────────────────────────────────────
         function toggleMoreMenu(e) {
             if (e) e.stopPropagation();
             const dd = document.getElementById('moreMenuDropdown');
             if (dd) dd.classList.toggle('hidden');
-        }
-
-        // ─── Export to iCal (Google Calendar) ────────────────────────────
-        function exportToIcal() {
-            if (state.bookings.length === 0) {
-                showToast('لا توجد حجوزات لتصديرها', 'error');
-                return;
-            }
-
-            const seen = new Set();
-            const unique = state.bookings.filter(b => {
-                const key = b.groupId || b.id.toString().split('_d')[0];
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            });
-
-            const events = unique.map(b => {
-                const hall = HALLS.find(h => h.id === b.hallId);
-                const summary = `${hall ? hall.name : b.hallId} - ${b.companyName}`;
-
-                let startDateStr = b.startDate;
-                let endDateStr   = b.endDate || b.startDate;
-                if (b.originalRange && b.originalRange.includes(' to ')) {
-                    const parts  = b.originalRange.split(' to ');
-                    startDateStr = parts[0];
-                    endDateStr   = parts[1];
-                }
-
-                const endPlusOne = new Date(endDateStr);
-                endPlusOne.setDate(endPlusOne.getDate() + 1);
-                const endPlusStr = endPlusOne.toISOString().split('T')[0].replace(/-/g,'');
-                const startClean = startDateStr.replace(/-/g,'');
-                const uid = 'RESTA-' + b.id.toString().replace(/[^a-zA-Z0-9]/g,'').slice(0, 20);
-
-                let dtStart, dtEnd;
-                if (b.startTime) {
-                    const st = b.startTime.replace(':','') + '00';
-                    const et = (b.endTime || b.startTime).replace(':','') + '00';
-                    dtStart = `DTSTART;TZID=Africa/Cairo:${startClean}T${st}`;
-                    dtEnd   = `DTEND;TZID=Africa/Cairo:${startClean}T${et}`;
-                } else {
-                    dtStart = `DTSTART;VALUE=DATE:${startClean}`;
-                    dtEnd   = `DTEND;VALUE=DATE:${endPlusStr}`;
-                }
-
-                const descParts = [
-                    b.employee ? 'الموظف: ' + b.employee : '',
-                    b.phone    ? 'هاتف: '    + b.phone    : '',
-                    b.notes    ? 'ملاحظات: ' + b.notes    : '',
-                    'بواسطة: ' + b.createdBy
-                ].filter(Boolean);
-
-                return [
-                    'BEGIN:VEVENT',
-                    'UID:' + uid + '@resta-events',
-                    'DTSTAMP:' + new Date().toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z',
-                    dtStart,
-                    dtEnd,
-                    'SUMMARY:' + summary.replace(/[\r\n,;\\]/g,' '),
-                    descParts.length ? 'DESCRIPTION:' + descParts.join('\\n') : '',
-                    hall ? 'LOCATION:' + hall.name : '',
-                    'END:VEVENT'
-                ].filter(Boolean).join('\r\n');
-            });
-
-            const ical = [
-                'BEGIN:VCALENDAR',
-                'VERSION:2.0',
-                'PRODID:-//Resta Hotels//Events Booking//AR',
-                'CALSCALE:GREGORIAN',
-                'METHOD:PUBLISH',
-                'X-WR-CALNAME:Resta Events - Port Said',
-                'X-WR-TIMEZONE:Africa/Cairo',
-                ...events,
-                'END:VCALENDAR'
-            ].join('\r\n');
-
-            const blob = new Blob(['\uFEFF' + ical], { type: 'text/calendar;charset=utf-8' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'RestaEvents_' + new Date().toISOString().slice(0,10) + '.ics';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showToast('تم تصدير ' + unique.length + ' حجز! استورد الملف في Google Calendar', 'success');
         }
 
         // ─── Calendar Day Click Handler ───────────────────────────────────
@@ -4180,8 +3785,6 @@ ${notesDisplay ? `
 
         // ─── Booking Images: upload, camera capture, resize/compress, lightbox ──
         let formImages = [];           // {id, data} images attached to the currently open booking form
-        let cameraStream = null;       // active getUserMedia stream for the camera modal
-        let cameraFacingMode = 'environment';
         let lightboxImages = [];       // images shown in the current lightbox session
         let lightboxIndex = 0;
 
@@ -4278,76 +3881,6 @@ ${notesDisplay ? `
                 </div>
             `).join('') || '<p class="text-xs text-slate-400">لا توجد صور مرفقة بعد</p>';
             if (typeof lucide !== "undefined") lucide.createIcons();
-        }
-
-        // ─── Camera capture (works for mobile browsers and desktop webcams) ──
-        async function openCameraCapture() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert('المتصفح لا يدعم الوصول إلى الكاميرا. يمكنك استخدام "تحميل من الملفات" بدلاً من ذلك.');
-                return;
-            }
-            try {
-                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: false });
-            } catch (err) {
-                alert('تعذّر الوصول إلى الكاميرا: ' + (err.message || 'تم رفض الإذن أو لا توجد كاميرا متاحة'));
-                return;
-            }
-            const video = document.getElementById('cameraVideo');
-            video.srcObject = cameraStream;
-
-            // Only show the "switch camera" button when more than one camera is available (typical on mobile)
-            const switchBtn = document.getElementById('cameraSwitchBtn');
-            if (switchBtn) {
-                switchBtn.classList.add('hidden');
-                if (navigator.mediaDevices.enumerateDevices) {
-                    navigator.mediaDevices.enumerateDevices().then(devices => {
-                        const cams = devices.filter(d => d.kind === 'videoinput');
-                        if (cams.length > 1) switchBtn.classList.remove('hidden');
-                    }).catch(() => {});
-                }
-            }
-
-            document.getElementById('cameraCapturedCount').textContent = '0';
-            document.getElementById('cameraModal').classList.remove('hidden');
-            if (typeof lucide !== "undefined") lucide.createIcons();
-        }
-
-        async function switchCamera() {
-            cameraFacingMode = (cameraFacingMode === 'environment') ? 'user' : 'environment';
-            if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
-            try {
-                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: false });
-                document.getElementById('cameraVideo').srcObject = cameraStream;
-            } catch (err) {
-                alert('تعذّر تبديل الكاميرا: ' + (err.message || ''));
-            }
-        }
-
-        async function capturePhotoFromCamera() {
-            const video = document.getElementById('cameraVideo');
-            if (!video || !video.videoWidth) return;
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            const rawDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-            try {
-                const dataUrl = await resizeImageSource(rawDataUrl);
-                formImages.push({ id: genImageId(), data: dataUrl });
-                renderImageThumbs();
-                const counter = document.getElementById('cameraCapturedCount');
-                if (counter) counter.textContent = String(formImages.length);
-            } catch (err) {
-                alert('تعذّر معالجة الصورة الملتقطة: ' + err.message);
-            }
-        }
-
-        function closeCameraCapture() {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(t => t.stop());
-                cameraStream = null;
-            }
-            document.getElementById('cameraModal').classList.add('hidden');
         }
 
         // ─── Image lightbox (used both from the form and from the booking details card) ──
@@ -4697,164 +4230,6 @@ ${notesDisplay ? `
             render();
         }
 
-
-        // ─── Logs Modal ────────────────────────────────────────────────────
-        async function toggleLogsModal() {
-            const modal = document.getElementById('logsModal');
-            if (modal.classList.contains('hidden')) {
-                modal.classList.remove('hidden');
-                if (typeof lucide !== "undefined") lucide.createIcons();
-                await loadLogsForDisplay();
-            } else {
-                modal.classList.add('hidden');
-            }
-        }
-
-        async function loadLogsForDisplay() {
-            const tbody = document.getElementById('logsTableBody');
-            tbody.innerHTML = `
-                <tr><td colspan="6" class="text-center py-12 text-slate-400 font-bold">
-                    <div class="flex flex-col items-center gap-3">
-                        <i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i>
-                        <span>جاري تحميل السجل من السحابة...</span>
-                    </div>
-                </td></tr>`;
-            if (typeof lucide !== "undefined") lucide.createIcons();
-
-            let allLogs = [];
-            try {
-                if (CLOUD_ENABLED) {
-                    const snap = await db.ref('logs').once('value');
-                    const serverLogs = fbValToArray(snap.val());
-                    // Merge: union of local + server, deduplicated
-                    const merged = [...state.activityLogs];
-                    serverLogs.forEach(sl => {
-                        const exists = merged.some(ll =>
-                            ll.isoTimestamp === sl.isoTimestamp ||
-                            (ll.time === sl.time && ll.date === sl.date && ll.company === sl.company)
-                        );
-                        if (!exists) merged.push(sl);
-                    });
-                    allLogs = merged;
-                } else {
-                    allLogs = [...state.activityLogs];
-                }
-            } catch (e) {
-                allLogs = [...state.activityLogs];
-            }
-
-            // Sort: newest first — use isoTimestamp when available, otherwise keep insertion order
-            allLogs.sort((a, b) => {
-                const tsA = a.isoTimestamp || '';
-                const tsB = b.isoTimestamp || '';
-                if (tsA && tsB) return tsB.localeCompare(tsA);
-                if (tsA) return -1;
-                if (tsB) return 1;
-                return 0;
-            });
-
-            window._allLogs = allLogs;
-
-            const searchInput = document.getElementById('logsSearchInput');
-            if (searchInput) searchInput.value = '';
-
-            renderLogsTable(allLogs);
-        }
-
-        function renderLogsTable(logs) {
-            const tbody = document.getElementById('logsTableBody');
-            const badge = document.getElementById('logsCountBadge');
-            if (badge) badge.textContent = logs.length + ' سجل';
-
-            if (!logs || logs.length === 0) {
-                tbody.innerHTML = `
-                    <tr><td colspan="6" class="text-center py-16 text-slate-400 font-bold">
-                        <div class="flex flex-col items-center gap-3">
-                            <i data-lucide="scroll" class="w-12 h-12 text-slate-300"></i>
-                            <span>لا توجد سجلات مطابقة</span>
-                        </div>
-                    </td></tr>`;
-                if (typeof lucide !== "undefined") lucide.createIcons();
-                return;
-            }
-
-            tbody.innerHTML = logs.map((log, i) => {
-                // نوع العملية — لون وأيقونة
-                const typeColor = log.type === 'حذف'
-                    ? 'bg-red-100 text-red-700 border border-red-200'
-                    : (log.type === 'تعديل'
-                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                        : 'bg-emerald-100 text-emerald-700 border border-emerald-200');
-                const typeIcon = log.type === 'حذف' ? 'trash-2'
-                    : (log.type === 'تعديل' ? 'edit-3' : 'plus-circle');
-
-                // Timestamp — حاول استخدام isoTimestamp أولًا
-                let tsDisplay = '';
-                let tsDate = log.date || '';
-                let tsTime = log.time || '';
-                if (log.isoTimestamp) {
-                    try {
-                        const d = new Date(log.isoTimestamp);
-                        tsDate = d.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                        tsTime = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    } catch(e) { /* fallback to date/time fields */ }
-                }
-                tsDisplay = tsDate
-                    ? `<div class="font-bold text-slate-700 text-sm">${tsDate}</div>
-                       <div class="text-xs text-slate-400 font-mono mt-0.5">${tsTime}</div>`
-                    : `<span class="text-slate-400">—</span>`;
-
-                // المستخدم — اعرض الإيميل كاملًا
-                const userEmail = log.user || log.createdBy || '—';
-
-                // اسم القاعة
-                const hallDisplay = log.hallName || log.hall || '—';
-
-                return `
-                    <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50 group">
-                        <td class="px-3 py-3 text-xs font-bold text-slate-300 text-center w-8 group-hover:text-slate-500">${logs.length - i}</td>
-                        <td class="px-3 py-3">
-                            <span class="inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg ${typeColor} whitespace-nowrap">
-                                <i data-lucide="${typeIcon}" class="w-3 h-3 shrink-0"></i>
-                                ${log.type || '—'}
-                            </span>
-                        </td>
-                        <td class="px-3 py-3 font-bold text-[#6E1418] text-sm max-w-[160px]">
-                            <div class="truncate" title="${(log.company || '').replace(/"/g, '&quot;')}">${log.company || '—'}</div>
-                        </td>
-                        <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">${hallDisplay}</td>
-                        <td class="px-3 py-3">${tsDisplay}</td>
-                        <td class="px-3 py-3">
-                            <div class="flex items-center gap-2">
-                                <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 font-black text-xs border border-slate-200">
-                                    ${userEmail !== '—' ? userEmail.charAt(0).toUpperCase() : '?'}
-                                </div>
-                                <span class="text-xs font-bold text-slate-600 break-all" style="direction:ltr; max-width:160px;" title="${userEmail}">${userEmail}</span>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-
-            if (typeof lucide !== "undefined") lucide.createIcons();
-        }
-
-        function filterLogs() {
-            const q = (document.getElementById('logsSearchInput').value || '').trim().toLowerCase();
-            if (!window._allLogs) return;
-            const filtered = !q
-                ? window._allLogs
-                : window._allLogs.filter(l =>
-                    (l.company    || '').toLowerCase().includes(q) ||
-                    (l.type       || '').toLowerCase().includes(q) ||
-                    (l.user       || '').toLowerCase().includes(q) ||
-                    (l.createdBy  || '').toLowerCase().includes(q) ||
-                    (l.hallName   || '').toLowerCase().includes(q) ||
-                    (l.hall       || '').toLowerCase().includes(q) ||
-                    (l.date       || '').toLowerCase().includes(q)
-                );
-            renderLogsTable(filtered);
-        }
 
         // ─── الحجوزات المحذوفة (من الشيت المنفصل) ──────────────────────
         async function toggleDeletedBookingsModal() {
