@@ -508,19 +508,13 @@
                 <div class="input-group">
                     <label>البريد الإلكتروني</label>
                     <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i data-lucide="mail" class="w-5 h-5 text-slate-400"></i>
-                        </div>
-                        <input type="email" id="loginEmail" required class="text-left pl-12" dir="ltr" placeholder="user@example.com">
+                        <input type="email" id="loginEmail" required class="text-left" dir="ltr" placeholder="user@example.com">
                     </div>
                 </div>
                 <div class="input-group">
                     <label>كلمة المرور</label>
                     <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i data-lucide="lock" class="w-5 h-5 text-slate-400"></i>
-                        </div>
-                        <input type="password" id="loginPassword" required class="text-left pl-12" dir="ltr" placeholder="••••••••">
+                        <input type="password" id="loginPassword" required class="text-left" dir="ltr" placeholder="••••••••">
                     </div>
                 </div>
                 <div class="flex items-center gap-3 mt-4">
@@ -1205,6 +1199,13 @@
         const GUEST_EMAIL = "__guest_viewer__";
         function isGuest() { return state.currentUserEmail === GUEST_EMAIL; }
 
+        // ─── الأيام المنصرمة: مغلقة أمام إضافة حجوزات جديدة، ومقفلة أمام التعديل/الحذف/النقل إلا للأدمن ───
+        function isPastDateStr(dateStr) {
+            if (!dateStr) return false;
+            const todayStr = new Date().toISOString().split('T')[0];
+            return dateStr < todayStr;
+        }
+
         function getWhatsAppLink(phone) {
             if (!phone) return '';
             let digits = String(phone).replace(/\D/g, '');
@@ -1580,16 +1581,31 @@
 
                 finalBookings.forEach(b => {
                     if (!prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id))) {
-                        const _addedByName = ((b.createdBy || '').split('@')[0]) || 'مستخدم آخر';
+                        let _addedByEmail = b.createdBy || '';
+                        if (!_addedByEmail) {
+                            // لو الحجز لأي سبب من غير createdBy، ندور على أقرب سجل "إضافة/تعديل" مطابق بنفس رقم الحجز أو التاريخ
+                            const _addLogsForCompany = serverLogs
+                                .filter(l => (l.type === 'إضافة' || l.type === 'تعديل') && l.company === b.companyName)
+                                .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
+                            const _addLogMatch = _addLogsForCompany.find(l => l.bookingId && l.bookingId === b.id)
+                                || _addLogsForCompany.find(l => l.startDate && l.startDate === b.startDate)
+                                || _addLogsForCompany[0];
+                            _addedByEmail = (_addLogMatch && _addLogMatch.user) || '';
+                        }
+                        const _addedByName = (_addedByEmail.split('@')[0]) || 'مستخدم آخر';
                         addNotification(`حجز جديد من ${_addedByName}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'add', b.startDate);
                         showToast(`حجز جديد من ${_addedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'success', b.startDate);
                     }
                 });
                 state.bookings.filter(b => !b._isDirty).forEach(b => {
                     if (!newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id))) {
-                        const _delLogMatch = serverLogs
+                        const _delLogsForCompany = serverLogs
                             .filter(l => l.type === 'حذف' && l.company === b.companyName)
-                            .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0))[0];
+                            .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
+                        // نفضّل تطابق دقيق بمعرّف الحجز أو تاريخه، وبس لو مفيش تطابق دقيق نرجع لأحدث سجل بنفس اسم الشركة (سجلات قديمة قبل إضافة الحقول دي)
+                        const _delLogMatch = _delLogsForCompany.find(l => l.bookingId && l.bookingId === b.id)
+                            || _delLogsForCompany.find(l => l.startDate && l.startDate === b.startDate)
+                            || _delLogsForCompany[0];
                         const _deletedByName = (((_delLogMatch && _delLogMatch.user) || '').split('@')[0]) || 'مستخدم آخر';
                         addNotification(`تم حذف حجز بواسطة ${_deletedByName}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'delete', b.startDate);
                         showToast(`تم حذف حجز بواسطة ${_deletedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error');
@@ -2524,6 +2540,16 @@
                 return;
             }
 
+            // الأيام المنصرمة: لا يمكن نقل حجز منها إلا للأدمن، ولا يمكن النقل إليها إطلاقاً
+            if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(booking.startDate)) {
+                showToast('عذراً، هذا حجز في يوم منصرم، ولا يمكن نقله إلا من قبل الأدمن.', 'error');
+                return;
+            }
+            if (isPastDateStr(newDate)) {
+                showToast('لا يمكن نقل حجوزات إلى الأيام المنصرمة.', 'error');
+                return;
+            }
+
             if (booking.startDate === newDate) return;
 
             // فحص التعارض في القاعة نفسها باليوم الجديد (تجاهل هذا اليوم فقط من الحجز)
@@ -2855,6 +2881,23 @@
                 const idsToRemove = existingGroupDays
                     .filter(b => !newDates.includes(b.startDate))
                     .map(b => b.id);
+                // نسجّل كل يوم بيتشال بسبب تعديل النطاق كـ "حذف" في السجل، عشان
+                // إشعار "تم حذف حجز بواسطة..." يقدر ينسب العملية لصاحبها الصحيح بدل ما يفشل يلاقي اسم
+                existingGroupDays
+                    .filter(b => idsToRemove.includes(b.id))
+                    .forEach(b => {
+                        state.activityLogs.unshift({
+                            type:         'حذف',
+                            company:      b.companyName,
+                            hallName:     b.hallName || '',
+                            user:         state.currentUserEmail,
+                            bookingId:    b.id || '',
+                            startDate:    b.startDate || '',
+                            date:         new Date().toLocaleDateString('ar-EG'),
+                            time:         new Date().toLocaleTimeString('ar-EG'),
+                            isoTimestamp: new Date().toISOString()
+                        });
+                    });
                 idsToRemove.forEach(did => state.pendingDeletions.push(did));
                 state.bookings = state.bookings.filter(b => !idsToRemove.includes(b.id));
 
@@ -2948,6 +2991,11 @@
                 return;
             }
 
+            if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(booking.startDate)) {
+                alert("عذراً، هذا حجز في يوم منصرم، ولا يمكن تعديله إلا من قبل الأدمن.");
+                return;
+            }
+
             closeDetailsModal();
             const groupId = booking.groupId || id;
             openGlobalBookingForEdit(id, groupId);
@@ -2959,6 +3007,11 @@
 
             if (state.currentUserEmail !== ADMIN_EMAIL && state.currentUserEmail !== booking.createdBy) {
                 alert("عذراً، ليس لديك صلاحية حذف هذا الحجز.");
+                return;
+            }
+
+            if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(booking.startDate)) {
+                alert("عذراً، هذا حجز في يوم منصرم، ولا يمكن حذفه إلا من قبل الأدمن.");
                 return;
             }
 
@@ -3028,6 +3081,8 @@
                 company:      booking.companyName,
                 hallName:     (HALLS.find(h => h.id === booking.hallId) || {}).name || booking.hallName || '',
                 user:         state.currentUserEmail,
+                bookingId:    booking.id || '',
+                startDate:    booking.startDate || '',
                 date:         new Date().toLocaleDateString('ar-EG'),
                 time:         new Date().toLocaleTimeString('ar-EG'),
                 isoTimestamp: new Date().toISOString()
@@ -3072,6 +3127,8 @@
                 company:      booking.companyName,
                 hallName:     (HALLS.find(h => h.id === booking.hallId) || {}).name || booking.hallName || '',
                 user:         state.currentUserEmail,
+                bookingId:    booking.id || '',
+                startDate:    booking.startDate || '',
                 date:         new Date().toLocaleDateString('ar-EG'),
                 time:         new Date().toLocaleTimeString('ar-EG'),
                 isoTimestamp: new Date().toISOString()
@@ -3119,7 +3176,7 @@
                     .filter(b => b.startDate === dateStr && (!b.startTime || !b.endTime))
                     .map(b => b.hallId);
                 const availableCount = HALLS.filter(h => !fullDayBookedHallIds.includes(h.id)).length;
-                actionsEl.innerHTML = (availableCount > 0 && !isGuest()) ? `
+                actionsEl.innerHTML = (availableCount > 0 && !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr))) ? `
                     <button onclick="openNewBookingForDate('${dateStr}')"
                         class="flex items-center gap-2 bg-white/10 hover:bg-[#A88A45]/30 border border-white/20 rounded-xl px-3 py-2 text-sm font-bold transition-all duration-200"
                         title="إضافة حجز جديد لهذا اليوم">
@@ -3138,7 +3195,7 @@
                 const hall = HALLS.find(h => h.id === b.hallId);
                 const isOwner = b.createdBy === state.currentUserEmail;
                 const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
-                const canControl = isOwner || isAdmin;
+                const canControl = isAdmin || (isOwner && !isPastDateStr(b.startDate));
 
                 return `
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-5 shadow-sm border-r-4 ${hall.border} relative overflow-hidden group hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
@@ -3591,14 +3648,7 @@ ${notesDisplay ? `
 
 
                         <div class="flex items-center gap-1 sm:gap-3 flex-nowrap justify-end">
-                            <!-- زر حجز جديد -->
                             ${!isGuest() ? `
-                            <button onclick="toggleGlobalBookingModal()" class="fab-new-booking mr-1 sm:mr-4 shrink-0 w-10 h-10 sm:w-[42px] sm:h-[42px]" title="إضافة حجز جديد">
-                                <i data-lucide="plus" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                            </button>
-
-                            <div class="h-6 sm:h-8 w-px bg-slate-200 mx-0.5 sm:mx-1 shrink-0"></div>
-
                             <div class="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5 shrink-0">
                                 <button onclick="performUndo()" ${moveUndoStack.length === 0 ? 'disabled' : ''} class="p-1.5 sm:p-2 text-slate-500 hover:text-[#6E1418] hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500" title="تراجع عن آخر نقل">
                                     <i data-lucide="undo-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
@@ -4027,6 +4077,10 @@ ${notesDisplay ? `
         // ─── Open New Booking Modal Pre-filled for a Specific Date ───────
         function openNewBookingForDate(dateStr) {
             if (isGuest()) return;
+            if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(dateStr)) {
+                showToast('لا يمكن إضافة حجوزات في الأيام المنصرمة.', 'error');
+                return;
+            }
             state.editingBookingId = null;
 
             // القاعة تُحذف من القائمة فقط إذا كانت محجوزة يوم كامل (بدون توقيت)
@@ -4502,6 +4556,12 @@ ${notesDisplay ? `
             const end   = new Date(bookingData.endDate);
             if (end < start) { alert('تاريخ النهاية يجب أن يكون بعد تاريخ البداية'); return; }
 
+            // ─── منع غير الأدمن من الحجز في أيام منصرمة ───────────────────
+            if (!isEditing && state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(bookingData.startDate)) {
+                alert('عذراً، لا يمكنك إضافة حجز في يوم منصرم. هذه الصلاحية للأدمن فقط.');
+                return;
+            }
+
             // Build new dates list
             const newDates = [];
             let cur = new Date(start);
@@ -4534,6 +4594,23 @@ ${notesDisplay ? `
                 const idsToRemove = existingGroupDays
                     .filter(b => !newDates.includes(b.startDate))
                     .map(b => b.id);
+                // نسجّل كل يوم بيتشال بسبب تعديل النطاق كـ "حذف" في السجل، عشان
+                // إشعار "تم حذف حجز بواسطة..." يقدر ينسب العملية لصاحبها الصحيح بدل ما يفشل يلاقي اسم
+                existingGroupDays
+                    .filter(b => idsToRemove.includes(b.id))
+                    .forEach(b => {
+                        state.activityLogs.unshift({
+                            type:         'حذف',
+                            company:      b.companyName,
+                            hallName:     b.hallName || '',
+                            user:         state.currentUserEmail,
+                            bookingId:    b.id || '',
+                            startDate:    b.startDate || '',
+                            date:         new Date().toLocaleDateString('ar-EG'),
+                            time:         new Date().toLocaleTimeString('ar-EG'),
+                            isoTimestamp: new Date().toISOString()
+                        });
+                    });
                 idsToRemove.forEach(did => state.pendingDeletions.push(did));
                 state.bookings = state.bookings.filter(b => !idsToRemove.includes(b.id));
 
