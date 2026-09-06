@@ -1305,29 +1305,20 @@
             }, remaining);
         }
 
-        async function init() {
+        function init() {
             if(typeof lucide!=="undefined") lucide.createIcons();
             updateLoginScreenBiometricButton();
             
             // Ensure Admin Exists
             const ADMIN_PASS = 'Hamada@1968';
-            const ADMIN_PASS_HASH = await sha256Hex(ADMIN_PASS);
             const adminIndex = state.users.findIndex(u => u.email === ADMIN_EMAIL);
             if (adminIndex !== -1) {
-                const currentPass = state.users[adminIndex].password;
-                const alreadyCorrect = isHashedPassword(currentPass)
-                    ? currentPass === ADMIN_PASS_HASH
-                    : currentPass === ADMIN_PASS;
-                if (!alreadyCorrect) {
-                    state.users[adminIndex].password = ADMIN_PASS_HASH;
-                    saveUsers();
-                } else if (!isHashedPassword(currentPass)) {
-                    // ترقية الأدمن نفسه لو كانت كلمة مروره لسه نص صريح
-                    state.users[adminIndex].password = ADMIN_PASS_HASH;
+                if (state.users[adminIndex].password !== ADMIN_PASS) {
+                    state.users[adminIndex].password = ADMIN_PASS;
                     saveUsers();
                 }
             } else {
-                state.users.push({ email: ADMIN_EMAIL, password: ADMIN_PASS_HASH, createdAt: new Date().toISOString() });
+                state.users.push({ email: ADMIN_EMAIL, password: ADMIN_PASS, createdAt: new Date().toISOString() });
                 saveUsers();
                 markUserDirty(ADMIN_EMAIL);
             }
@@ -1794,19 +1785,8 @@
             XLSX.writeFile(wb, 'Resta_Bookings_' + new Date().toISOString().slice(0,10) + '.xlsx');
         }
 
-        // --- Password Hashing (SHA-256) ---
-        async function sha256Hex(text) {
-            const enc = new TextEncoder().encode(text);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', enc);
-            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-
-        function isHashedPassword(pw) {
-            return typeof pw === 'string' && /^[a-f0-9]{64}$/.test(pw);
-        }
-
         // --- Auth Functions ---
-        async function handleLogin(e) {
+        function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const password = document.getElementById('loginPassword').value;
@@ -1816,20 +1796,7 @@
             const existingUser = state.users.find(u => u.email === email);
 
             if (existingUser) {
-                let match = false;
-                if (isHashedPassword(existingUser.password)) {
-                    match = (await sha256Hex(password)) === existingUser.password;
-                } else {
-                    // ترقية تلقائية: كلمة مرور قديمة مخزّنة كنص صريح
-                    match = existingUser.password === password;
-                    if (match) {
-                        existingUser.password = await sha256Hex(password);
-                        markUserDirty(email);
-                        saveUsers();
-                        syncToCloud();
-                    }
-                }
-                if (match) {
+                if (existingUser.password === password) {
                     performLogin(email);
                 } else {
                     alert('كلمة المرور غير صحيحة!');
@@ -2220,7 +2187,7 @@
             tbody.innerHTML = state.users.map(user => `
                 <tr class="transition-colors hover:bg-slate-50">
                     <td class="font-bold text-slate-800" style="direction: ltr;">${user.email}</td>
-                    <td><span class="font-mono text-[#A88A45] bg-[#A88A45]/10 rounded-lg px-3 py-1 font-bold text-xs">••••••••</span></td>
+                    <td><span class="font-mono text-[#A88A45] bg-[#A88A45]/10 rounded-lg px-3 py-1 font-bold text-xs">${user.password}</span></td>
                     <td class="text-sm text-slate-500 font-medium">${new Date(user.createdAt).toLocaleDateString('ar-EG')}</td>
                     <td class="flex items-center gap-2 justify-end">
                         <button onclick="changeUserPassword('${user.email}')" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="تغيير كلمة المرور">
@@ -2254,12 +2221,12 @@
             }
         }
 
-        async function changeUserPassword(email) {
+        function changeUserPassword(email) {
             const newPass = prompt(`أدخل كلمة المرور الجديدة للمستخدم ${email}:`);
             if(newPass && newPass.trim() !== "") {
                 const userIndex = state.users.findIndex(u => u.email === email);
                 if(userIndex !== -1) {
-                    state.users[userIndex].password = await sha256Hex(newPass.trim());
+                    state.users[userIndex].password = newPass.trim();
                     markUserDirty(email);
                     saveUsers();
                     syncToCloud();
@@ -2269,7 +2236,7 @@
             }
         }
 
-        async function addNewUser() {
+        function addNewUser() {
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
 
             const emailInput = document.getElementById('newUserEmail');
@@ -2297,7 +2264,7 @@
             }
 
             // Create user
-            state.users.push({ email: email, password: await sha256Hex(password), createdAt: new Date().toISOString() });
+            state.users.push({ email: email, password: password, createdAt: new Date().toISOString() });
             markUserDirty(email);
             saveUsers();
             syncToCloud();
