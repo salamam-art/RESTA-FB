@@ -1127,6 +1127,18 @@
             return Object.values(val);
         }
 
+        // تعقيم أي نص مُدخَل من المستخدم (اسم شركة، ملاحظات، هاتف، اسم موظف...) قبل
+        // إدراجه داخل innerHTML، لمنع حقن كود (Stored XSS) عبر حقول الحجز العادية
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // قراءة لقطة كاملة من البيانات (bookings/logs/users/updatedAt) — بديل GET القديم على CLOUD_URL
         async function fetchCloudSnapshot() {
             const [bSnap, lSnap, uSnap, mSnap] = await Promise.all([
@@ -1143,15 +1155,33 @@
             };
         }
 
-        // كتابة لقطة كاملة (استبدال كامل، تماماً كسلوك clearDataRows + setValues في الكود القديم)
-        async function pushCloudSnapshot(finalBookings, finalLogs, usersForCloud) {
+        // كتابة الحجوزات: تحديث جزئي بمسار مستقل لكل حجز (bookings/{id}) بدل استبدال
+        // مصفوفة bookings بالكامل. هذا يمنع سيناريو: مستخدمان يحجزان في نفس اللحظة
+        // تقريبًا، فيكتب كل منهما نسخته الكاملة من الشجرة فوق نسخة الآخر ويُفقَد
+        // حجز أحدهما بالكامل. الآن كل حجز/حذف يُكتب في مساره الخاص فقط عبر update()،
+        // فلا تتأثر حجوزات أضافها/حذفها مستخدم آخر بين قراءتنا وكتابتنا.
+        // (logs وusers ما زالا يُكتبان كاستبدال كامل كما كانا — خارج نطاق هذا الإصلاح).
+        async function pushCloudSnapshot(finalLogs, usersForCloud, dirtyBookings, pendingDels) {
             const now = new Date().toISOString();
-            await Promise.all([
-                db.ref('bookings').set(finalBookings),
+
+            const bookingsUpdate = {};
+            (dirtyBookings || []).forEach(b => {
+                const clean = { ...b };
+                delete clean._isDirty;
+                bookingsUpdate[String(clean.id)] = clean;
+            });
+            (pendingDels || []).forEach(id => { bookingsUpdate[String(id)] = null; });
+
+            const writes = [
                 db.ref('logs').set(finalLogs),
                 db.ref('users').set(usersForCloud),
                 db.ref('meta/updatedAt').set(now)
-            ]);
+            ];
+            if (Object.keys(bookingsUpdate).length > 0) {
+                writes.push(db.ref('bookings').update(bookingsUpdate));
+            }
+            await Promise.all(writes);
+
             _lastKnownUpdatedAt = now; // تسجيل فوري لتفادي إعادة مزامنة ذاتية عند وصول حدث المستمع اللحظي
             return now;
         }
@@ -1191,8 +1221,6 @@
         function getDefaultEmployeeName() {
             return DEFAULT_EMPLOYEE_BY_EMAIL[(state.currentUserEmail || '').toLowerCase()] || '';
         }
-        const LOGO_PATH = "./001.png"; 
-        const SYNC_INTERVAL = 10000; 
 
         // Colors for JS Injection
         const COLOR_RED = '#6E1418';
@@ -1442,9 +1470,10 @@
                     usersForCloud = Array.from(usersMap.values());
 
                     await pushCloudSnapshot(
-                        finalBookings,
                         mergeLogs(state.activityLogs, serverLogs),
-                        usersForCloud
+                        usersForCloud,
+                        dirtyBookings,
+                        pendingDels
                     );
 
                     // فحص ثالث بعد الكتابة — لو حصل تغيير أثناء الكتابة، لا تُحدّث state
@@ -1566,6 +1595,10 @@
         // أو من مستخدم آخر)، مع تجاهل الأصداء الناتجة عن كتابتنا نحن أنفسنا.
         function setupRealtimeSync() {
             if (!CLOUD_ENABLED) return;
+            // نشيل أي اشتراك سابق أولاً (idempotent) — يمنع تراكم أكثر من listener
+            // على نفس المسار لو الدالة دي اتنادت أكتر من مرة بدون teardown بينهم
+            // (مثال: قفل وفتح التطبيق بالبصمة عدة مرات في نفس الجلسة)
+            teardownRealtimeSync();
             db.ref('meta/updatedAt').on('value', (snap) => {
                 const newVal = snap.val();
                 if (newVal === _lastKnownUpdatedAt) return; // نفس القيمة (غالباً صدى كتابتنا) — تجاهل
@@ -1636,7 +1669,7 @@
                     <i data-lucide="${icon}" class="w-5 h-5"></i>
                 </div>
                 <div class="flex-1">
-                    <p class="text-sm font-bold ${textClass}">${message}</p>
+                    <p class="text-sm font-bold ${textClass}">${escapeHtml(message)}</p>
                     ${clickHint}
                 </div>
                 <button onclick="event.stopPropagation(); this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors">
@@ -1687,7 +1720,7 @@
                             <div class="flex items-start gap-4">
                                 <div class="mt-1 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${n.type === 'delete' ? 'bg-red-500 shadow-red-200' : 'bg-emerald-500 shadow-emerald-200'}"></div>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm text-slate-700 font-bold leading-relaxed">${n.text}</p>
+                                    <p class="text-sm text-slate-700 font-bold leading-relaxed">${escapeHtml(n.text)}</p>
                                     <p class="text-[11px] text-slate-400 mt-2 flex items-center gap-1 font-medium">
                                         <i data-lucide="clock" class="w-3 h-3"></i> ${n.date} - ${n.time}
                                     </p>
@@ -2260,7 +2293,7 @@
                         const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
                         return `
                             <tr onclick="showDayDetails('${b.startDate}')" class="cursor-pointer hover:bg-slate-50 transition-all border-l-4 border-transparent hover:border-[#A88A45] bg-white group">
-                                <td class="font-bold text-[#6E1418] group-hover:pl-2 transition-all">${b.companyName}</td>
+                                <td class="font-bold text-[#6E1418] group-hover:pl-2 transition-all">${escapeHtml(b.companyName)}</td>
                                 <td><span class="text-xs px-3 py-1.5 rounded-lg font-bold ${hall.color}">${hall.name}</span></td>
                                 <td class="text-slate-600 dir-ltr font-mono text-xs">${b.startDate}</td>
                                 <td class="text-slate-600 dir-ltr font-mono text-xs">${b.endDate}</td>
@@ -2919,17 +2952,17 @@
                                         ${isOwner ? '<span class="text-xs font-bold px-3 py-1 rounded-lg bg-[#A88A45]/20 text-[#8f753a] flex items-center gap-1"><i data-lucide="user-check" class="w-3 h-3"></i> حجزي</span>' : ''}
                                     </div>
                                 </div>
-                                <h4 class="font-black text-xl text-[#6E1418] mt-3 mb-4">${b.companyName}</h4>
+                                <h4 class="font-black text-xl text-[#6E1418] mt-3 mb-4">${escapeHtml(b.companyName)}</h4>
                                 <div class="grid grid-cols-2 gap-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.startTime || 'يوم كامل'} - ${b.endTime || 'يوم كامل'}</span></div>
-                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${b.employee || 'غير محدد'}</span></div>
-                                    <div class="flex items-center gap-2 col-span-2">${b.phone ? `<a href="tel:${b.phone}" class="flex items-center gap-2 group" title="اتصال بـ ${b.phone}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover:bg-green-50 group-active:bg-green-100 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45] group-hover:text-green-600 transition-colors"></i></div><span class="font-medium font-mono dir-ltr group-hover:text-green-600 transition-colors underline-offset-2 group-hover:underline">${b.phone}</span></a><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="flex items-center justify-center shrink-0 group/wa" title="واتساب ${b.phone}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover/wa:bg-green-50 group-active/wa:bg-green-100 transition-colors"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-[#A88A45] group-hover/wa:fill-green-600 transition-colors"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></div></a>` : `<div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div><span class="font-medium text-slate-400">لا يوجد رقم</span>`}</div>
+                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${escapeHtml(b.employee) || 'غير محدد'}</span></div>
+                                    <div class="flex items-center gap-2 col-span-2">${b.phone ? `<a href="tel:${escapeHtml(b.phone)}" class="flex items-center gap-2 group" title="اتصال بـ ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover:bg-green-50 group-active:bg-green-100 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45] group-hover:text-green-600 transition-colors"></i></div><span class="font-medium font-mono dir-ltr group-hover:text-green-600 transition-colors underline-offset-2 group-hover:underline">${escapeHtml(b.phone)}</span></a><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="flex items-center justify-center shrink-0 group/wa" title="واتساب ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover/wa:bg-green-50 group-active/wa:bg-green-100 transition-colors"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-[#A88A45] group-hover/wa:fill-green-600 transition-colors"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></div></a>` : `<div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div><span class="font-medium text-slate-400">لا يوجد رقم</span>`}</div>
                                 </div>
                                 
                                 ${b.notes ? `
                                 <div class="mt-4 p-3 bg-amber-50/50 rounded-xl text-sm text-amber-900 border border-amber-100/50 flex items-start gap-2">
                                     <i data-lucide="info" class="w-4 h-4 mt-0.5 text-amber-600 shrink-0"></i>
-                                    <p class="leading-relaxed font-medium">${b.notes}</p>
+                                    <p class="leading-relaxed font-medium">${escapeHtml(b.notes)}</p>
                                 </div>` : ''}
 
                                 ${(() => {
@@ -3606,7 +3639,7 @@ ${notesDisplay ? `
                     const canDrag = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || isMyBooking);
                     return `
                         <div class="booking-tag ${hall.color} ${hall.border} ${isMyBooking ? 'my-booking' : ''}"
-                             title="${hall.name}: ${b.companyName}${canDrag ? ' (اسحب لنقل الحجز ليوم آخر)' : ''}"
+                             title="${hall.name}: ${escapeHtml(b.companyName)}${canDrag ? ' (اسحب لنقل الحجز ليوم آخر)' : ''}"
                              draggable="${canDrag}"
                              ondragstart="${canDrag ? `handleBookingDragStart(event, '${b.id}')` : ''}"
                              ondragend="${canDrag ? 'handleBookingDragEnd(event)' : ''}"
@@ -3615,7 +3648,7 @@ ${notesDisplay ? `
                              ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
                              ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
                             <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" style="min-width:6px;"></div>
-                            <span>${b.companyName}</span>
+                            <span>${escapeHtml(b.companyName)}</span>
                         </div>
                     `;
                 }).join('');
@@ -4641,14 +4674,14 @@ ${notesDisplay ? `
                 <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
                     <td class="px-3 py-3 text-xs font-bold text-slate-300 text-center w-8">${i + 1}</td>
                     <td class="px-3 py-3 font-bold text-[#6E1418] text-sm max-w-[160px]">
-                        <div class="truncate" title="${(b.companyName || '').replace(/"/g, '&quot;')}">${b.companyName || '—'}</div>
+                        <div class="truncate" title="${escapeHtml(b.companyName)}">${escapeHtml(b.companyName) || '—'}</div>
                     </td>
-                    <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap" style="direction:ltr; text-align:right;">${b.phone ? `<span class="inline-flex items-center gap-1.5"><span>${b.phone}</span><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="واتساب ${b.phone}" class="inline-flex items-center justify-center w-5 h-5 shrink-0 hover:opacity-70 transition-opacity"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-green-600"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></a></span>` : '—'}</td>
+                    <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap" style="direction:ltr; text-align:right;">${b.phone ? `<span class="inline-flex items-center gap-1.5"><span>${escapeHtml(b.phone)}</span><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="واتساب ${escapeHtml(b.phone)}" class="inline-flex items-center justify-center w-5 h-5 shrink-0 hover:opacity-70 transition-opacity"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-green-600"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></a></span>` : '—'}</td>
                     <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">${hall ? hall.name : (b.hallName || '—')}</td>
                     <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">${fmtDate(b.startDate)}${b.endDate && b.endDate !== b.startDate ? ' → ' + fmtDate(b.endDate) : ''}</td>
                     <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">${b.startTime || ''}${b.endTime ? ' - ' + b.endTime : ''}</td>
                     <td class="px-3 py-3 text-sm text-slate-600 max-w-[220px]">
-                        <div class="truncate" title="${(b.notes || '').replace(/"/g, '&quot;')}">${b.notes || '—'}</div>
+                        <div class="truncate" title="${escapeHtml(b.notes)}">${escapeHtml(b.notes) || '—'}</div>
                     </td>
                 </tr>`;
             }).join('');
