@@ -289,6 +289,25 @@
         @keyframes pulseSoft { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.95); } }
         .animate-pulse-soft { animation: pulseSoft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 
+        /* Toast: icon pop-in */
+        @keyframes toastIconPop {
+            0% { transform: scale(0.3); opacity: 0; }
+            60% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .toast-icon-pop { animation: toastIconPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+        /* Toast: shrinking progress bar (5s) */
+        @keyframes toastProgressShrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+        .toast-progress-bar { animation: toastProgressShrink 5s linear forwards; transform-origin: right; }
+
+        /* Toast: smooth fade-out (auto-hide or manual close) */
+        @keyframes toastFadeOut {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(10px) scale(0.95); }
+        }
+        .toast-fade-out { animation: toastFadeOut 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
         /* Table Styles (Modals) */
         .users-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 1rem; }
         .users-table th, .users-table td { padding: 1rem; border-bottom: 1px solid #f1f5f9; text-align: right; }
@@ -1643,43 +1662,62 @@
             const bgClass = type === 'error' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200';
             const textClass = type === 'error' ? 'text-red-800' : 'text-emerald-800';
             const iconBg = type === 'error' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600';
+            const progressClass = type === 'error' ? 'bg-red-400' : 'bg-emerald-400';
             const icon = type === 'error' ? 'trash-2' : 'check-circle';
 
             const clickableStyles = bookingDate
-                ? 'cursor-pointer hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-200'
+                ? 'cursor-pointer hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99]'
                 : '';
             const clickHint = bookingDate
                 ? `<span class="text-xs font-medium opacity-60 mt-0.5 block">اضغط لعرض التفاصيل</span>`
                 : '';
 
-            toast.className = `pointer-events-auto p-4 rounded-2xl border shadow-xl flex items-center gap-4 animate-slide-up ${bgClass} ${clickableStyles}`;
+            toast.className = `pointer-events-auto relative overflow-hidden p-4 pb-[18px] rounded-2xl border shadow-xl flex items-center gap-4 animate-slide-up transition-transform duration-200 ${bgClass} ${clickableStyles}`;
             toast.innerHTML = `
-                <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center shrink-0">
+                <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center shrink-0 toast-icon-pop">
                     <i data-lucide="${icon}" class="w-5 h-5"></i>
                 </div>
                 <div class="flex-1">
                     <p class="text-sm font-bold ${textClass}">${escapeHtml(message)}</p>
                     ${clickHint}
                 </div>
-                <button onclick="event.stopPropagation(); this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors">
+                <button type="button" class="toast-close-btn text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors shrink-0">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
+                <div class="absolute bottom-0 right-0 left-0 h-[3px] bg-black/10">
+                    <div class="toast-progress-bar h-full ${progressClass}"></div>
+                </div>
             `;
 
             if (bookingDate) {
                 toast.addEventListener('click', function() {
+                    dismissToast(toast);
                     showDayDetails(bookingDate);
-                    this.remove();
                 });
             }
+
+            toast.querySelector('.toast-close-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                dismissToast(toast);
+            });
             
             container.appendChild(toast);
             if(typeof lucide!=="undefined") lucide.createIcons(); // Ensure icons render
             
-            // إخفاء تلقائي بعد 5 ثوانٍ
-            setTimeout(() => {
-                if (toast && toast.parentElement) toast.remove();
-            }, 5000);
+            // إخفاء تلقائي بعد 5 ثوانٍ (شريط التقدم أعلاه يتزامن مع نفس المدة)
+            toast._toastTimer = setTimeout(() => dismissToast(toast), 5000);
+        }
+
+        // إخفاء التوست بحركة fade-out ناعمة بدل الاختفاء المفاجئ
+        function dismissToast(toast) {
+            if (!toast || toast.dataset.dismissing === '1') return;
+            toast.dataset.dismissing = '1';
+            if (toast._toastTimer) clearTimeout(toast._toastTimer);
+            toast.classList.remove('animate-slide-up');
+            toast.classList.add('toast-fade-out');
+            const remove = () => { if (toast && toast.parentElement) toast.remove(); };
+            toast.addEventListener('animationend', remove, { once: true });
+            setTimeout(remove, 400); // شبكة أمان في حال لم يُطلق animationend
         }
 
         function toggleNotificationsModal() {
