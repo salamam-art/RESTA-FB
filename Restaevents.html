@@ -344,7 +344,7 @@
             transform-origin: top right;
             animation: fadeIn 0.2s ease-out;
         }
-        .sync-dropdown button {
+        .sync-dropdown button, .sync-dropdown a {
             width: 100%;
             display: flex;
             align-items: center;
@@ -358,9 +358,10 @@
             cursor: pointer;
             transition: all 0.2s;
             color: #475569;
+            text-decoration: none;
         }
-        .sync-dropdown button:hover { background: #f8fafc; color: var(--brand-red); padding-right: 20px; }
-        .sync-dropdown button:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
+        .sync-dropdown button:hover, .sync-dropdown a:hover { background: #f8fafc; color: var(--brand-red); padding-right: 20px; }
+        .sync-dropdown button:not(:last-child), .sync-dropdown a:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
 
         /* Attachment Dropdown (real <a> links so it works inside Android WebView apps
            that don't implement window.open() / onCreateWindow) */
@@ -1279,6 +1280,11 @@
                 const moreDd = document.getElementById('moreMenuDropdown');
                 if (moreDd && moreContainer && !moreContainer.contains(e.target)) {
                     moreDd.classList.add('hidden');
+                }
+                const gamesContainer = document.getElementById('gamesDropdownContainer');
+                const gamesDd = document.getElementById('gamesDropdown');
+                if (gamesDd && gamesContainer && !gamesContainer.contains(e.target)) {
+                    gamesDd.classList.add('hidden');
                 }
                 // Close any open attachment dropdowns when clicking outside
                 // both the dropdown itself (now living under <body>) and its
@@ -3485,6 +3491,33 @@ ${notesDisplay ? `
                             <button onclick="toggleArchiveModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="الأرشيف">
                                 <i data-lucide="archive" class="w-5 h-5"></i>
                             </button>
+
+                            <!-- زر الألعاب -->
+                            <div class="relative shrink-0" id="gamesDropdownContainer">
+                                <button onclick="toggleGamesMenu(event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="الألعاب">
+                                    <i data-lucide="gamepad-2" class="w-5 h-5"></i>
+                                </button>
+                                <div id="gamesDropdown" class="sync-dropdown hidden border border-slate-100">
+                                    <a href="https://salamam-art.github.io/RESTA-FB/pong.html" target="_blank" rel="noopener">
+                                        <span class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="circle-dot" class="w-4 h-4 text-blue-600"></i>
+                                        </span>
+                                        Pong
+                                    </a>
+                                    <a href="https://salamam-art.github.io/RESTA-FB/snake.html" target="_blank" rel="noopener">
+                                        <span class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="dot" class="w-4 h-4 text-green-600"></i>
+                                        </span>
+                                        Snake
+                                    </a>
+                                    <a href="https://salamam-art.github.io/RESTA-FB/space-invaders.html" target="_blank" rel="noopener">
+                                        <span class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="rocket" class="w-4 h-4 text-purple-600"></i>
+                                        </span>
+                                        Space Invaders
+                                    </a>
+                                </div>
+                            </div>
                             ${!isGuest() ? `
                             <!-- زر المزامنة -->
                             <div class="relative shrink-0 hidden sm:block" id="syncDropdownContainer">
@@ -3723,6 +3756,12 @@ ${notesDisplay ? `
         function toggleMoreMenu(e) {
             if (e) e.stopPropagation();
             const dd = document.getElementById('moreMenuDropdown');
+            if (dd) dd.classList.toggle('hidden');
+        }
+
+        function toggleGamesMenu(e) {
+            if (e) e.stopPropagation();
+            const dd = document.getElementById('gamesDropdown');
             if (dd) dd.classList.toggle('hidden');
         }
 
