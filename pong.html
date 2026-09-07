@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Neon Pong</title>
+<style>
+  :root{
+    --neon-cyan:#00fff2;
+    --neon-pink:#ff2bd6;
+    --neon-purple:#9b5cff;
+    --bg-dark:#05050a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{
+    width:100%;height:100%;
+    background:var(--bg-dark);
+    overflow:hidden;
+    font-family:'Courier New',monospace;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:none;
+  }
+  #bgGlow{
+    position:fixed;inset:0;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(0,255,242,0.12), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(255,43,214,0.12), transparent 40%);
+    filter:blur(40px);
+    pointer-events:none;
+    z-index:0;
+  }
+  #gameContainer{
+    position:relative;
+    width:100%;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    z-index:1;
+  }
+  #hud{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:min(96vw, 900px);
+    margin-bottom:10px;
+    color:#fff;
+  }
+  .scoreBox{
+    text-align:center;
+    min-width:90px;
+  }
+  .scoreLabel{
+    font-size:12px;
+    letter-spacing:2px;
+    color:var(--neon-cyan);
+    text-shadow:0 0 8px var(--neon-cyan);
+    opacity:0.85;
+  }
+  .scoreValue{
+    font-size:42px;
+    font-weight:bold;
+    color:#fff;
+    text-shadow:0 0 12px var(--neon-cyan), 0 0 24px var(--neon-cyan);
+    transition:transform 0.15s ease;
+  }
+  #computerBox .scoreLabel{color:var(--neon-pink);text-shadow:0 0 8px var(--neon-pink);}
+  #computerBox .scoreValue{text-shadow:0 0 12px var(--neon-pink), 0 0 24px var(--neon-pink);}
+  .scorePulse{transform:scale(1.4);}
+
+  #midInfo{
+    text-align:center;
+    color:#888;
+    font-size:12px;
+    letter-spacing:1px;
+  }
+
+  #canvasWrap{
+    position:relative;
+    border-radius:12px;
+    box-shadow:0 0 30px rgba(0,255,242,0.15), 0 0 60px rgba(255,43,214,0.08);
+    background:rgba(10,10,20,0.6);
+    padding:6px;
+  }
+  canvas{
+    display:block;
+    border-radius:8px;
+    background:#08080f;
+  }
+
+  #controls{
+    display:flex;
+    gap:12px;
+    margin-top:12px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .btn{
+    background:rgba(255,255,255,0.05);
+    border:1px solid var(--neon-cyan);
+    color:var(--neon-cyan);
+    padding:8px 18px;
+    border-radius:8px;
+    font-size:13px;
+    letter-spacing:1px;
+    cursor:pointer;
+    text-shadow:0 0 6px var(--neon-cyan);
+    box-shadow:0 0 10px rgba(0,255,242,0.2);
+    transition:all 0.2s ease;
+    font-family:inherit;
+  }
+  .btn:hover{background:rgba(0,255,242,0.12);}
+  .btn:active{transform:scale(0.95);}
+  .btn.pink{border-color:var(--neon-pink);color:var(--neon-pink);text-shadow:0 0 6px var(--neon-pink);box-shadow:0 0 10px rgba(255,43,214,0.2);}
+  .btn.pink:hover{background:rgba(255,43,214,0.12);}
+
+  #fpsCounter{
+    position:fixed;
+    top:8px;
+    left:8px;
+    color:#0f8;
+    font-size:11px;
+    opacity:0.6;
+    z-index:5;
+  }
+
+  #sliderWrap{
+    position:fixed;
+    top:50%;
+    right:10px;
+    left:auto;
+    transform:translateY(-50%);
+    width:27px;
+    height:min(29vh, 154px);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    z-index:6;
+    background:transparent;
+    border:none;
+    box-shadow:none;
+    backdrop-filter:none;
+    touch-action:none;
+  }
+  #sliderWrap.dragging #sliderGrip{
+    color:var(--neon-pink);
+    text-shadow:0 0 8px var(--neon-pink);
+    opacity:1;
+  }
+  #sliderGrip{
+    width:100%;
+    height:11px;
+    flex:0 0 11px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    letter-spacing:1px;
+    font-size:9px;
+    line-height:1;
+    color:var(--neon-cyan);
+    text-shadow:0 0 6px var(--neon-cyan);
+    opacity:0.75;
+    cursor:grab;
+    user-select:none;
+  }
+  #sliderGrip:active{cursor:grabbing;opacity:1;}
+  #paddleSlider{
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    appearance:none;
+    writing-mode:vertical-lr;
+    direction:rtl;
+    width:4px;
+    height:min(29vh, 154px);
+    border-radius:4px;
+    background:linear-gradient(180deg, rgba(0,255,242,0.25), rgba(255,43,214,0.25));
+    outline:none;
+    box-shadow:0 0 8px rgba(0,255,242,0.15), inset 0 0 3px rgba(0,0,0,0.5);
+    cursor:pointer;
+    flex:1 1 auto;
+    max-height:calc(100% - 15px);
+  }
+  #paddleSlider::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    appearance:none;
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    background:#fff;
+    border:2px solid var(--neon-cyan);
+    box-shadow:0 0 8px var(--neon-cyan), 0 0 14px var(--neon-cyan);
+    cursor:pointer;
+  }
+  #paddleSlider::-moz-range-thumb{
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    background:#fff;
+    border:2px solid var(--neon-cyan);
+    box-shadow:0 0 8px var(--neon-cyan), 0 0 14px var(--neon-cyan);
+    cursor:pointer;
+  }
+  #paddleSlider::-moz-range-track{
+    height:4px;
+    border-radius:4px;
+    background:linear-gradient(180deg, rgba(0,255,242,0.25), rgba(255,43,214,0.25));
+  }
+
+  .overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(3,3,8,0.92);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    z-index:10;
+    text-align:center;
+    padding:20px;
+    animation:fadeIn 0.4s ease;
+  }
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .hidden{display:none !important;}
+
+  .title{
+    font-size:clamp(32px,8vw,64px);
+    font-weight:bold;
+    color:#fff;
+    text-shadow:0 0 10px var(--neon-cyan), 0 0 30px var(--neon-cyan), 0 0 50px var(--neon-pink);
+    letter-spacing:4px;
+    margin-bottom:10px;
+  }
+  .subtitle{
+    color:#aaa;
+    font-size:14px;
+    margin-bottom:24px;
+    letter-spacing:1px;
+  }
+  .diffRow{
+    display:flex;
+    gap:10px;
+    margin-bottom:24px;
+  }
+  .diffBtn{
+    background:rgba(255,255,255,0.05);
+    border:1px solid #444;
+    color:#aaa;
+    padding:8px 16px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13px;
+    font-family:inherit;
+    transition:all 0.2s ease;
+  }
+  .diffBtn.active{
+    border-color:var(--neon-purple);
+    color:var(--neon-purple);
+    text-shadow:0 0 8px var(--neon-purple);
+    box-shadow:0 0 12px rgba(155,92,255,0.3);
+  }
+  .bigBtn{
+    background:linear-gradient(135deg, rgba(0,255,242,0.15), rgba(255,43,214,0.15));
+    border:2px solid var(--neon-cyan);
+    color:#fff;
+    padding:14px 40px;
+    border-radius:12px;
+    font-size:18px;
+    letter-spacing:2px;
+    cursor:pointer;
+    text-shadow:0 0 8px #fff;
+    box-shadow:0 0 20px rgba(0,255,242,0.3);
+    font-family:inherit;
+    transition:all 0.2s ease;
+  }
+  .bigBtn:hover{transform:scale(1.05);box-shadow:0 0 30px rgba(0,255,242,0.5);}
+  .bigBtn:active{transform:scale(0.97);}
+
+  #bestScoreDisplay{
+    color:#ffd166;
+    font-size:13px;
+    margin-top:8px;
+    text-shadow:0 0 6px #ffd166;
+  }
+  #creditText{
+    color:#666;
+    font-size:11px;
+    letter-spacing:1px;
+    margin-top:18px;
+    text-shadow:0 0 6px var(--neon-purple);
+    opacity:0.8;
+  }
+  #dedicationText{
+    color:#ddd;
+    font-size:13px;
+    letter-spacing:1px;
+    margin-top:14px;
+    margin-bottom:6px;
+    text-shadow:0 0 8px var(--neon-pink), 0 0 16px var(--neon-cyan);
+    direction:ltr;
+  }
+  #winnerText{
+    font-size:clamp(24px,6vw,40px);
+    margin-bottom:10px;
+    text-shadow:0 0 10px currentColor, 0 0 30px currentColor;
+  }
+  #finalScoreText{
+    color:#ccc;
+    font-size:16px;
+    margin-bottom:24px;
+  }
+
+  #countdownText{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    font-size:70px;
+    color:#fff;
+    text-shadow:0 0 20px var(--neon-cyan), 0 0 40px var(--neon-cyan);
+    pointer-events:none;
+    z-index:3;
+    animation:countPop 0.9s ease;
+  }
+  @keyframes countPop{
+    0%{transform:translate(-50%,-50%) scale(1.6);opacity:0;}
+    40%{transform:translate(-50%,-50%) scale(1);opacity:1;}
+    100%{transform:translate(-50%,-50%) scale(1);opacity:0;}
+  }
+
+  .shake{animation:shakeAnim 0.2s ease;}
+  @keyframes shakeAnim{
+    0%{transform:translateX(0);}
+    25%{transform:translateX(-4px);}
+    50%{transform:translateX(4px);}
+    75%{transform:translateX(-2px);}
+    100%{transform:translateX(0);}
+  }
+
+  #muteBtn{
+    position:fixed;
+    top:8px;
+    right:8px;
+    z-index:5;
+    background:rgba(255,255,255,0.06);
+    border:1px solid var(--neon-purple);
+    color:var(--neon-purple);
+    width:36px;height:36px;
+    border-radius:50%;
+    cursor:pointer;
+    font-size:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  @media (max-width:600px){
+    .scoreValue{font-size:30px;}
+    .btn{padding:7px 14px;font-size:12px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="bgGlow"></div>
+<div id="fpsCounter">FPS: 60</div>
+<button id="muteBtn" title="كتم الصوت">🔊</button>
+
+<div id="gameContainer">
+
+  <div id="hud">
+    <div class="scoreBox" id="playerBox">
+      <div class="scoreLabel">PLAYER</div>
+      <div class="scoreValue" id="playerScore">0</div>
+    </div>
+    <div id="midInfo">
+      أول لاعب يصل إلى 11 نقطة يفوز
+    </div>
+    <div class="scoreBox" id="computerBox">
+      <div class="scoreLabel">COMPUTER</div>
+      <div class="scoreValue" id="computerScore">0</div>
+    </div>
+  </div>
+
+  <div id="canvasWrap">
+    <canvas id="gameCanvas"></canvas>
+    <div id="countdownText" class="hidden"></div>
+  </div>
+
+  <div id="controls">
+    <button class="btn" id="pauseBtn">⏸ Pause</button>
+    <button class="btn pink" id="restartBtn">↺ Restart</button>
+  </div>
+
+  <div id="sliderWrap">
+    <div id="sliderGrip" title="اسحب لتحريك الشريط">⠿</div>
+    <input type="range" id="paddleSlider" orient="vertical" min="0" max="1000" value="500" step="1">
+  </div>
+
+</div>
+
+<!-- شاشة البداية -->
+<div class="overlay" id="startScreen">
+  <div class="title">NEON PONG</div>
+  <div class="subtitle">استخدم الأسهم ↑ ↓ أو السحب باللمس للتحكم بالمضرب</div>
+
+  <div class="diffRow" id="diffRow">
+    <div class="diffBtn" data-diff="easy">Easy</div>
+    <div class="diffBtn active" data-diff="normal">Normal</div>
+    <div class="diffBtn" data-diff="hard">Hard</div>
+  </div>
+
+  <button class="bigBtn" id="startBtn">ابدأ اللعب</button>
+  <div id="bestScoreDisplay">أفضل نتيجة: 0</div>
+    <div id="creditText">Design by Mohamed Salama</div>
+</div>
+
+<!-- شاشة النهاية -->
+<div class="overlay hidden" id="gameOverScreen">
+  <div id="winnerText">🏆 PLAYER WINS</div>
+  <div id="finalScoreText">النتيجة النهائية: 0 - 0</div>
+  <button class="bigBtn" id="playAgainBtn">العب مرة أخرى</button>
+  <div id="bestScoreDisplay2" class="subtitle" style="margin-top:16px;">أفضل نتيجة: 0</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ إعداد الـ Canvas ============ */
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const canvasWrap = document.getElementById('canvasWrap');
+
+  // أبعاد منطقية ثابتة للعبة (يتم تحجيمها بصريا حسب الشاشة)
+  const LOGICAL_W = 800;
+  const LOGICAL_H = 500;
+
+  function resizeCanvas(){
+    const maxW = Math.min(window.innerWidth * 0.96, 900);
+    const maxH = window.innerHeight * 0.62;
+    let scale = Math.min(maxW / LOGICAL_W, maxH / LOGICAL_H);
+    if(scale <= 0 || !isFinite(scale)) scale = 1;
+    const visualWidth = LOGICAL_W * scale;
+    canvas.style.width = visualWidth + 'px';
+    canvas.style.height = (LOGICAL_H * scale) + 'px';
+    canvas.width = LOGICAL_W;
+    canvas.height = LOGICAL_H;
+
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  /* ============ حالة اللعبة ============ */
+  const state = {
+    running:false,
+    paused:false,
+    over:false,
+    difficulty:'normal',
+    playerScore:0,
+    computerScore:0,
+    winScore:11,
+    countdown:0,
+    countdownActive:false,
+    muted:false,
+    fps:60
+  };
+
+  const DIFF_SETTINGS = {
+    easy:   { ballSpeed:4.2, paddleSpeed:4.0, aiError:55, aiReaction:0.055 },
+    normal: { ballSpeed:5.2, paddleSpeed:5.2, aiError:35, aiReaction:0.08 },
+    hard:   { ballSpeed:6.2, paddleSpeed:6.6, aiError:18, aiReaction:0.115 }
+  };
+
+  const PADDLE_W = 14;
+  const PADDLE_H = 90;
+  const BALL_R = 8;
+
+  const player = { x: 24, y: LOGICAL_H/2 - PADDLE_H/2, w:PADDLE_W, h:PADDLE_H, dy:0, shake:0 };
+  const computer = { x: LOGICAL_W - 24 - PADDLE_W, y: LOGICAL_H/2 - PADDLE_H/2, w:PADDLE_W, h:PADDLE_H, targetY:LOGICAL_H/2, shake:0 };
+
+  const ball = {
+    x: LOGICAL_W/2, y: LOGICAL_H/2,
+    r: BALL_R,
+    vx: 0, vy: 0,
+    trail: []
+  };
+
+  let particles = [];
+  let elapsedTime = 0; // بالثواني، يستخدم لزيادة الصعوبة تدريجيا
+
+  /* ============ التخزين المحلي لأفضل نتيجة ============ */
+  const BEST_KEY = 'neonPongBestScore';
+  function getBestScore(){
+    try{
+      return parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0;
+    }catch(e){ return 0; }
+  }
+  function setBestScore(v){
+    try{ localStorage.setItem(BEST_KEY, String(v)); }catch(e){}
+  }
+  function refreshBestDisplays(){
+    const b = getBestScore();
+    document.getElementById('bestScoreDisplay').textContent = 'أفضل نتيجة: ' + b;
+    document.getElementById('bestScoreDisplay2').textContent = 'أفضل نتيجة: ' + b;
+  }
+  refreshBestDisplays();
+
+  /* ============ نظام الصوت (Web Audio API) ============ */
+  let audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx){
+      try{
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }catch(e){ audioCtx = null; }
+    }
+    if(audioCtx && audioCtx.state === 'suspended'){
+      audioCtx.resume();
+    }
+  }
+
+  function playTone(freq, duration, type, volume, glide){
+    if(state.muted || !audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    if(glide){
+      osc.frequency.exponentialRampToValueAtTime(Math.max(30, glide), audioCtx.currentTime + duration);
+    }
+    gain.gain.setValueAtTime(volume || 0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  function soundHit(){ playTone(220 + Math.random()*80, 0.09, 'square', 0.12, 120); }
+  function soundScore(){ playTone(440, 0.25, 'sine', 0.14, 220); }
+  function soundWin(){
+    playTone(523.25, 0.18, 'triangle', 0.16, null);
+    setTimeout(()=>playTone(659.25, 0.18, 'triangle', 0.16, null), 150);
+    setTimeout(()=>playTone(783.99, 0.3, 'triangle', 0.18, null), 300);
+  }
+
+  /* ============ التحكم باللاعب ============ */
+  const keys = { up:false, down:false };
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'ArrowUp'){ keys.up = true; e.preventDefault(); }
+    if(e.key === 'ArrowDown'){ keys.down = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', (e)=>{
+    if(e.key === 'ArrowUp'){ keys.up = false; }
+    if(e.key === 'ArrowDown'){ keys.down = false; }
+  });
+
+  // تحويل إحداثي Y من الشاشة (مؤشر أو إصبع) إلى الإحداثي المنطقي للعبة
+  function screenYToLogicalY(clientY){
+    const rect = canvas.getBoundingClientRect();
+    const scaleY = LOGICAL_H / rect.height;
+    return (clientY - rect.top) * scaleY;
+  }
+
+  // تحقق إن كان الهدف عنصر تحكم (زر) حتى لا نتعارض مع الضغط على الأزرار
+  function isInteractiveTarget(target){
+    return !!(target && target.closest && target.closest('button, .btn, .diffBtn, .bigBtn'));
+  }
+
+  // تحقق إن كان الهدف عنصر تحكم (زر أو شريط تمرير) حتى لا نتعارض مع الضغط على الأزرار
+  function isInteractiveTarget(target){
+    return !!(target && target.closest && target.closest('button, .btn, .diffBtn, .bigBtn, input[type="range"]'));
+  }
+
+  // دعم الماوس - تحريك المضرب مباشرة حسب موضع المؤشر من أي مكان في الشاشة
+  document.addEventListener('mousemove', (e)=>{
+    if(!state.running || state.paused || state.over) return;
+    if(isInteractiveTarget(e.target)) return;
+    const logicalY = screenYToLogicalY(e.clientY);
+    player.y = logicalY - player.h/2;
+    clampPaddle(player);
+  });
+
+  document.addEventListener('mousedown', ensureAudio);
+
+  // دعم اللمس - تحريك المضرب مباشرة حسب موضع الإصبع من أي مكان في الشاشة (مناسب لهواتف أندرويد)
+  let touchActive = false;
+
+  function handleTouchMove(e){
+    if(!e.touches || e.touches.length === 0) return;
+    const touchY = e.touches[0].clientY;
+    const logicalY = screenYToLogicalY(touchY);
+    player.y = logicalY - player.h/2;
+    clampPaddle(player);
+    e.preventDefault();
+  }
+
+  document.addEventListener('touchstart', (e)=>{
+    ensureAudio();
+    if(!state.running || state.paused || state.over) return;
+    if(isInteractiveTarget(e.target)) return;
+    touchActive = true;
+    handleTouchMove(e);
+  }, {passive:false});
+
+  document.addEventListener('touchmove', (e)=>{
+    if(!touchActive) return;
+    if(!state.running || state.paused || state.over) return;
+    handleTouchMove(e);
+  }, {passive:false});
+
+  document.addEventListener('touchend', ()=>{ touchActive = false; });
+  document.addEventListener('touchcancel', ()=>{ touchActive = false; });
+
+  document.addEventListener('click', ensureAudio, {once:true});
+
+  /* ============ منطق اللعبة ============ */
+  function currentSettings(){
+    return DIFF_SETTINGS[state.difficulty];
+  }
+
+  function resetBall(direction){
+    ball.x = LOGICAL_W/2;
+    ball.y = LOGICAL_H/2;
+    ball.trail = [];
+    const settings = currentSettings();
+    const speed = settings.ballSpeed + Math.min(elapsedTime/25, 3.5);
+    const angle = (Math.random() * 0.6 - 0.3); // زاوية عشوائية بسيطة
+    ball.vx = speed * (direction || (Math.random() > 0.5 ? 1 : -1));
+    ball.vy = speed * angle * 2.2;
+  }
+
+  function startCountdown(direction){
+    state.countdownActive = true;
+    state.countdown = 1.0; // ثانية واحدة
+    ball.vx = 0; ball.vy = 0;
+    ball.x = LOGICAL_W/2;
+    ball.y = LOGICAL_H/2;
+    resetBall._pendingDir = direction;
+  }
+
+  function resetPositions(){
+    player.y = LOGICAL_H/2 - PADDLE_H/2;
+    computer.y = LOGICAL_H/2 - PADDLE_H/2;
+  }
+
+  function spawnParticles(x, y, color){
+    for(let i=0;i<10;i++){
+      particles.push({
+        x:x, y:y,
+        vx:(Math.random()-0.5)*6,
+        vy:(Math.random()-0.5)*6,
+        life:1,
+        color:color
+      });
+    }
+  }
+
+  function updateParticles(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= dt*2.5;
+      if(p.life <= 0) particles.splice(i,1);
+    }
+  }
+
+  function clampPaddle(p){
+    if(p.y < 0) p.y = 0;
+    if(p.y + p.h > LOGICAL_H) p.y = LOGICAL_H - p.h;
+  }
+
+  function updatePlayer(dt, settings){
+    const speed = settings.paddleSpeed * 60 * dt;
+    if(keys.up) player.y -= speed;
+    if(keys.down) player.y += speed;
+    clampPaddle(player);
+  }
+
+  function updateAI(dt, settings){
+    // الذكاء الاصطناعي لا يتتبع الكرة بدقة 100% ويحتوي على خطأ عشوائي
+    const reactionChance = settings.aiReaction + Math.min(elapsedTime/200, 0.05);
+    if(Math.random() < reactionChance || ball.vx > 0){
+      const errorMargin = settings.aiError;
+      computer.targetY = ball.y - computer.h/2 + (Math.random()*errorMargin*2 - errorMargin);
+    }
+    const diff = computer.targetY - computer.y;
+    const maxSpeed = (settings.paddleSpeed * 0.92) * 60 * dt;
+    if(Math.abs(diff) > 2){
+      computer.y += Math.sign(diff) * Math.min(Math.abs(diff), maxSpeed);
+    }
+    clampPaddle(computer);
+  }
+
+  function updateBall(dt, settings){
+    ball.trail.push({x:ball.x, y:ball.y});
+    if(ball.trail.length > 12) ball.trail.shift();
+
+    ball.x += ball.vx * 60 * dt;
+    ball.y += ball.vy * 60 * dt;
+
+    // ارتداد من الأعلى والأسفل
+    if(ball.y - ball.r < 0){
+      ball.y = ball.r;
+      ball.vy *= -1;
+    } else if(ball.y + ball.r > LOGICAL_H){
+      ball.y = LOGICAL_H - ball.r;
+      ball.vy *= -1;
+    }
+
+    // تصادم مع مضرب اللاعب
+    if(ball.vx < 0 &&
+       ball.x - ball.r <= player.x + player.w &&
+       ball.x - ball.r >= player.x &&
+       ball.y >= player.y &&
+       ball.y <= player.y + player.h){
+      handlePaddleHit(player, 1);
+    }
+
+    // تصادم مع مضرب الكمبيوتر
+    if(ball.vx > 0 &&
+       ball.x + ball.r >= computer.x &&
+       ball.x + ball.r <= computer.x + computer.w &&
+       ball.y >= computer.y &&
+       ball.y <= computer.y + computer.h){
+      handlePaddleHit(computer, -1);
+    }
+
+    // خروج الكرة من اليسار -> نقطة للكمبيوتر
+    if(ball.x + ball.r < 0){
+      scorePoint('computer');
+    }
+    // خروج الكرة من اليمين -> نقطة للاعب
+    if(ball.x - ball.r > LOGICAL_W){
+      scorePoint('player');
+    }
+  }
+
+  function handlePaddleHit(paddle, direction){
+    const relativeY = (ball.y - (paddle.y + paddle.h/2)) / (paddle.h/2);
+    const settings = currentSettings();
+    const speedBoost = 1.03;
+    const currentSpeed = Math.hypot(ball.vx, ball.vy) * speedBoost;
+    const maxAngle = 0.9;
+
+    ball.vx = direction * Math.abs(currentSpeed * Math.cos(relativeY * maxAngle));
+    ball.vy = currentSpeed * Math.sin(relativeY * maxAngle);
+
+    // تصحيح موضع الكرة لتفادي الالتصاق بالمضرب
+    if(direction === 1){
+      ball.x = paddle.x + paddle.w + ball.r + 1;
+    } else {
+      ball.x = paddle.x - ball.r - 1;
+    }
+
+    paddle.shake = 1;
+    spawnParticles(ball.x, ball.y, direction === 1 ? '#00fff2' : '#ff2bd6');
+    soundHit();
+  }
+
+  function scorePoint(who){
+    if(who === 'player'){
+      state.playerScore++;
+      flashScore('playerScore');
+    } else {
+      state.computerScore++;
+      flashScore('computerScore');
+    }
+    soundScore();
+    updateScoreDisplay();
+
+    if(state.playerScore >= state.winScore || state.computerScore >= state.winScore){
+      endGame(state.playerScore > state.computerScore ? 'player' : 'computer');
+      return;
+    }
+
+    resetPositions();
+    startCountdown(who === 'player' ? -1 : 1);
+  }
+
+  function flashScore(id){
+    const el = document.getElementById(id);
+    el.classList.add('scorePulse');
+    setTimeout(()=>el.classList.remove('scorePulse'), 200);
+  }
+
+  function updateScoreDisplay(){
+    document.getElementById('playerScore').textContent = state.playerScore;
+    document.getElementById('computerScore').textContent = state.computerScore;
+  }
+
+  function endGame(winner){
+    state.over = true;
+    state.running = false;
+    const best = getBestScore();
+    const myFinal = state.playerScore;
+    if(myFinal > best){
+      setBestScore(myFinal);
+    }
+    refreshBestDisplays();
+
+    const winnerText = document.getElementById('winnerText');
+    if(winner === 'player'){
+      winnerText.textContent = '🏆 PLAYER WINS';
+      winnerText.style.color = '#00fff2';
+    } else {
+      winnerText.textContent = '💻 COMPUTER WINS';
+      winnerText.style.color = '#ff2bd6';
+    }
+    document.getElementById('finalScoreText').textContent =
+      'النتيجة النهائية: ' + state.playerScore + ' - ' + state.computerScore;
+
+    document.getElementById('gameOverScreen').classList.remove('hidden');
+    soundWin();
+  }
+
+  /* ============ الرسم ============ */
+  function drawBackground(){
+    ctx.clearRect(0,0,LOGICAL_W,LOGICAL_H);
+    ctx.fillStyle = '#08080f';
+    ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
+
+    // الخط المنتصف المتقطع
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,255,242,0.35)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12,14]);
+    ctx.shadowColor = '#00fff2';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(LOGICAL_W/2, 0);
+    ctx.lineTo(LOGICAL_W/2, LOGICAL_H);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPaddle(p, color){
+    ctx.save();
+    let offsetX = 0;
+    if(p.shake > 0){
+      offsetX = (Math.random()-0.5) * 6 * p.shake;
+      p.shake -= 0.15;
+      if(p.shake < 0) p.shake = 0;
+    }
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    const radius = 6;
+    const x = p.x + offsetX, y = p.y, w = p.w, h = p.h;
+    ctx.moveTo(x+radius, y);
+    ctx.arcTo(x+w, y, x+w, y+h, radius);
+    ctx.arcTo(x+w, y+h, x, y+h, radius);
+    ctx.arcTo(x, y+h, x, y, radius);
+    ctx.arcTo(x, y, x+w, y, radius);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBall(){
+    // الأثر (Trail)
+    for(let i=0;i<ball.trail.length;i++){
+      const t = ball.trail[i];
+      const alpha = (i / ball.trail.length) * 0.35;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.arc(t.x, t.y, ball.r * (i/ball.trail.length), 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.save();
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawParticles(){
+    for(const p of particles){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function render(){
+    drawBackground();
+    drawParticles();
+    drawPaddle(player, '#00fff2');
+    drawPaddle(computer, '#ff2bd6');
+    drawBall();
+  }
+
+  /* ============ عداد FPS ============ */
+  let fpsFrames = 0;
+  let fpsLastTime = performance.now();
+  function updateFPSCounter(now){
+    fpsFrames++;
+    if(now - fpsLastTime >= 500){
+      state.fps = Math.round(fpsFrames * 1000 / (now - fpsLastTime));
+      fpsFrames = 0;
+      fpsLastTime = now;
+      document.getElementById('fpsCounter').textContent = 'FPS: ' + state.fps;
+    }
+  }
+
+  /* ============ حلقة اللعبة الرئيسية ============ */
+  let lastFrameTime = performance.now();
+
+  function gameLoop(now){
+    requestAnimationFrame(gameLoop);
+    updateFPSCounter(now);
+
+    if(!state.running || state.paused || state.over){
+      return;
+    }
+
+    let dt = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+    if(dt > 0.05) dt = 0.05; // تجنب القفزات الكبيرة عند تجميد التبويب
+
+    const settings = currentSettings();
+    elapsedTime += dt;
+
+    updateParticles(dt);
+
+    if(state.countdownActive){
+      state.countdown -= dt;
+      const countEl = document.getElementById('countdownText');
+      countEl.classList.remove('hidden');
+      countEl.textContent = state.countdown > 0 ? Math.ceil(state.countdown) : 'GO';
+      if(state.countdown <= -0.3){
+        state.countdownActive = false;
+        countEl.classList.add('hidden');
+        resetBall(resetBall._pendingDir);
+      }
+      render();
+      return;
+    } else {
+      document.getElementById('countdownText').classList.add('hidden');
+    }
+
+    updatePlayer(dt, settings);
+    updateAI(dt, settings);
+    updateBall(dt, settings);
+    syncSliderToPaddle();
+
+    render();
+  }
+  lastFrameTime = performance.now();
+  requestAnimationFrame(gameLoop);
+
+  /* ============ إدارة الشاشات وأزرار التحكم ============ */
+  const startScreen = document.getElementById('startScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const startBtn = document.getElementById('startBtn');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const diffRow = document.getElementById('diffRow');
+  const paddleSlider = document.getElementById('paddleSlider');
+
+  // الشريط العمودي يتحكم بالمضرب (القيمة الصغرى أسفل الشريط، الكبرى أعلاه: رفع المقبض = تحريك المضرب لأعلى)
+  paddleSlider.addEventListener('input', ()=>{
+    if(!state.running || state.paused || state.over) return;
+    const val = parseInt(paddleSlider.value, 10);
+    const t = (1000 - val) / 1000;
+    player.y = t * (LOGICAL_H - PADDLE_H);
+    clampPaddle(player);
+  });
+  paddleSlider.addEventListener('mousedown', ensureAudio);
+  paddleSlider.addEventListener('touchstart', ensureAudio);
+
+  // إبقاء شريط التمرير متزامناً مع موضع المضرب عند تحريكه بطرق أخرى (ماوس/لمس/أسهم)
+  function syncSliderToPaddle(){
+    const t = player.y / (LOGICAL_H - PADDLE_H);
+    paddleSlider.value = Math.round((1 - Math.max(0, Math.min(1, t))) * 1000);
+  }
+
+  diffRow.addEventListener('click', (e)=>{
+    const target = e.target.closest('.diffBtn');
+    if(!target) return;
+    document.querySelectorAll('.diffBtn').forEach(b=>b.classList.remove('active'));
+    target.classList.add('active');
+    state.difficulty = target.getAttribute('data-diff');
+  });
+
+  /* ============ تحريك شريط التحكم العائم (سحب في أي مكان بالشاشة) ============ */
+  const sliderWrap = document.getElementById('sliderWrap');
+  const sliderGrip = document.getElementById('sliderGrip');
+  const SLIDER_POS_KEY = 'neonPongSliderPos';
+  let dragging = false;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+
+  function clampToViewport(x, y){
+    const rect = sliderWrap.getBoundingClientRect();
+    const maxX = Math.max(0, window.innerWidth - rect.width);
+    const maxY = Math.max(0, window.innerHeight - rect.height);
+    return { x: Math.min(Math.max(0, x), maxX), y: Math.min(Math.max(0, y), maxY) };
+  }
+
+  function placeSliderAt(x, y){
+    const pos = clampToViewport(x, y);
+    sliderWrap.style.left = pos.x + 'px';
+    sliderWrap.style.top = pos.y + 'px';
+    sliderWrap.style.right = 'auto';
+    sliderWrap.style.transform = 'none';
+  }
+
+  function saveSliderPos(){
+    const rect = sliderWrap.getBoundingClientRect();
+    try{ localStorage.setItem(SLIDER_POS_KEY, JSON.stringify({x: rect.left, y: rect.top})); }catch(e){}
+  }
+
+  function loadSliderPos(){
+    try{
+      const raw = localStorage.getItem(SLIDER_POS_KEY);
+      if(raw){
+        const pos = JSON.parse(raw);
+        if(typeof pos.x === 'number' && typeof pos.y === 'number'){
+          placeSliderAt(pos.x, pos.y);
+        }
+      }
+    }catch(e){}
+  }
+
+  function startDrag(clientX, clientY){
+    dragging = true;
+    const rect = sliderWrap.getBoundingClientRect();
+    dragOffsetX = clientX - rect.left;
+    dragOffsetY = clientY - rect.top;
+    sliderWrap.classList.add('dragging');
+  }
+
+  function moveDrag(clientX, clientY){
+    if(!dragging) return;
+    placeSliderAt(clientX - dragOffsetX, clientY - dragOffsetY);
+  }
+
+  function endDrag(){
+    if(!dragging) return;
+    dragging = false;
+    sliderWrap.classList.remove('dragging');
+    saveSliderPos();
+  }
+
+  sliderGrip.addEventListener('mousedown', (e)=>{
+    e.preventDefault();
+    startDrag(e.clientX, e.clientY);
+  });
+  window.addEventListener('mousemove', (e)=>{ moveDrag(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', endDrag);
+
+  sliderGrip.addEventListener('touchstart', (e)=>{
+    const t = e.touches[0];
+    startDrag(t.clientX, t.clientY);
+  }, {passive:true});
+  window.addEventListener('touchmove', (e)=>{
+    if(!dragging) return;
+    const t = e.touches[0];
+    moveDrag(t.clientX, t.clientY);
+  }, {passive:true});
+  window.addEventListener('touchend', endDrag);
+
+  window.addEventListener('resize', ()=>{
+    const rect = sliderWrap.getBoundingClientRect();
+    placeSliderAt(rect.left, rect.top);
+  });
+
+  loadSliderPos();
+
+  function fullReset(){
+    state.playerScore = 0;
+    state.computerScore = 0;
+    state.over = false;
+    state.paused = false;
+    elapsedTime = 0;
+    particles = [];
+    resetPositions();
+    updateScoreDisplay();
+    document.getElementById('countdownText').classList.add('hidden');
+    startCountdown(Math.random() > 0.5 ? 1 : -1);
+  }
+
+  startBtn.addEventListener('click', ()=>{
+    ensureAudio();
+    startScreen.classList.add('hidden');
+    fullReset();
+    state.running = true;
+  });
+
+  playAgainBtn.addEventListener('click', ()=>{
+    ensureAudio();
+    gameOverScreen.classList.add('hidden');
+    fullReset();
+    state.running = true;
+  });
+
+  restartBtn.addEventListener('click', ()=>{
+    ensureAudio();
+    gameOverScreen.classList.add('hidden');
+    fullReset();
+    state.running = true;
+    pauseBtn.textContent = '⏸ Pause';
+  });
+
+  pauseBtn.addEventListener('click', ()=>{
+    if(!state.running || state.over) return;
+    state.paused = !state.paused;
+    pauseBtn.textContent = state.paused ? '▶ Resume' : '⏸ Pause';
+  });
+
+  muteBtn.addEventListener('click', ()=>{
+    ensureAudio();
+    state.muted = !state.muted;
+    muteBtn.textContent = state.muted ? '🔇' : '🔊';
+  });
+
+})();
+</script>
+</body>
+</html>

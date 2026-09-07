@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>الثعبان الكلاسيكي</title>
+<style>
+  :root{
+    --phone-body:#1d1d1b;
+    --phone-body-light:#343230;
+    --phone-edge:#0d0d0c;
+    --lcd-bg:#c9d3a3;
+    --lcd-bg-2:#bcc792;
+    --lcd-ink:#2c3a1f;
+    --lcd-ghost:rgba(44,58,31,0.16);
+    --accent:#52602f;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; height:100%;
+    background:#0a0a0a;
+    background-image:radial-gradient(circle at 50% 0%, #2a2a28, #0a0a0a 70%);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Tahoma','Segoe UI',sans-serif;
+    overscroll-behavior:none;
+    user-select:none;
+  }
+  .phone{
+    width:min(94vw, 380px);
+    background:linear-gradient(160deg, var(--phone-body-light), var(--phone-body) 60%);
+    border:2px solid var(--phone-edge);
+    border-radius:34px;
+    padding:18px 16px 22px;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .earpiece{
+    width:46px; height:5px; border-radius:3px;
+    background:#0d0d0c; margin:0 auto 12px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+  }
+  .screen-frame{
+    background:var(--phone-edge);
+    border-radius:10px;
+    padding:10px;
+    box-shadow: inset 0 0 0 2px #000, inset 0 6px 14px rgba(0,0,0,0.6);
+  }
+  .topbar{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:4px 6px 7px;
+    color:var(--lcd-ink);
+    background:var(--lcd-bg);
+    border-radius:4px 4px 0 0;
+    font-size:13px; font-weight:700;
+    letter-spacing:0.5px;
+  }
+  .topbar span.label{opacity:0.85;}
+  #mute-btn{
+    border:none; background:transparent; color:var(--lcd-ink);
+    font-size:15px; cursor:pointer; padding:2px 4px; line-height:1;
+  }
+  .screen-wrap{ position:relative; }
+  canvas{
+    display:block;
+    width:100%;
+    background:var(--lcd-bg);
+    image-rendering:pixelated;
+  }
+  #overlay{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px;
+    background:rgba(201,211,163,0.94);
+    color:var(--lcd-ink);
+    text-align:center;
+    padding:14px;
+  }
+  #overlay h2{ margin:0; font-size:18px; letter-spacing:1px; }
+  #overlay p{ margin:0; font-size:13px; opacity:0.9; }
+  #overlay button{
+    margin-top:6px;
+    border:2px solid var(--lcd-ink);
+    background:var(--lcd-ink);
+    color:var(--lcd-bg);
+    font-weight:700; font-size:14px;
+    padding:8px 22px; border-radius:5px;
+    cursor:pointer; font-family:inherit;
+  }
+  .hidden{display:none !important;}
+  .credit{
+    direction:ltr;
+    font-size:11px;
+    letter-spacing:1px;
+    color:var(--lcd-ink);
+    opacity:0.65;
+    margin:-2px 0 4px;
+  }
+  .controls{
+    margin-top:18px;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+  }
+  .dpad{
+    direction:ltr;
+    display:grid;
+    grid-template-columns:42px 42px 42px;
+    grid-template-rows:42px 42px 42px;
+    grid-template-areas:
+      ".  up   ."
+      "left . right"
+      ".  down .";
+    gap:4px;
+  }
+  .dpad button{
+    border:none; border-radius:8px;
+    background:var(--phone-body-light);
+    color:#cfd6bd;
+    box-shadow: 0 2px 0 #000, inset 0 1px 1px rgba(255,255,255,0.08);
+    font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .dpad button:active{ background:var(--accent); transform:translateY(1px); }
+  .dpad .up{grid-area:up;} .dpad .down{grid-area:down;}
+  .dpad .left{grid-area:left;} .dpad .right{grid-area:right;}
+  .hint{
+    color:#8d9178; font-size:11px; text-align:center; flex:1;
+    line-height:1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="earpiece"></div>
+  <div class="screen-frame">
+    <div class="topbar">
+      <span class="label">النقاط: <b id="score">0</b></span>
+      <button id="mute-btn" title="صوت">🔊</button>
+      <span class="label">الأفضل: <b id="highscore">0</b></span>
+    </div>
+    <div class="screen-wrap">
+      <canvas id="game"></canvas>
+      <div id="overlay">
+        <h2>🐍 الثعبان الكلاسيكي</h2>
+        <div class="credit">Design by Mohamed Salama</div>
+        <p>استخدم الأسهم أو السحب بإصبعك للتحكم</p>
+        <button id="start-btn">ابدأ اللعب</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="hint">اسحب على الشاشة<br>أو استخدم الأسهم<br>على الكيبورد</div>
+    <div class="dpad">
+      <button class="up" data-dir="up">▲</button>
+      <button class="left" data-dir="left">◀</button>
+      <button class="right" data-dir="right">▶</button>
+      <button class="down" data-dir="down">▼</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Grid / canvas setup ----------
+  const COLS = 15, ROWS = 19;
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let cellSize = 20;
+
+  function resize(){
+    const wrapWidth = canvas.parentElement.clientWidth;
+    cellSize = Math.floor(wrapWidth / COLS);
+    canvas.width = cellSize * COLS;
+    canvas.height = cellSize * ROWS;
+    draw();
+  }
+
+  // ---------- Sound (Web Audio API, no files needed) ----------
+  let audioCtx = null;
+  let muted = false;
+  const muteBtn = document.getElementById('mute-btn');
+
+  function ensureAudio(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e){ audioCtx = null; }
+    }
+  }
+
+  function beep(freq, dur, vol, type){
+    if(muted || !audioCtx) return;
+    try{
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type || 'square';
+      osc.frequency.value = freq;
+      gain.gain.value = vol == null ? 0.18 : vol;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+      osc.start(now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      osc.stop(now + dur + 0.02);
+    }catch(e){ /* ignore audio errors */ }
+  }
+
+  function sndEat(){ beep(900, 0.07, 0.2); setTimeout(()=>beep(1300,0.08,0.2), 55); }
+  function sndTurn(){ /* classic snake stays silent on turn */ }
+  function sndStart(){ beep(660, 0.09, 0.15); }
+  function sndGameOver(){
+    beep(380, 0.14, 0.2); 
+    setTimeout(()=>beep(300,0.14,0.2), 140);
+    setTimeout(()=>beep(180,0.28,0.22), 280);
+  }
+
+  muteBtn.addEventListener('click', ()=>{
+    muted = !muted;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // ---------- High score (persisted via artifact storage) ----------
+  const highscoreEl = document.getElementById('highscore');
+  let highScore = 0;
+
+  async function loadHighScore(){
+    try{
+      const res = await window.storage.get('snake-highscore');
+      if(res && res.value){
+        highScore = parseInt(res.value, 10) || 0;
+        highscoreEl.textContent = highScore;
+      }
+    }catch(e){ /* no saved score yet, start at 0 */ }
+  }
+
+  async function saveHighScore(val){
+    highScore = val;
+    highscoreEl.textContent = highScore;
+    try{ await window.storage.set('snake-highscore', String(val)); }
+    catch(e){ /* storage unavailable, ignore */ }
+  }
+
+  // ---------- Game state ----------
+  const scoreEl = document.getElementById('score');
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('start-btn');
+
+  let snake, dir, nextDir, food, score, speed, running, gameOver, timer;
+  const BASE_SPEED = 165;
+  const MIN_SPEED = 88;
+
+  function resetState(){
+    const cx = Math.floor(COLS/2), cy = Math.floor(ROWS/2);
+    snake = [{x:cx,y:cy},{x:cx-1,y:cy},{x:cx-2,y:cy}];
+    dir = {x:1,y:0};
+    nextDir = {x:1,y:0};
+    score = 0;
+    speed = BASE_SPEED;
+    scoreEl.textContent = '0';
+    placeFood();
+    running = false;
+    gameOver = false;
+  }
+
+  function placeFood(){
+    let pos;
+    do{
+      pos = { x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS) };
+    } while(snake.some(s => s.x===pos.x && s.y===pos.y));
+    food = pos;
+  }
+
+  function setDirection(name){
+    const map = {
+      up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0}
+    };
+    const d = map[name];
+    if(!d) return;
+    // prevent reversing directly into itself
+    if(d.x === -dir.x && d.y === -dir.y) return;
+    nextDir = d;
+  }
+
+  function tick(){
+    dir = nextDir;
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+    // wall collision -> game over (classic Nokia behaviour, no wrap-around)
+    if(head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS){
+      return endGame();
+    }
+    // self collision
+    if(snake.some(s => s.x === head.x && s.y === head.y)){
+      return endGame();
+    }
+
+    snake.unshift(head);
+
+    if(head.x === food.x && head.y === food.y){
+      score += 10;
+      scoreEl.textContent = score;
+      sndEat();
+      placeFood();
+      speed = Math.max(MIN_SPEED, BASE_SPEED - Math.floor(score/3));
+    } else {
+      snake.pop();
+    }
+
+    draw();
+    timer = setTimeout(tick, speed);
+  }
+
+  function endGame(){
+    running = false;
+    gameOver = true;
+    sndGameOver();
+    if(score > highScore) saveHighScore(score);
+    showOverlay('💀 انتهت اللعبة', `نقاطك: ${score}`, 'العب مرة أخرى');
+  }
+
+  function showOverlay(title, msg, btnText){
+    overlay.innerHTML = `<h2>${title}</h2><p>${msg}</p><button id="start-btn">${btnText}</button>`;
+    overlay.classList.remove('hidden');
+    document.getElementById('start-btn').addEventListener('click', startGame, {once:true});
+  }
+
+  function startGame(){
+    ensureAudio();
+    sndStart();
+    resetState();
+    overlay.classList.add('hidden');
+    running = true;
+    draw();
+    clearTimeout(timer);
+    timer = setTimeout(tick, speed);
+  }
+
+  // ---------- Drawing: authentic dot-matrix LCD look ----------
+  function draw(){
+    ctx.fillStyle = '#c9d3a3';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ghost grid (the "off" pixels of a real monochrome LCD)
+    ctx.fillStyle = 'rgba(44,58,31,0.16)';
+    const ghostSize = cellSize * 0.3;
+    const ghostOffset = (cellSize - ghostSize) / 2;
+    for(let y=0; y<ROWS; y++){
+      for(let x=0; x<COLS; x++){
+        ctx.fillRect(x*cellSize + ghostOffset, y*cellSize + ghostOffset, ghostSize, ghostSize);
+      }
+    }
+
+    // snake
+    ctx.fillStyle = '#2c3a1f';
+    const pad = Math.max(1, cellSize * 0.08);
+    snake.forEach((s, i) => {
+      ctx.fillRect(s.x*cellSize + pad, s.y*cellSize + pad, cellSize - pad*2, cellSize - pad*2);
+    });
+
+    // food (blinking)
+    if(!gameOver){
+      const blink = Math.floor(Date.now()/300) % 2 === 0;
+      if(blink || !running){
+        ctx.fillRect(food.x*cellSize + pad, food.y*cellSize + pad, cellSize - pad*2, cellSize - pad*2);
+      }
+    }
+  }
+
+  // redraw periodically while idle/blinking even when not ticking
+  setInterval(()=>{ if(!running) draw(); }, 300);
+
+  // ---------- Input: keyboard ----------
+  window.addEventListener('keydown', (e)=>{
+    const keyMap = {
+      ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+      w:'up', s:'down', a:'left', d:'right', W:'up', S:'down', A:'left', D:'right'
+    };
+    if(keyMap[e.key]){
+      e.preventDefault();
+      if(!running && !gameOver) { startGame(); }
+      setDirection(keyMap[e.key]);
+    } else if(e.key === ' '){
+      e.preventDefault();
+      if(!running) startGame();
+    }
+  });
+
+  // ---------- Input: on-screen D-pad ----------
+  document.querySelectorAll('.dpad button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!running && !gameOver) startGame();
+      setDirection(btn.dataset.dir);
+    });
+  });
+
+  // ---------- Input: swipe on canvas ----------
+  let touchStart = null;
+  canvas.addEventListener('touchstart', (e)=>{
+    const t = e.changedTouches[0];
+    touchStart = {x:t.clientX, y:t.clientY};
+  }, {passive:true});
+
+  canvas.addEventListener('touchend', (e)=>{
+    if(!touchStart) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    if(Math.abs(dx) < 16 && Math.abs(dy) < 16){
+      touchStart = null;
+      if(!running && !gameOver) startGame();
+      return;
+    }
+    if(Math.abs(dx) > Math.abs(dy)){
+      setDirection(dx > 0 ? 'right' : 'left');
+    } else {
+      setDirection(dy > 0 ? 'down' : 'up');
+    }
+    if(!running && !gameOver) startGame();
+    touchStart = null;
+  }, {passive:true});
+
+  startBtn.addEventListener('click', startGame, {once:true});
+  window.addEventListener('resize', resize);
+
+  // ---------- Init ----------
+  resetState();
+  loadHighScore();
+  resize();
+})();
+</script>
+</body>
+</html>
