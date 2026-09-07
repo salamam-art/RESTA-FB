@@ -1155,33 +1155,23 @@
             };
         }
 
-        // كتابة الحجوزات: تحديث جزئي بمسار مستقل لكل حجز (bookings/{id}) بدل استبدال
-        // مصفوفة bookings بالكامل. هذا يمنع سيناريو: مستخدمان يحجزان في نفس اللحظة
-        // تقريبًا، فيكتب كل منهما نسخته الكاملة من الشجرة فوق نسخة الآخر ويُفقَد
-        // حجز أحدهما بالكامل. الآن كل حجز/حذف يُكتب في مساره الخاص فقط عبر update()،
-        // فلا تتأثر حجوزات أضافها/حذفها مستخدم آخر بين قراءتنا وكتابتنا.
-        // (logs وusers ما زالا يُكتبان كاستبدال كامل كما كانا — خارج نطاق هذا الإصلاح).
-        async function pushCloudSnapshot(finalLogs, usersForCloud, dirtyBookings, pendingDels) {
+        // كتابة لقطة كاملة: نستبدل عقدة bookings بالكامل بمصفوفة finalBookings
+        // المحسوبة محليًا (وهي أصلًا نتيجة دمج نسخة السيرفر + تعديلاتنا المحلية).
+        // ── ليه رجّعنا لل full overwrite بدل التحديث الجزئي (update بمسار مستقل لكل حجز)؟ ──
+        // التحديث الجزئي كان بيكتب فقط الحجوزات الـ dirty ويحذف فقط اللي في pendingDeletions،
+        // فلو لأي سبب (نسخة قديمة من التطبيق، إرسال مزدوج، أو أي علة توقيت) حجز اتشال محليًا
+        // من غير ما يوصل الـ id بتاعه فعليًا لـ pendingDeletions وقت الرفع، كان بيفضل عالق في
+        // فايربيز للأبد — مفيش حاجة بتقوله يمسحه — وبيرجع يظهر كحجز مكرر في كل مزامنة تالية.
+        // الكتابة الكاملة هنا ذاتية الإصلاح: أي حجز مش موجود في finalBookings بيتشال تلقائيًا
+        // من فايربيز لأن set() بيستبدل العقدة بالكامل، فمفيش نسخ قديمة ممكن تفضل عالقة.
+        async function pushCloudSnapshot(finalBookings, finalLogs, usersForCloud) {
             const now = new Date().toISOString();
-
-            const bookingsUpdate = {};
-            (dirtyBookings || []).forEach(b => {
-                const clean = { ...b };
-                delete clean._isDirty;
-                bookingsUpdate[String(clean.id)] = clean;
-            });
-            (pendingDels || []).forEach(id => { bookingsUpdate[String(id)] = null; });
-
-            const writes = [
+            await Promise.all([
+                db.ref('bookings').set(finalBookings),
                 db.ref('logs').set(finalLogs),
                 db.ref('users').set(usersForCloud),
                 db.ref('meta/updatedAt').set(now)
-            ];
-            if (Object.keys(bookingsUpdate).length > 0) {
-                writes.push(db.ref('bookings').update(bookingsUpdate));
-            }
-            await Promise.all(writes);
-
+            ]);
             _lastKnownUpdatedAt = now; // تسجيل فوري لتفادي إعادة مزامنة ذاتية عند وصول حدث المستمع اللحظي
             return now;
         }
@@ -1470,10 +1460,9 @@
                     usersForCloud = Array.from(usersMap.values());
 
                     await pushCloudSnapshot(
+                        finalBookings,
                         mergeLogs(state.activityLogs, serverLogs),
-                        usersForCloud,
-                        dirtyBookings,
-                        pendingDels
+                        usersForCloud
                     );
 
                     // فحص ثالث بعد الكتابة — لو حصل تغيير أثناء الكتابة، لا تُحدّث state
@@ -4091,6 +4080,29 @@ ${notesDisplay ? `
 
         function handleGlobalBookingSubmit(e) {
             e.preventDefault();
+
+            // ─── منع الإرسال المزدوج ────────────────────────────────────────
+            // نقرة مزدوجة (أو تاتش سريع مرتين) على زر الحفظ كانت تسبب تنفيذ هذه
+            // الدالة مرتين قبل ما نقدر نغلق المودال: التنفيذ الأول يحفظ التعديل
+            // بنجاح ويصفّر state.editingBookingId، لكن التنفيذ الثاني كان يشوف
+            // إن مفيش editingBookingId فيعتبرها "حجز جديد" ويضيف نسخة مطابقة
+            // لنفس اليوم بنفس البيانات. الحارس ده يمنع أي تنفيذ ثاني لحد ما
+            // الأول يخلص تمامًا (نجاح أو فشل بالتحقق).
+            if (handleGlobalBookingSubmit._busy) return;
+            handleGlobalBookingSubmit._busy = true;
+
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                return handleGlobalBookingSubmitInner(e);
+            } finally {
+                handleGlobalBookingSubmit._busy = false;
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        }
+
+        function handleGlobalBookingSubmitInner(e) {
             const form   = e.target;
             const hallId = form.hallId.value;
             const hall   = HALLS.find(h => h.id === hallId);
