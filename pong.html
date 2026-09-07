@@ -43,7 +43,7 @@
     display:flex;
     align-items:center;
     justify-content:space-between;
-    width:min(96vw, 900px);
+    width:min(96vw, 520px);
     margin-bottom:10px;
     color:#fff;
   }
@@ -126,68 +126,44 @@
   }
 
   #sliderWrap{
-    position:fixed;
-    top:50%;
-    right:10px;
-    left:auto;
-    transform:translateY(-50%);
-    width:27px;
-    height:min(29vh, 154px);
+    direction:ltr;
+    width:min(96vw, 420px);
+    margin:14px auto 0;
     display:flex;
-    flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:4px;
-    z-index:6;
-    background:transparent;
-    border:none;
-    box-shadow:none;
-    backdrop-filter:none;
+    gap:10px;
     touch-action:none;
   }
-  #sliderWrap.dragging #sliderGrip{
-    color:var(--neon-pink);
-    text-shadow:0 0 8px var(--neon-pink);
-    opacity:1;
-  }
-  #sliderGrip{
-    width:100%;
-    height:11px;
-    flex:0 0 11px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    letter-spacing:1px;
-    font-size:9px;
-    line-height:1;
+  #sliderWrap .sliderIcon{
+    flex:0 0 auto;
+    font-size:15px;
     color:var(--neon-cyan);
     text-shadow:0 0 6px var(--neon-cyan);
-    opacity:0.75;
-    cursor:grab;
+    opacity:0.8;
     user-select:none;
+    line-height:1;
   }
-  #sliderGrip:active{cursor:grabbing;opacity:1;}
   #paddleSlider{
     -webkit-appearance:none;
     -moz-appearance:none;
     appearance:none;
-    writing-mode:vertical-lr;
-    direction:rtl;
-    width:4px;
-    height:min(29vh, 154px);
+    direction:ltr;
+    width:100%;
+    height:8px;
     border-radius:4px;
-    background:linear-gradient(180deg, rgba(0,255,242,0.25), rgba(255,43,214,0.25));
+    background:linear-gradient(90deg, rgba(0,255,242,0.28), rgba(255,43,214,0.28));
     outline:none;
     box-shadow:0 0 8px rgba(0,255,242,0.15), inset 0 0 3px rgba(0,0,0,0.5);
     cursor:pointer;
     flex:1 1 auto;
-    max-height:calc(100% - 15px);
+    touch-action:none;
   }
   #paddleSlider::-webkit-slider-thumb{
     -webkit-appearance:none;
     appearance:none;
-    width:14px;
-    height:14px;
+    width:24px;
+    height:24px;
     border-radius:50%;
     background:#fff;
     border:2px solid var(--neon-cyan);
@@ -195,18 +171,26 @@
     cursor:pointer;
   }
   #paddleSlider::-moz-range-thumb{
-    width:14px;
-    height:14px;
+    width:24px;
+    height:24px;
     border-radius:50%;
     background:#fff;
     border:2px solid var(--neon-cyan);
     box-shadow:0 0 8px var(--neon-cyan), 0 0 14px var(--neon-cyan);
     cursor:pointer;
+    border:none;
   }
   #paddleSlider::-moz-range-track{
-    height:4px;
+    height:8px;
     border-radius:4px;
-    background:linear-gradient(180deg, rgba(0,255,242,0.25), rgba(255,43,214,0.25));
+    background:linear-gradient(90deg, rgba(0,255,242,0.28), rgba(255,43,214,0.28));
+  }
+  #sliderLabel{
+    text-align:center;
+    color:#888;
+    font-size:11px;
+    letter-spacing:1px;
+    margin-top:8px;
   }
 
   .overlay{
@@ -395,16 +379,18 @@
   </div>
 
   <div id="sliderWrap">
-    <div id="sliderGrip" title="اسحب لتحريك الشريط">⠿</div>
-    <input type="range" id="paddleSlider" orient="vertical" min="0" max="1000" value="500" step="1">
+    <span class="sliderIcon">⬅</span>
+    <input type="range" id="paddleSlider" dir="ltr" min="0" max="1000" value="500" step="1">
+    <span class="sliderIcon">➡</span>
   </div>
+  <div id="sliderLabel">اسحب الشريط لتحريك المضرب يساراً ويميناً</div>
 
 </div>
 
 <!-- شاشة البداية -->
 <div class="overlay" id="startScreen">
   <div class="title">NEON PONG</div>
-  <div class="subtitle">استخدم الأسهم ↑ ↓ أو السحب باللمس للتحكم بالمضرب</div>
+  <div class="subtitle">استخدم الأسهم ← →، السحب باللمس، أو الشريط أسفل الشاشة للتحكم بالمضرب</div>
 
   <div class="diffRow" id="diffRow">
     <div class="diffBtn" data-diff="easy">Easy</div>
@@ -435,20 +421,18 @@
   const canvasWrap = document.getElementById('canvasWrap');
 
   // أبعاد منطقية ثابتة للعبة (يتم تحجيمها بصريا حسب الشاشة)
-  const LOGICAL_W = 800;
-  const LOGICAL_H = 500;
+  const LOGICAL_W = 500;
+  const LOGICAL_H = 800;
 
   function resizeCanvas(){
-    const maxW = Math.min(window.innerWidth * 0.96, 900);
-    const maxH = window.innerHeight * 0.62;
+    const maxW = Math.min(window.innerWidth * 0.96, 520);
+    const maxH = window.innerHeight * 0.72;
     let scale = Math.min(maxW / LOGICAL_W, maxH / LOGICAL_H);
     if(scale <= 0 || !isFinite(scale)) scale = 1;
-    const visualWidth = LOGICAL_W * scale;
-    canvas.style.width = visualWidth + 'px';
+    canvas.style.width = (LOGICAL_W * scale) + 'px';
     canvas.style.height = (LOGICAL_H * scale) + 'px';
     canvas.width = LOGICAL_W;
     canvas.height = LOGICAL_H;
-
   }
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
@@ -474,12 +458,14 @@
     hard:   { ballSpeed:6.2, paddleSpeed:6.6, aiError:18, aiReaction:0.115 }
   };
 
-  const PADDLE_W = 14;
-  const PADDLE_H = 90;
+  // في الوضع العمودي: المضرب أفقي — W هو الطول، H هو السُمك
+  const PADDLE_W = 90;  // طول المضرب
+  const PADDLE_H = 14;  // سُمك المضرب
   const BALL_R = 8;
 
-  const player = { x: 24, y: LOGICAL_H/2 - PADDLE_H/2, w:PADDLE_W, h:PADDLE_H, dy:0, shake:0 };
-  const computer = { x: LOGICAL_W - 24 - PADDLE_W, y: LOGICAL_H/2 - PADDLE_H/2, w:PADDLE_W, h:PADDLE_H, targetY:LOGICAL_H/2, shake:0 };
+  // اللاعب في الأسفل، الكمبيوتر في الأعلى
+  const player   = { x: LOGICAL_W/2 - PADDLE_W/2, y: LOGICAL_H - 24 - PADDLE_H, w:PADDLE_W, h:PADDLE_H, dx:0, shake:0 };
+  const computer = { x: LOGICAL_W/2 - PADDLE_W/2, y: 24,                          w:PADDLE_W, h:PADDLE_H, targetX:LOGICAL_W/2, shake:0 };
 
   const ball = {
     x: LOGICAL_W/2, y: LOGICAL_H/2,
@@ -550,19 +536,19 @@
   const keys = { up:false, down:false };
 
   window.addEventListener('keydown', (e)=>{
-    if(e.key === 'ArrowUp'){ keys.up = true; e.preventDefault(); }
-    if(e.key === 'ArrowDown'){ keys.down = true; e.preventDefault(); }
+    if(e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { keys.up   = true;  e.preventDefault(); }
+    if(e.key === 'ArrowRight' || e.key === 'ArrowDown') { keys.down = true;  e.preventDefault(); }
   });
   window.addEventListener('keyup', (e)=>{
-    if(e.key === 'ArrowUp'){ keys.up = false; }
-    if(e.key === 'ArrowDown'){ keys.down = false; }
+    if(e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { keys.up   = false; }
+    if(e.key === 'ArrowRight' || e.key === 'ArrowDown') { keys.down = false; }
   });
 
-  // تحويل إحداثي Y من الشاشة (مؤشر أو إصبع) إلى الإحداثي المنطقي للعبة
-  function screenYToLogicalY(clientY){
+  // تحويل إحداثي X من الشاشة إلى الإحداثي المنطقي للعبة
+  function screenXToLogicalX(clientX){
     const rect = canvas.getBoundingClientRect();
-    const scaleY = LOGICAL_H / rect.height;
-    return (clientY - rect.top) * scaleY;
+    const scaleX = LOGICAL_W / rect.width;
+    return (clientX - rect.left) * scaleX;
   }
 
   // تحقق إن كان الهدف عنصر تحكم (زر) حتى لا نتعارض مع الضغط على الأزرار
@@ -575,12 +561,12 @@
     return !!(target && target.closest && target.closest('button, .btn, .diffBtn, .bigBtn, input[type="range"]'));
   }
 
-  // دعم الماوس - تحريك المضرب مباشرة حسب موضع المؤشر من أي مكان في الشاشة
+  // دعم الماوس - تحريك المضرب أفقياً حسب موضع المؤشر
   document.addEventListener('mousemove', (e)=>{
     if(!state.running || state.paused || state.over) return;
     if(isInteractiveTarget(e.target)) return;
-    const logicalY = screenYToLogicalY(e.clientY);
-    player.y = logicalY - player.h/2;
+    const logicalX = screenXToLogicalX(e.clientX);
+    player.x = logicalX - player.w/2;
     clampPaddle(player);
   });
 
@@ -591,9 +577,9 @@
 
   function handleTouchMove(e){
     if(!e.touches || e.touches.length === 0) return;
-    const touchY = e.touches[0].clientY;
-    const logicalY = screenYToLogicalY(touchY);
-    player.y = logicalY - player.h/2;
+    const touchX = e.touches[0].clientX;
+    const logicalX = screenXToLogicalX(touchX);
+    player.x = logicalX - player.w/2;
     clampPaddle(player);
     e.preventDefault();
   }
@@ -628,9 +614,9 @@
     ball.trail = [];
     const settings = currentSettings();
     const speed = settings.ballSpeed + Math.min(elapsedTime/25, 3.5);
-    const angle = (Math.random() * 0.6 - 0.3); // زاوية عشوائية بسيطة
-    ball.vx = speed * (direction || (Math.random() > 0.5 ? 1 : -1));
-    ball.vy = speed * angle * 2.2;
+    const angle = (Math.random() * 0.6 - 0.3);
+    ball.vy = speed * (direction || (Math.random() > 0.5 ? 1 : -1));
+    ball.vx = speed * angle * 2.2;
   }
 
   function startCountdown(direction){
@@ -643,8 +629,10 @@
   }
 
   function resetPositions(){
-    player.y = LOGICAL_H/2 - PADDLE_H/2;
-    computer.y = LOGICAL_H/2 - PADDLE_H/2;
+    player.x   = LOGICAL_W/2 - PADDLE_W/2;
+    player.y   = LOGICAL_H - 24 - PADDLE_H;
+    computer.x = LOGICAL_W/2 - PADDLE_W/2;
+    computer.y = 24;
   }
 
   function spawnParticles(x, y, color){
@@ -670,28 +658,28 @@
   }
 
   function clampPaddle(p){
-    if(p.y < 0) p.y = 0;
-    if(p.y + p.h > LOGICAL_H) p.y = LOGICAL_H - p.h;
+    if(p.x < 0) p.x = 0;
+    if(p.x + p.w > LOGICAL_W) p.x = LOGICAL_W - p.w;
   }
 
   function updatePlayer(dt, settings){
     const speed = settings.paddleSpeed * 60 * dt;
-    if(keys.up) player.y -= speed;
-    if(keys.down) player.y += speed;
+    if(keys.up)   player.x -= speed;   // سهم يسار
+    if(keys.down) player.x += speed;   // سهم يمين
     clampPaddle(player);
   }
 
   function updateAI(dt, settings){
-    // الذكاء الاصطناعي لا يتتبع الكرة بدقة 100% ويحتوي على خطأ عشوائي
+    // الذكاء الاصطناعي يتتبع الكرة أفقياً (مضرب الكمبيوتر في الأعلى)
     const reactionChance = settings.aiReaction + Math.min(elapsedTime/200, 0.05);
-    if(Math.random() < reactionChance || ball.vx > 0){
+    if(Math.random() < reactionChance || ball.vy < 0){
       const errorMargin = settings.aiError;
-      computer.targetY = ball.y - computer.h/2 + (Math.random()*errorMargin*2 - errorMargin);
+      computer.targetX = ball.x - computer.w/2 + (Math.random()*errorMargin*2 - errorMargin);
     }
-    const diff = computer.targetY - computer.y;
+    const diff = computer.targetX - computer.x;
     const maxSpeed = (settings.paddleSpeed * 0.92) * 60 * dt;
     if(Math.abs(diff) > 2){
-      computer.y += Math.sign(diff) * Math.min(Math.abs(diff), maxSpeed);
+      computer.x += Math.sign(diff) * Math.min(Math.abs(diff), maxSpeed);
     }
     clampPaddle(computer);
   }
@@ -703,62 +691,63 @@
     ball.x += ball.vx * 60 * dt;
     ball.y += ball.vy * 60 * dt;
 
-    // ارتداد من الأعلى والأسفل
-    if(ball.y - ball.r < 0){
-      ball.y = ball.r;
-      ball.vy *= -1;
-    } else if(ball.y + ball.r > LOGICAL_H){
-      ball.y = LOGICAL_H - ball.r;
-      ball.vy *= -1;
+    // ارتداد من اليسار واليمين (الجدران الجانبية)
+    if(ball.x - ball.r < 0){
+      ball.x = ball.r;
+      ball.vx *= -1;
+    } else if(ball.x + ball.r > LOGICAL_W){
+      ball.x = LOGICAL_W - ball.r;
+      ball.vx *= -1;
     }
 
-    // تصادم مع مضرب اللاعب
-    if(ball.vx < 0 &&
-       ball.x - ball.r <= player.x + player.w &&
-       ball.x - ball.r >= player.x &&
-       ball.y >= player.y &&
-       ball.y <= player.y + player.h){
-      handlePaddleHit(player, 1);
+    // تصادم مع مضرب اللاعب (أسفل)
+    if(ball.vy > 0 &&
+       ball.y + ball.r >= player.y &&
+       ball.y + ball.r <= player.y + player.h &&
+       ball.x >= player.x &&
+       ball.x <= player.x + player.w){
+      handlePaddleHit(player, -1);
     }
 
-    // تصادم مع مضرب الكمبيوتر
-    if(ball.vx > 0 &&
-       ball.x + ball.r >= computer.x &&
-       ball.x + ball.r <= computer.x + computer.w &&
-       ball.y >= computer.y &&
-       ball.y <= computer.y + computer.h){
-      handlePaddleHit(computer, -1);
+    // تصادم مع مضرب الكمبيوتر (أعلى)
+    if(ball.vy < 0 &&
+       ball.y - ball.r <= computer.y + computer.h &&
+       ball.y - ball.r >= computer.y &&
+       ball.x >= computer.x &&
+       ball.x <= computer.x + computer.w){
+      handlePaddleHit(computer, 1);
     }
 
-    // خروج الكرة من اليسار -> نقطة للكمبيوتر
-    if(ball.x + ball.r < 0){
+    // خروج الكرة من الأسفل -> نقطة للكمبيوتر
+    if(ball.y - ball.r > LOGICAL_H){
       scorePoint('computer');
     }
-    // خروج الكرة من اليمين -> نقطة للاعب
-    if(ball.x - ball.r > LOGICAL_W){
+    // خروج الكرة من الأعلى -> نقطة للاعب
+    if(ball.y + ball.r < 0){
       scorePoint('player');
     }
   }
 
   function handlePaddleHit(paddle, direction){
-    const relativeY = (ball.y - (paddle.y + paddle.h/2)) / (paddle.h/2);
+    // direction: 1 = الكرة تتجه للأسفل (بعد ضرب مضرب الكمبيوتر), -1 = للأعلى (بعد ضرب مضرب اللاعب)
+    const relativeX = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
     const settings = currentSettings();
     const speedBoost = 1.03;
     const currentSpeed = Math.hypot(ball.vx, ball.vy) * speedBoost;
     const maxAngle = 0.9;
 
-    ball.vx = direction * Math.abs(currentSpeed * Math.cos(relativeY * maxAngle));
-    ball.vy = currentSpeed * Math.sin(relativeY * maxAngle);
+    ball.vy = direction * Math.abs(currentSpeed * Math.cos(relativeX * maxAngle));
+    ball.vx = currentSpeed * Math.sin(relativeX * maxAngle);
 
     // تصحيح موضع الكرة لتفادي الالتصاق بالمضرب
     if(direction === 1){
-      ball.x = paddle.x + paddle.w + ball.r + 1;
+      ball.y = paddle.y + paddle.h + ball.r + 1;
     } else {
-      ball.x = paddle.x - ball.r - 1;
+      ball.y = paddle.y - ball.r - 1;
     }
 
     paddle.shake = 1;
-    spawnParticles(ball.x, ball.y, direction === 1 ? '#00fff2' : '#ff2bd6');
+    spawnParticles(ball.x, ball.y, direction === 1 ? '#ff2bd6' : '#00fff2');
     soundHit();
   }
 
@@ -779,7 +768,7 @@
     }
 
     resetPositions();
-    startCountdown(who === 'player' ? -1 : 1);
+    startCountdown(who === 'player' ? -1 : 1); // -1 = للأعلى (نحو الكمبيوتر), 1 = للأسفل (نحو اللاعب)
   }
 
   function flashScore(id){
@@ -824,7 +813,7 @@
     ctx.fillStyle = '#08080f';
     ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
 
-    // الخط المنتصف المتقطع
+    // الخط المنتصف المتقطع (أفقي)
     ctx.save();
     ctx.strokeStyle = 'rgba(0,255,242,0.35)';
     ctx.lineWidth = 3;
@@ -832,17 +821,17 @@
     ctx.shadowColor = '#00fff2';
     ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.moveTo(LOGICAL_W/2, 0);
-    ctx.lineTo(LOGICAL_W/2, LOGICAL_H);
+    ctx.moveTo(0, LOGICAL_H/2);
+    ctx.lineTo(LOGICAL_W, LOGICAL_H/2);
     ctx.stroke();
     ctx.restore();
   }
 
   function drawPaddle(p, color){
     ctx.save();
-    let offsetX = 0;
+    let offsetY = 0;
     if(p.shake > 0){
-      offsetX = (Math.random()-0.5) * 6 * p.shake;
+      offsetY = (Math.random()-0.5) * 6 * p.shake;
       p.shake -= 0.15;
       if(p.shake < 0) p.shake = 0;
     }
@@ -851,7 +840,7 @@
     ctx.fillStyle = color;
     ctx.beginPath();
     const radius = 6;
-    const x = p.x + offsetX, y = p.y, w = p.w, h = p.h;
+    const x = p.x, y = p.y + offsetY, w = p.w, h = p.h;
     ctx.moveTo(x+radius, y);
     ctx.arcTo(x+w, y, x+w, y+h, radius);
     ctx.arcTo(x+w, y+h, x, y+h, radius);
@@ -973,21 +962,20 @@
   const diffRow = document.getElementById('diffRow');
   const paddleSlider = document.getElementById('paddleSlider');
 
-  // الشريط العمودي يتحكم بالمضرب (القيمة الصغرى أسفل الشريط، الكبرى أعلاه: رفع المقبض = تحريك المضرب لأعلى)
+  // الشريط الأفقي يتحكم بالمضرب يساراً ويميناً
   paddleSlider.addEventListener('input', ()=>{
     if(!state.running || state.paused || state.over) return;
     const val = parseInt(paddleSlider.value, 10);
-    const t = (1000 - val) / 1000;
-    player.y = t * (LOGICAL_H - PADDLE_H);
+    const t = val / 1000;
+    player.x = t * (LOGICAL_W - PADDLE_W);
     clampPaddle(player);
   });
   paddleSlider.addEventListener('mousedown', ensureAudio);
   paddleSlider.addEventListener('touchstart', ensureAudio);
 
-  // إبقاء شريط التمرير متزامناً مع موضع المضرب عند تحريكه بطرق أخرى (ماوس/لمس/أسهم)
   function syncSliderToPaddle(){
-    const t = player.y / (LOGICAL_H - PADDLE_H);
-    paddleSlider.value = Math.round((1 - Math.max(0, Math.min(1, t))) * 1000);
+    const t = player.x / (LOGICAL_W - PADDLE_W);
+    paddleSlider.value = Math.round(Math.max(0, Math.min(1, t)) * 1000);
   }
 
   diffRow.addEventListener('click', (e)=>{
@@ -997,91 +985,6 @@
     target.classList.add('active');
     state.difficulty = target.getAttribute('data-diff');
   });
-
-  /* ============ تحريك شريط التحكم العائم (سحب في أي مكان بالشاشة) ============ */
-  const sliderWrap = document.getElementById('sliderWrap');
-  const sliderGrip = document.getElementById('sliderGrip');
-  const SLIDER_POS_KEY = 'neonPongSliderPos';
-  let dragging = false;
-  let dragOffsetX = 0;
-  let dragOffsetY = 0;
-
-  function clampToViewport(x, y){
-    const rect = sliderWrap.getBoundingClientRect();
-    const maxX = Math.max(0, window.innerWidth - rect.width);
-    const maxY = Math.max(0, window.innerHeight - rect.height);
-    return { x: Math.min(Math.max(0, x), maxX), y: Math.min(Math.max(0, y), maxY) };
-  }
-
-  function placeSliderAt(x, y){
-    const pos = clampToViewport(x, y);
-    sliderWrap.style.left = pos.x + 'px';
-    sliderWrap.style.top = pos.y + 'px';
-    sliderWrap.style.right = 'auto';
-    sliderWrap.style.transform = 'none';
-  }
-
-  function saveSliderPos(){
-    const rect = sliderWrap.getBoundingClientRect();
-    try{ localStorage.setItem(SLIDER_POS_KEY, JSON.stringify({x: rect.left, y: rect.top})); }catch(e){}
-  }
-
-  function loadSliderPos(){
-    try{
-      const raw = localStorage.getItem(SLIDER_POS_KEY);
-      if(raw){
-        const pos = JSON.parse(raw);
-        if(typeof pos.x === 'number' && typeof pos.y === 'number'){
-          placeSliderAt(pos.x, pos.y);
-        }
-      }
-    }catch(e){}
-  }
-
-  function startDrag(clientX, clientY){
-    dragging = true;
-    const rect = sliderWrap.getBoundingClientRect();
-    dragOffsetX = clientX - rect.left;
-    dragOffsetY = clientY - rect.top;
-    sliderWrap.classList.add('dragging');
-  }
-
-  function moveDrag(clientX, clientY){
-    if(!dragging) return;
-    placeSliderAt(clientX - dragOffsetX, clientY - dragOffsetY);
-  }
-
-  function endDrag(){
-    if(!dragging) return;
-    dragging = false;
-    sliderWrap.classList.remove('dragging');
-    saveSliderPos();
-  }
-
-  sliderGrip.addEventListener('mousedown', (e)=>{
-    e.preventDefault();
-    startDrag(e.clientX, e.clientY);
-  });
-  window.addEventListener('mousemove', (e)=>{ moveDrag(e.clientX, e.clientY); });
-  window.addEventListener('mouseup', endDrag);
-
-  sliderGrip.addEventListener('touchstart', (e)=>{
-    const t = e.touches[0];
-    startDrag(t.clientX, t.clientY);
-  }, {passive:true});
-  window.addEventListener('touchmove', (e)=>{
-    if(!dragging) return;
-    const t = e.touches[0];
-    moveDrag(t.clientX, t.clientY);
-  }, {passive:true});
-  window.addEventListener('touchend', endDrag);
-
-  window.addEventListener('resize', ()=>{
-    const rect = sliderWrap.getBoundingClientRect();
-    placeSliderAt(rect.left, rect.top);
-  });
-
-  loadSliderPos();
 
   function fullReset(){
     state.playerScore = 0;
