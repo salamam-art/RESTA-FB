@@ -3453,7 +3453,7 @@ ${notesDisplay ? `
             };
         }
 
-        // مشاركة تفاصيل الحجز عبر واتساب أو أي تطبيق آخر مدعوم على الجهاز
+        // نسخ تفاصيل الحجز مباشرة عند الضغط على أيقونة المشاركة
         function shareBooking(bookingId) {
             const b = state.bookings.find(x => x.id == bookingId || x.id === bookingId);
             if (!b) {
@@ -3461,71 +3461,40 @@ ${notesDisplay ? `
                 return;
             }
 
-            const { title, text } = buildBookingShareText(b);
+            const { text } = buildBookingShareText(b);
+            copyBookingText(text);
+        }
 
-            if (navigator.share) {
-                navigator.share({ title, text }).catch(err => {
-                    if (err && err.name !== 'AbortError') {
-                        console.error('Share error:', err);
-                        openShareFallbackMenu(text);
-                    }
-                });
+        // نسخ النص إلى الحافظة مع بديل احتياطي للمتصفحات القديمة
+        function copyBookingText(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => showToast('تم نسخ تفاصيل الحجز، يمكنك لصقها في أي تطبيق', 'success'))
+                    .catch(() => legacyCopyText(text));
             } else {
-                openShareFallbackMenu(text);
+                legacyCopyText(text);
             }
         }
 
-        // قائمة مشاركة احتياطية (تظهر لو المتصفح مانع فتح قائمة المشاركة الأصلية للجهاز،
-        // كحال بعض متصفحات الموبايل عند تشغيل التطبيق داخل إطار مضمّن)
-        function openShareFallbackMenu(text) {
-            const existing = document.getElementById('shareFallbackMenu');
-            if (existing) existing.remove();
-
-            const overlay = document.createElement('div');
-            overlay.id = 'shareFallbackMenu';
-            overlay.className = 'fixed inset-0 bg-black/40 z-[999] flex items-end sm:items-center justify-center';
-            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-            const panel = document.createElement('div');
-            panel.className = 'bg-white rounded-t-2xl sm:rounded-2xl w-full sm:w-80 p-4 shadow-2xl';
-            panel.addEventListener('click', (e) => e.stopPropagation());
-            panel.innerHTML = `
-                <div class="text-sm font-black text-slate-700 mb-3 text-center">مشاركة تفاصيل الحجز</div>
-                <div class="space-y-2" id="shareFallbackOptions"></div>
-                <button id="shareFallbackClose" class="w-full mt-3 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">إلغاء</button>
-            `;
-            overlay.appendChild(panel);
-            document.body.appendChild(overlay);
-
-            const optionsWrap = panel.querySelector('#shareFallbackOptions');
-
-            const waBtn = document.createElement('button');
-            waBtn.className = 'w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors';
-            waBtn.innerHTML = '<i data-lucide="message-circle" class="w-4 h-4"></i> واتساب';
-            waBtn.addEventListener('click', () => {
-                window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
-                overlay.remove();
-            });
-            optionsWrap.appendChild(waBtn);
-
-            const copyBtn = document.createElement('button');
-            copyBtn.className = 'w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors';
-            copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i> نسخ النص';
-            copyBtn.addEventListener('click', () => {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text)
-                        .then(() => showToast('تم نسخ تفاصيل الحجز، يمكنك لصقها في أي تطبيق', 'success'))
-                        .catch(() => showToast('تعذّر نسخ النص', 'error'));
+        function legacyCopyText(text) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                if (ok) {
+                    showToast('تم نسخ تفاصيل الحجز، يمكنك لصقها في أي تطبيق', 'success');
                 } else {
                     showToast('تعذّر نسخ النص على هذا المتصفح', 'error');
                 }
-                overlay.remove();
-            });
-            optionsWrap.appendChild(copyBtn);
-
-            panel.querySelector('#shareFallbackClose').addEventListener('click', () => overlay.remove());
-
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            } catch (e) {
+                showToast('تعذّر نسخ النص على هذا المتصفح', 'error');
+            }
         }
 
         function changeMonth(delta) {
