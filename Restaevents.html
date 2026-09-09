@@ -3041,6 +3041,9 @@
                                         <button onclick="emailBooking('${b.id}')" class="flex-1 min-w-[110px] inline-flex items-center justify-center gap-1 text-xs font-bold text-emerald-700 hover:text-white hover:bg-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-100">
                                             <i data-lucide="mail" class="w-3.5 h-3.5"></i> إرسال بالبريد
                                         </button>
+                                        <button onclick="shareBooking('${b.id}')" class="flex-1 min-w-[110px] inline-flex items-center justify-center gap-1 text-xs font-bold text-teal-700 hover:text-white hover:bg-teal-600 bg-teal-50 px-3 py-1.5 rounded-lg transition-colors border border-teal-100">
+                                            <i data-lucide="share-2" class="w-3.5 h-3.5"></i> مشاركة
+                                        </button>
                                         <button onclick="printSingleBooking('${b.id}')" class="flex-1 min-w-[110px] inline-flex items-center justify-center gap-1 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#6E1418]/10">
                                             <i data-lucide="printer" class="w-3.5 h-3.5"></i> طباعة تفاصيل الحجز
                                         </button>
@@ -3387,6 +3390,95 @@ ${notesDisplay ? `
 
             const mailtoUrl = `mailto:${BOOKING_EMAIL_RECIPIENTS.join(';')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
             window.location.href = mailtoUrl;
+        }
+
+        // بناء نص تفاصيل الحجز (نفس محتوى إرسال البريد) لاستخدامه في المشاركة
+        function buildBookingShareText(b) {
+            const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف' };
+
+            let startDate = b.startDate, endDate = b.endDate || b.startDate;
+            if (b.originalRange && b.originalRange.includes(' to ')) {
+                const p = b.originalRange.split(' to ');
+                startDate = p[0]; endDate = p[1];
+            } else {
+                const gKey = b.groupId || b.id.toString().split('_d')[0];
+                const groupDays = state.bookings
+                    .filter(x => (x.groupId === gKey) || (x.id === gKey))
+                    .map(x => x.startDate).sort();
+                if (groupDays.length > 0) {
+                    startDate = groupDays[0];
+                    endDate   = groupDays[groupDays.length - 1];
+                }
+            }
+
+            const fmtDate = d => d ? d.split('-').reverse().join('/') : '-';
+            const dateRow = (startDate !== endDate)
+                ? `${fmtDate(startDate)} إلى ${fmtDate(endDate)}`
+                : fmtDate(startDate);
+
+            const timeDisplay = (b.startTime && b.endTime)
+                ? `${b.startTime} - ${b.endTime}`
+                : (b.startTime || 'يوم كامل');
+
+            const createdAtDisplay = b.createdAt
+                ? new Date(b.createdAt).toLocaleDateString('ar-EG', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})
+                : '-';
+
+            const lines = [
+                'تفاصيل الحجز - رستا بورسعيد',
+                '----------------------------------------',
+                `الشركة / الجهة: ${b.companyName || '-'}`,
+                `القاعة: ${hall.name}`,
+                `التاريخ: ${dateRow}`,
+                `الوقت: ${timeDisplay}`,
+                `الموظف المسؤول: ${b.employee || 'غير محدد'}`,
+                `رقم الهاتف: ${b.phone || 'لا يوجد رقم'}`,
+                `تم الإنشاء بواسطة: ${(b.createdBy || '-').split('@')[0]}`,
+                `تاريخ الإنشاء: ${createdAtDisplay}`,
+            ];
+
+            if (b.notes) {
+                lines.push('', `ملاحظات: ${b.notes}`);
+            }
+
+            const shareLinks = getBookingLinks(b);
+            if (shareLinks.length) {
+                lines.push('', shareLinks.length > 1 ? 'مرفقات (روابط):' : 'مرفقات (رابط):');
+                shareLinks.forEach((url, i) => lines.push(shareLinks.length > 1 ? `${i + 1}. ${url}` : url));
+            }
+
+            return {
+                title: `تفاصيل الحجز - ${b.companyName || ''} - ${hall.name}`,
+                text: lines.join('\n')
+            };
+        }
+
+        // مشاركة تفاصيل الحجز عبر واتساب أو أي تطبيق آخر مدعوم على الجهاز
+        function shareBooking(bookingId) {
+            const b = state.bookings.find(x => x.id == bookingId || x.id === bookingId);
+            if (!b) {
+                showToast('لم يتم العثور على بيانات الحجز', 'error');
+                return;
+            }
+
+            const { title, text } = buildBookingShareText(b);
+
+            if (navigator.share) {
+                navigator.share({ title, text }).catch(err => {
+                    if (err && err.name !== 'AbortError') {
+                        console.error('Share error:', err);
+                        showToast('تعذّرت مشاركة تفاصيل الحجز', 'error');
+                    }
+                });
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('تم نسخ تفاصيل الحجز، يمكنك لصقها في أي تطبيق', 'success');
+                }).catch(() => {
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                });
+            } else {
+                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            }
         }
 
         function changeMonth(delta) {
