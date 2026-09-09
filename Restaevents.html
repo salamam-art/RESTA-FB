@@ -759,14 +759,20 @@
                 <button onclick="loadDeletedBookings()" class="p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="تحديث">
                     <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                 </button>
+                <button id="deletedBookingsBulkDeleteBtn" onclick="deleteSelectedDeletedBookings()" class="hidden items-center gap-2 px-3 py-2.5 text-sm font-black text-white bg-[#6E1418] hover:bg-[#5a1013] rounded-xl transition-all shrink-0 whitespace-nowrap">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <span>حذف المحدد (<span id="deletedBookingsSelectedCount">0</span>)</span>
+                </button>
                 <div id="deletedBookingsCountBadge" class="text-xs font-bold text-slate-400 whitespace-nowrap shrink-0 bg-slate-100 px-3 py-2 rounded-xl"></div>
             </div>
             <!-- Table -->
-            <div class="overflow-y-auto flex-1">
-                <div class="table-responsive">
-                    <table class="users-table mt-0">
+            <div class="flex-1" id="deletedBookingsTableWrapper" style="overflow-y: auto; overflow-x: scroll;">
+                <table class="users-table mt-0" style="min-width: 950px;">
                         <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                             <tr>
+                                <th class="text-slate-500 py-3 w-10 text-center">
+                                    <input type="checkbox" id="deletedBookingsSelectAll" onchange="toggleSelectAllDeletedBookings(this)" class="w-4 h-4 rounded border-slate-300 accent-[#6E1418] cursor-pointer">
+                                </th>
                                 <th class="text-slate-500 py-3 w-10 text-center">#</th>
                                 <th class="text-[#6E1418] py-3">نوع الحذف</th>
                                 <th class="text-[#6E1418] py-3">اسم العميل</th>
@@ -775,10 +781,11 @@
                                 <th class="text-[#6E1418] py-3">تاريخ الحجز</th>
                                 <th class="text-[#6E1418] py-3">وقت الحذف</th>
                                 <th class="text-[#6E1418] py-3">حُذف بواسطة</th>
+                                <th id="deletedBookingsDeleteColHead" class="hidden text-[#6E1418] py-3 text-center w-12"></th>
                             </tr>
                         </thead>
                         <tbody id="deletedBookingsTableBody">
-                            <tr><td colspan="8" class="text-center py-12 text-slate-400 font-bold">
+                            <tr><td colspan="9" class="text-center py-12 text-slate-400 font-bold">
                                 <div class="flex flex-col items-center gap-3">
                                     <i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i>
                                     <span>جاري تحميل الحجوزات المحذوفة...</span>
@@ -786,7 +793,6 @@
                             </td></tr>
                         </tbody>
                     </table>
-                </div>
             </div>
             <div class="p-3 bg-slate-50 border-t border-slate-100 text-center text-xs text-slate-400 font-medium shrink-0">
                 البيانات محملة من شيت الحجوزات المحذوفة المنفصل
@@ -4373,9 +4379,17 @@ ${notesDisplay ? `
         }
 
         async function loadDeletedBookings() {
+            const deleteColHead = document.getElementById('deletedBookingsDeleteColHead');
+            const isAdminUser = state.currentUserEmail === ADMIN_EMAIL;
+            if (deleteColHead) deleteColHead.classList.toggle('hidden', !isAdminUser);
+            const bulkBtn = document.getElementById('deletedBookingsBulkDeleteBtn');
+            if (bulkBtn) {
+                bulkBtn.classList.toggle('hidden', !isAdminUser);
+                bulkBtn.classList.toggle('flex', isAdminUser);
+            }
             const tbody = document.getElementById('deletedBookingsTableBody');
             tbody.innerHTML = `
-                <tr><td colspan="8" class="text-center py-12 text-slate-400 font-bold">
+                <tr><td colspan="9" class="text-center py-12 text-slate-400 font-bold">
                     <div class="flex flex-col items-center gap-3">
                         <i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i>
                         <span>جاري تحميل الحجوزات المحذوفة...</span>
@@ -4388,7 +4402,8 @@ ${notesDisplay ? `
                 if (CLOUD_ENABLED) {
                     const snap = await db.ref('deletedBookings').once('value');
                     const val = snap.val() || {};
-                    records = Object.values(val).map(r => ({
+                    records = Object.entries(val).map(([key, r]) => ({
+                        key:        key,
                         serverTime: r.deletedAt || '',
                         deletedAt:  r.deletedAt || '',
                         deletedBy:  r.deletedBy || '',
@@ -4432,10 +4447,11 @@ ${notesDisplay ? `
             const tbody = document.getElementById('deletedBookingsTableBody');
             const badge = document.getElementById('deletedBookingsCountBadge');
             if (badge) badge.textContent = records.length + ' حجز محذوف';
+            const isAdminUser = state.currentUserEmail === ADMIN_EMAIL;
 
             if (!records || records.length === 0) {
                 tbody.innerHTML = `
-                    <tr><td colspan="8" class="text-center py-16 text-slate-400 font-bold">
+                    <tr><td colspan="9" class="text-center py-16 text-slate-400 font-bold">
                         <div class="flex flex-col items-center gap-3">
                             <i data-lucide="inbox" class="w-12 h-12 text-slate-300"></i>
                             <span>لا توجد حجوزات محذوفة حتى الآن</span>
@@ -4467,6 +4483,9 @@ ${notesDisplay ? `
 
                 return `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50 group">
+                        <td class="px-3 py-3 text-center w-8">
+                            <input type="checkbox" class="deletedBookingRowCheckbox w-4 h-4 rounded border-slate-300 accent-[#6E1418] cursor-pointer" data-key="${r.key}" onchange="updateDeletedBookingsSelectAllState()">
+                        </td>
                         <td class="px-3 py-3 text-xs font-bold text-slate-300 text-center w-8 group-hover:text-slate-500">${records.length - i}</td>
                         <td class="px-3 py-3">
                             <span class="inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg ${typeColor} whitespace-nowrap">
@@ -4492,11 +4511,47 @@ ${notesDisplay ? `
                                 <span class="text-xs font-bold text-slate-600 break-all" style="direction:ltr; max-width:160px;" title="${r.deletedBy || ''}">${r.deletedBy || '—'}</span>
                             </div>
                         </td>
+                        ${isAdminUser ? `
+                        <td class="px-3 py-3 text-center">
+                            <button onclick="deleteDeletedBookingRecord('${r.key}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="حذف هذا السجل نهائياً">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>` : ''}
                     </tr>
                 `;
             }).join('');
 
             if (typeof lucide !== "undefined") lucide.createIcons();
+
+            const selectAllBox = document.getElementById('deletedBookingsSelectAll');
+            if (selectAllBox) selectAllBox.checked = false;
+            updateDeletedBookingsSelectAllState();
+        }
+
+        // تحديد / إلغاء تحديد كل الصفوف الظاهرة حالياً في جدول الحجوزات المحذوفة
+        function toggleSelectAllDeletedBookings(checkbox) {
+            document.querySelectorAll('.deletedBookingRowCheckbox').forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            updateDeletedBookingsSelectAllState();
+        }
+
+        // مزامنة حالة "تحديد الكل" وعدّاد الأزرار عند تغيير أي checkbox فردي
+        function updateDeletedBookingsSelectAllState() {
+            const rowBoxes = document.querySelectorAll('.deletedBookingRowCheckbox');
+            const selectAllBox = document.getElementById('deletedBookingsSelectAll');
+            if (selectAllBox) {
+                selectAllBox.checked = rowBoxes.length > 0 && Array.from(rowBoxes).every(cb => cb.checked);
+            }
+            const checkedCount = document.querySelectorAll('.deletedBookingRowCheckbox:checked').length;
+            const countEl = document.getElementById('deletedBookingsSelectedCount');
+            if (countEl) countEl.textContent = checkedCount;
+            const bulkBtn = document.getElementById('deletedBookingsBulkDeleteBtn');
+            if (bulkBtn && state.currentUserEmail === ADMIN_EMAIL) {
+                bulkBtn.disabled = checkedCount === 0;
+                bulkBtn.classList.toggle('opacity-50', checkedCount === 0);
+                bulkBtn.classList.toggle('cursor-not-allowed', checkedCount === 0);
+            }
         }
 
         function filterDeletedBookings() {
@@ -4513,6 +4568,54 @@ ${notesDisplay ? `
                     (r.startDate  || '').toLowerCase().includes(q)
                 );
             renderDeletedBookingsTable(filtered);
+        }
+
+        // حذف سجل حجز محذوف نهائياً من عقدة deletedBookings (للأدمن فقط)
+        async function deleteDeletedBookingRecord(key) {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            if (!key) return;
+            if (!confirm('هل أنت متأكد من حذف هذا السجل نهائياً من سجل الحجوزات المحذوفة؟\nلا يمكن التراجع عن هذا الإجراء.')) return;
+
+            try {
+                if (CLOUD_ENABLED) {
+                    await db.ref('deletedBookings/' + key).remove();
+                }
+                if (window._allDeletedBookings) {
+                    window._allDeletedBookings = window._allDeletedBookings.filter(r => r.key !== key);
+                }
+                filterDeletedBookings();
+                showToast('تم حذف السجل نهائياً', 'success');
+            } catch (err) {
+                console.error('Delete deleted-booking record error:', err);
+                showToast('حدث خطأ أثناء حذف السجل: ' + err.message, 'error');
+            }
+        }
+
+        // حذف مجموعة سجلات محددة دفعة واحدة من عقدة deletedBookings (للأدمن فقط)
+        async function deleteSelectedDeletedBookings() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const keys = Array.from(document.querySelectorAll('.deletedBookingRowCheckbox:checked'))
+                .map(cb => cb.dataset.key)
+                .filter(Boolean);
+            if (keys.length === 0) return;
+            if (!confirm(`هل أنت متأكد من حذف ${keys.length} سجل نهائياً من سجل الحجوزات المحذوفة؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
+
+            try {
+                if (CLOUD_ENABLED) {
+                    const updates = {};
+                    keys.forEach(k => { updates['deletedBookings/' + k] = null; });
+                    await db.ref().update(updates);
+                }
+                if (window._allDeletedBookings) {
+                    const keysSet = new Set(keys);
+                    window._allDeletedBookings = window._allDeletedBookings.filter(r => !keysSet.has(r.key));
+                }
+                filterDeletedBookings();
+                showToast(`تم حذف ${keys.length} سجل نهائياً`, 'success');
+            } catch (err) {
+                console.error('Bulk delete deleted-bookings error:', err);
+                showToast('حدث خطأ أثناء حذف السجلات المحددة: ' + err.message, 'error');
+            }
         }
 
         // ─── الأرشيف الشهري ─────────────────────────────────────────────
