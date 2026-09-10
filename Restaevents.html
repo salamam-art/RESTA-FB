@@ -3583,6 +3583,12 @@ ${notesDisplay ? `
                                         </span>
                                         تصدير نسخة احتياطية
                                     </button>
+                                    <button onclick="exportFullBackup(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="database-backup" class="w-4 h-4 text-indigo-600"></i>
+                                        </span>
+                                        تصدير نسخة كاملة (شاملة الأرشيف)
+                                    </button>
                                     <button onclick="triggerImportBackup(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
                                             <i data-lucide="hard-drive-upload" class="w-4 h-4 text-amber-600"></i>
@@ -3652,6 +3658,10 @@ ${notesDisplay ? `
                             <!-- زر تصدير نسخة احتياطية (أدمن فقط) -->
                             <button onclick="exportBackup()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0" title="تصدير نسخة احتياطية (JSON)">
                                 <i data-lucide="hard-drive-download" class="w-5 h-5"></i>
+                            </button>
+                            <!-- زر تصدير نسخة كاملة شاملة الأرشيف (أدمن فقط) -->
+                            <button onclick="exportFullBackup()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0" title="تصدير نسخة كاملة شاملة الأرشيف (JSON)">
+                                <i data-lucide="database-backup" class="w-5 h-5"></i>
                             </button>
                             <!-- زر استيراد نسخة احتياطية (أدمن فقط) -->
                             <button onclick="triggerImportBackup()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all shrink-0" title="استيراد نسخة احتياطية (JSON)">
@@ -5334,6 +5344,80 @@ ${notesDisplay ? `
             }
         }
 
+        // --- تصدير نسخة احتياطية كاملة (تشمل الحجوزات النشطة + كل الأشهر المؤرشفة) ---
+        async function exportFullBackup() {
+            showSync('جاري تجهيز النسخة الاحتياطية الكاملة (شاملة الأرشيف)...');
+            try {
+                // نجلب أحدث بيانات من Firebase مباشرة
+                const snapshot = await fetchCloudSnapshot();
+
+                // نجلب فهرس الأشهر المؤرشفة، ثم كل شهر مؤرشف بالتفصيل
+                const archiveIndexSnap = await db.ref('archiveIndex').once('value');
+                const archiveIndexVal = archiveIndexSnap.val() || {};
+                const monthKeys = Object.keys(archiveIndexVal);
+
+                const archiveData = {};
+                if (monthKeys.length) {
+                    const archiveSnaps = await Promise.all(
+                        monthKeys.map(mk => db.ref('archive/' + mk).once('value'))
+                    );
+                    monthKeys.forEach((mk, i) => {
+                        archiveData[mk] = fbValToArray(archiveSnaps[i].val());
+                    });
+                }
+
+                const backup = {
+                    _backupMeta: {
+                        exportedAt: new Date().toISOString(),
+                        exportedBy: state.currentUserEmail,
+                        version: '1.0',
+                        app: 'Resta Events Booking System',
+                        type: 'full'
+                    },
+                    bookings: snapshot.bookings || [],
+                    logs: snapshot.logs || [],
+                    users: snapshot.users || [],
+                    updatedAt: snapshot.updatedAt || null,
+                    archive: archiveData,
+                    archiveIndex: archiveIndexVal
+                };
+
+                const json = JSON.stringify(backup, null, 2);
+                const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const fileName = `resta-backup-full-${dateStr}.json`;
+
+                // Blob + رابط تحميل مباشر (يعمل على جميع الأجهزة والمتصفحات وتطبيقات الأندرويد)
+                let downloaded = false;
+                try {
+                    const blob = new Blob([json], { type: 'application/json' });
+                    const url  = URL.createObjectURL(blob);
+                    const a    = document.createElement('a');
+                    a.href     = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 3000);
+                    downloaded = true;
+                } catch (_) {}
+
+                // إذا فشل Blob (نادراً) — نعرض نافذة نسخ يدوي
+                if (!downloaded) {
+                    showBackupCopyModal(json, fileName);
+                    return;
+                }
+
+                const archivedBookingsCount = Object.values(archiveData).reduce((sum, arr) => sum + arr.length, 0);
+                showToast(
+                    `✅ تم تصدير النسخة الكاملة (${backup.bookings.length} حجز نشط، ${monthKeys.length} شهر مؤرشف بإجمالي ${archivedBookingsCount} حجز مؤرشف)`,
+                    'success'
+                );
+            } catch (err) {
+                console.error('Full backup export error:', err);
+                showToast('حدث خطأ أثناء تصدير النسخة الاحتياطية الكاملة: ' + err.message, 'error');
+            }
+        }
+
         // نافذة احتياطية: نسخ JSON يدوياً لو الموبايل حجب كل الطرق
         function showBackupCopyModal(json, fileName) {
             const existing = document.getElementById('backupCopyModal');
@@ -5431,17 +5515,29 @@ ${notesDisplay ? `
         async function performRestore(backup) {
             showSync('جاري استعادة النسخة الاحتياطية...');
             try {
-                const restoredBookings = backup.bookings || [];
-                const restoredLogs     = backup.logs     || [];
-                const restoredUsers    = backup.users    || [];
+                const restoredBookings     = backup.bookings     || [];
+                const restoredLogs         = backup.logs         || [];
+                const restoredUsers        = backup.users        || [];
+                // موجودة فقط في نسخة احتياطية "كاملة" (تصدير شامل الأرشيف) — غير موجودة في النسخة العادية
+                const restoredArchive      = backup.archive      || null;
+                const restoredArchiveIndex = backup.archiveIndex || null;
+                const hasArchiveData = !!(restoredArchive && Object.keys(restoredArchive).length);
 
                 // استبدال كامل في Firebase
-                await Promise.all([
+                const restoreWrites = [
                     db.ref('bookings').set(restoredBookings.length ? restoredBookings : null),
                     db.ref('logs').set(restoredLogs.length ? restoredLogs : null),
                     db.ref('users').set(restoredUsers.length ? restoredUsers : null),
                     db.ref('meta/updatedAt').set(new Date().toISOString())
-                ]);
+                ];
+                // لو الملف المستورد نسخة كاملة تحتوي أرشيفاً، نستعيد الأرشيف أيضاً بنفس منطق الاستبدال الكامل.
+                // لو الملف نسخة عادية (بدون أرشيف) لا نلمس عقدتي archive/archiveIndex إطلاقاً فتبقى كما هي.
+                if (hasArchiveData) {
+                    restoreWrites.push(db.ref('archive').set(restoredArchive));
+                    restoreWrites.push(db.ref('archiveIndex').set(restoredArchiveIndex || null));
+                }
+
+                await Promise.all(restoreWrites);
                 _lastKnownUpdatedAt = null; // أجبر الاستماع اللحظي على إعادة التحميل
 
                 // تحديث state المحلية
@@ -5465,7 +5561,9 @@ ${notesDisplay ? `
 
                 render();
                 showToast(
-                    `✅ تمت استعادة النسخة الاحتياطية بنجاح! (${restoredBookings.length} حجز)`,
+                    hasArchiveData
+                        ? `✅ تمت استعادة النسخة الاحتياطية الكاملة بنجاح! (${restoredBookings.length} حجز نشط + أرشيف ${Object.keys(restoredArchive).length} شهر)`
+                        : `✅ تمت استعادة النسخة الاحتياطية بنجاح! (${restoredBookings.length} حجز)`,
                     'success'
                 );
             } catch (err) {
