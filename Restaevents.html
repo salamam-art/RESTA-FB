@@ -15,6 +15,7 @@
     <!-- Icons -->
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 
     <!-- Firebase (Realtime Database) -->
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -52,7 +53,7 @@
             border: 1px solid #e2e8f0; 
             background-color: #f8fafc;
             outline: none; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease; 
             font-size: 0.95rem;
             color: #1e293b;
         }
@@ -74,6 +75,37 @@
         }
         .input-group:focus-within label { color: var(--brand-red); }
         .required::after { content: "*"; color: #ef4444; margin-right: 4px; }
+
+        /* عناصر حاسبة باقة الفرح (خارج .input-group) — نفس مظهر حقول الفورم الأساسية */
+        #weddingCalcSection select,
+        #weddingCalcSection input,
+        #quickCalcBody select,
+        #quickCalcBody input,
+        #weddingSettingsBody input {
+            padding: 0.6rem 0.85rem;
+            border-radius: 0.85rem;
+            border: 1px solid #e2e8f0;
+            background-color: #f8fafc;
+            outline: none;
+            font-size: 0.9rem;
+            color: #1e293b;
+            width: 100%;
+        }
+        #weddingCalcSection select:focus,
+        #weddingCalcSection input:focus,
+        #quickCalcBody select:focus,
+        #quickCalcBody input:focus,
+        #weddingSettingsBody input:focus {
+            background-color: #ffffff;
+            border-color: var(--brand-gold) !important;
+            box-shadow: 0 0 0 4px rgba(168, 138, 69, 0.15) !important;
+        }
+        #weddingCalcSection input[type="checkbox"],
+        #quickCalcBody input[type="checkbox"] {
+            width: 16px; height: 16px; accent-color: var(--brand-gold);
+        }
+        #weddingCalcSection input:disabled,
+        #quickCalcBody input:disabled { opacity: .45; }
 
         /* Calendar Styles - Modern Grid */
         .calendar-wrapper {
@@ -493,6 +525,120 @@
             }
         }
         /* ===================== End Splash Screen ===================== */
+
+        /* ===================== PDF Export (email attachment) ===================== */
+        .pdf-export-doc {
+            font-family: 'Noto Sans Arabic', sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            direction: rtl;
+            padding: 28px 32px;
+            font-size: 14px;
+            width: 794px;
+            box-sizing: border-box;
+        }
+        .pdf-export-doc .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 18px;
+            border-bottom: 3px solid #6E1418;
+        }
+        .pdf-export-doc .logo-area { display: flex; align-items: center; gap: 12px; }
+        .pdf-export-doc .logo-box {
+            width: 52px; height: 52px;
+            background: linear-gradient(135deg, #6E1418, #8a1c22);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 24px; font-weight: 900;
+        }
+        .pdf-export-doc .hotel-name { font-size: 21px; font-weight: 900; color: #6E1418; }
+        .pdf-export-doc .hotel-sub { font-size: 12px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
+        .pdf-export-doc .meta-area { text-align: left; }
+        .pdf-export-doc .print-date-label { font-size: 11px; color: #94a3b8; font-weight: 600; }
+        .pdf-export-doc .print-date-val { font-size: 13px; font-weight: 700; color: #475569; margin-top: 2px; }
+        .pdf-export-doc .doc-title {
+            font-size: 17px; font-weight: 900;
+            color: #334155;
+            margin-bottom: 18px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .pdf-export-doc .doc-title::before {
+            content: '';
+            display: inline-block;
+            width: 5px; height: 22px;
+            background: #A88A45;
+            border-radius: 4px;
+        }
+        .pdf-export-doc .company-banner {
+            background: linear-gradient(135deg, #6E1418, #8a1c22);
+            color: #fff;
+            border-radius: 14px;
+            padding: 18px 22px;
+            margin-bottom: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .pdf-export-doc .company-banner .cb-label { font-size: 11px; opacity: 0.75; font-weight: 700; letter-spacing: 0.4px; }
+        .pdf-export-doc .company-banner .cb-value { font-size: 22px; font-weight: 900; color: #fff; }
+        .pdf-export-doc .company-banner .cb-hall { font-size: 13px; font-weight: 700; color: #A88A45; margin-top: 4px; }
+        .pdf-export-doc table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+            border: 1px solid #f1f5f9;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .pdf-export-doc tbody tr { border-bottom: 1px solid #f1f5f9; }
+        .pdf-export-doc tbody tr:last-child { border-bottom: none; }
+        .pdf-export-doc tbody tr:nth-child(even) { background: #fafafa; }
+        .pdf-export-doc td.label {
+            padding: 12px 16px;
+            font-weight: 800;
+            color: #6E1418;
+            width: 180px;
+            background: #fdf6f2;
+            white-space: nowrap;
+            border-right: 4px solid #A88A45;
+        }
+        .pdf-export-doc td.value {
+            padding: 12px 16px;
+            color: #334155;
+            font-weight: 600;
+        }
+        .pdf-export-doc .notes-box {
+            margin-top: 22px;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 12px;
+            padding: 14px 18px;
+        }
+        .pdf-export-doc .notes-box .nb-title { font-size: 12px; font-weight: 900; color: #92400e; margin-bottom: 6px; }
+        .pdf-export-doc .notes-box .nb-text { font-size: 13.5px; color: #78350f; font-weight: 600; line-height: 1.7; white-space: pre-wrap; }
+        .pdf-export-doc .signature-box {
+            margin-top: 34px;
+            padding-top: 22px;
+            border-top: 1px dashed #cbd5e1;
+            display: flex;
+            gap: 40px;
+        }
+        .pdf-export-doc .sig-field { flex: 1; }
+        .pdf-export-doc .sig-label { font-size: 12px; font-weight: 900; color: #6E1418; margin-bottom: 28px; }
+        .pdf-export-doc .sig-line { border-bottom: 1.5px solid #94a3b8; height: 1px; }
+        .pdf-export-doc .footer {
+            margin-top: 32px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10.5px;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        /* ===================== End PDF Export ===================== */
     </style>
 </head>
 <body>
@@ -969,6 +1115,68 @@
                         </div>
                     </div>
 
+                    <div id="bookingTypeSection" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5 hidden">
+                        <div class="flex items-center gap-2 text-[#6E1418] font-bold border-b border-slate-100 pb-3">
+                            <i data-lucide="party-popper" class="w-5 h-5"></i> نوع الحجز
+                        </div>
+                        <div class="input-group">
+                            <label class="required">نوع المناسبة</label>
+                            <select name="eventType" id="globalEventType" onchange="onEventTypeChange()">
+                                <option value="normal">حجز عادي</option>
+                                <option value="wedding">فرح / خطوبة</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="weddingCalcSection" class="hidden bg-white p-5 rounded-2xl border-2 border-[#A88A45]/40 shadow-sm space-y-5">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div class="flex items-center gap-2 text-[#6E1418] font-bold">
+                                <i data-lucide="gem" class="w-5 h-5"></i> حاسبة باقة الفرح
+                            </div>
+                            <span class="text-[10px] text-slate-400 font-bold">تُحفظ الأسعار كما هي وقت الحجز</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="required">الباقة</label>
+                            <select id="weddingPackageSelect" onchange="onWeddingPackageChange()"></select>
+                        </div>
+
+                        <div id="weddingPackageMenuPreview" class="hidden bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2.5">
+                            <div class="flex items-center gap-1.5 text-[11px] font-black text-[#A88A45]"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> منيو الباقة <span class="font-normal text-slate-400">(قابل للتعديل لهذا الحجز)</span></div>
+                            <div id="weddingMenuItemsList" class="space-y-2"></div>
+                            <button type="button" onclick="addWeddingMenuItem()" class="text-xs font-bold text-[#A88A45] hover:text-[#8f753a] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة صنف
+                            </button>
+                            <textarea id="weddingMenuNotes" rows="2" placeholder="أي تفاصيل إضافية عن المنيو..." class="w-full text-xs rounded-lg border border-amber-100 p-2 bg-white outline-none focus:border-[#A88A45]"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div class="input-group">
+                                <label class="required">عدد الأفراد</label>
+                                <input type="number" id="weddingGuests" min="0" step="1" value="0" oninput="recalcWeddingTotals()">
+                            </div>
+                            <div class="input-group">
+                                <label>سعر الفرد (جنيه)</label>
+                                <input type="number" id="weddingPricePerPerson" min="0" step="10" value="0" oninput="recalcWeddingTotals()">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm font-bold text-slate-700">الإضافات <span class="text-[10px] text-slate-400 font-normal">(قابلة للحذف والإضافة لهذا الحجز)</span></label>
+                            <button type="button" onclick="addWeddingExtraRow()" class="text-xs font-bold text-[#A88A45] hover:text-[#8f753a] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة عنصر
+                            </button>
+                        </div>
+                        <div id="weddingExtrasContainer" class="space-y-2.5"></div>
+
+                        <div id="weddingTotalsBox" class="bg-amber-50/60 rounded-xl p-4 space-y-1.5 text-sm border border-amber-100"></div>
+
+                        <div class="input-group">
+                            <label>الدفعات المستلمة</label>
+                            <div id="weddingPaymentsContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+                        </div>
+                    </div>
+
                     <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
                         <div class="flex items-center gap-2 text-[#6E1418] font-bold border-b border-slate-100 pb-3">
                             <i data-lucide="file-text" class="w-5 h-5"></i> تفاصيل إضافية
@@ -1012,6 +1220,48 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- Quick Wedding Calculator Modal (لا يُحفظ كحجز — للاستخدام مع العميل قبل التأكيد) -->
+    <div id="quickCalcModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-fade-in border border-slate-100">
+            <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
+                        <i data-lucide="gem" class="w-6 h-6 text-[#A88A45]"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-xl tracking-wide">حاسبة باقة فرح سريعة</h3>
+                        <p class="text-sm text-[#A88A45] font-medium mt-0.5">للاستخدام مع العميل قبل تأكيد الحجز</p>
+                    </div>
+                </div>
+                <button onclick="toggleQuickCalcModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 md:p-8 overflow-y-auto flex-1 bg-slate-50/50 space-y-5" id="quickCalcBody"></div>
+        </div>
+    </div>
+
+    <!-- Wedding Packages Settings Modal (أدمن فقط) -->
+    <div id="weddingSettingsModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-fade-in border border-slate-100">
+            <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
+                        <i data-lucide="settings-2" class="w-6 h-6 text-[#A88A45]"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-xl tracking-wide">إعدادات باقات الأفراح</h3>
+                        <p class="text-sm text-[#A88A45] font-medium mt-0.5">الأسعار الافتراضية — تُطبَّق على الحجوزات الجديدة لجميع الموظفين</p>
+                    </div>
+                </div>
+                <button onclick="toggleWeddingSettingsModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 md:p-8 overflow-y-auto flex-1 bg-slate-50/50 space-y-5" id="weddingSettingsBody"></div>
         </div>
     </div>
 
@@ -1125,6 +1375,58 @@
         let _lastKnownUpdatedAt = null;
 
         const ADMIN_EMAIL = "salama.m@gmail.com";
+
+        // --- إعدادات باقات الأفراح والخطوبة (افتراضية — تُستبدل بإعدادات الأدمن من السحابة إن وُجدت) ---
+        const DEFAULT_WEDDING_PACKAGES = [
+            { id: 'silver',   name: 'الفضي',     price: 250,  menuItems: [
+                'مياه غازية + مياه معدنية',
+                'قطعة جاتوة — مينى بيتزا — باتون ساليه',
+                'تورتة العروسين ثلاثة أدوار',
+            ], menuNotes: '' },
+            { id: 'gold',     name: 'الذهبي',    price: 300,  menuItems: [
+                'مياه غازية + مياه معدنية',
+                '2 قطعة جاتوة — مينى بيتزا — باتون ساليه',
+                'تورتة العروسين ثلاثة أدوار',
+            ], menuNotes: '' },
+            { id: 'diamond',  name: 'الماسي',    price: 400,  menuItems: [
+                'مياه غازية + مياه معدنية',
+                'ساندويتش دجاج — باتون ساليه — مينى بيتزا — قطعة جاتوة',
+                'تورتة العروسين ثلاثة أدوار',
+            ], menuNotes: '' },
+            { id: 'royal',    name: 'الملكي',    price: 550,  menuItems: [
+                'مياه غازية + مياه معدنية',
+                '2 ساندويتش دجاج + كفتة — باتون ساليه — مينى بيتزا — قطعة جاتوة',
+                'تورتة العروسين خمسة أدوار',
+            ], menuNotes: '' },
+            { id: 'elegance', name: 'إليجانس',   price: 1000, menuItems: [
+                'مياه غازية + مياه معدنية',
+                'طبق سلاطات مشكلة',
+                'مشويات مشكلة: كفتة — دجاج — ستيك مع أرز شرقى',
+                'قطعتا جاتوة',
+                'تورتة العروسين خمسة أدوار',
+            ], menuNotes: '' },
+            { id: 'prestige', name: 'بريستيج',   price: 1300, menuItems: [
+                'مياه غازية + مياه معدنية',
+                'بوفيه سلطات + لحوم باردة',
+                'داندى روستو لكل 50 فرد',
+                'جولاش باللحمة — لازانيا باللحمة المفرومة',
+                'دجاج مشوى بالأعشاب — كباب حلة',
+                'أرز بالخلطة — خضروات سوتيه مشكلة',
+                'حلويات شرقية وغربية',
+                'تورتة العروسين خمسة أدوار',
+            ], menuNotes: '' },
+        ];
+        const DEFAULT_WEDDING_EXTRAS = [
+            { key: 'dj',    name: 'دي جي',        value: 2000, perGuest: false },
+            { key: 'decor', name: 'كوشة + مدخل للقاعة + الدانس فلور + عارضة ليزر', value: 6000, perGuest: false },
+            { key: 'rooms', name: 'غرفتان',       value: 6000, perGuest: false },
+            { key: 'video', name: 'ميكسر مع 2 كاميرا HD + كاميرا كرين + شاشة عرض', value: 5200, perGuest: false },
+            { key: 'chair', name: 'كرسي ديكور',   value: 30,   perGuest: true  },
+        ];
+        function fmtEGP(n) {
+            const v = Math.round(Number(n) || 0);
+            return v.toLocaleString('en-US') + ' جنيه';
+        }
 
         // ─── وضع الزائر (مشاهدة فقط) ─────────────────────────────
         const GUEST_EMAIL = "__guest_viewer__";
@@ -1263,6 +1565,10 @@
             pendingDeletedUsers: JSON.parse(localStorage.getItem('hotel_deleted_users')) || [],
             dirtyUserEmails: JSON.parse(localStorage.getItem('hotel_dirty_users')) || [],
             notifications: JSON.parse(localStorage.getItem('hotel_notifications')) || [], 
+            weddingSettings: JSON.parse(localStorage.getItem('hotel_wedding_settings')) || {
+                packages: DEFAULT_WEDDING_PACKAGES.map(p => ({ ...p })),
+                extras:   DEFAULT_WEDDING_EXTRAS.map(e => ({ ...e }))
+            },
             currentMonth: new Date().getMonth(),
             currentYear: new Date().getFullYear(),
             editingBookingId: null,
@@ -1306,7 +1612,7 @@
             // تمرير تلقائي للصفحة لأعلى/لأسفل أثناء سحب حجز (يفيد خصوصاً على الموبايل
             // حيث لا يظهر التقويم كاملاً على الشاشة أثناء السحب)
             document.addEventListener('dragover', handleGlobalDragAutoScroll);
-            document.addEventListener('touchmove', handleGlobalTouchAutoScroll, { passive: false });
+            document.addEventListener('touchmove', handleGlobalTouchAutoScroll, { passive: true });
             document.addEventListener('dragend', stopDragAutoScroll);
             document.addEventListener('drop', stopDragAutoScroll);
         };
@@ -1377,6 +1683,39 @@
 
             if (state.isLoggedIn) {
                 attemptAutoUnlock();
+            }
+
+            setupWeddingSettingsListener();
+        }
+
+        // ─── إعدادات باقات الأفراح والخطوبة (مشتركة بين جميع المستخدمين) ───
+        function setupWeddingSettingsListener() {
+            if (!CLOUD_ENABLED) return;
+            db.ref('weddingSettings').on('value', (snap) => {
+                const val = snap.val();
+                if (val && Array.isArray(val.packages) && Array.isArray(val.extras)) {
+                    state.weddingSettings = val;
+                    localStorage.setItem('hotel_wedding_settings', JSON.stringify(val));
+                    if (document.getElementById('weddingPackageSelect')) populateWeddingPackageSelect();
+                    const settingsModal = document.getElementById('weddingSettingsModal');
+                    if (settingsModal && !settingsModal.classList.contains('hidden')) renderWeddingSettingsModal();
+                    const qc = document.getElementById('quickCalcModal');
+                    if (qc && !qc.classList.contains('hidden')) renderQuickCalcModal();
+                }
+            });
+        }
+
+        async function saveWeddingSettingsToCloud() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) {
+                showToast('عذراً، تعديل أسعار باقات الأفراح متاح للأدمن فقط.', 'error');
+                return;
+            }
+            try {
+                await db.ref('weddingSettings').set(state.weddingSettings);
+                localStorage.setItem('hotel_wedding_settings', JSON.stringify(state.weddingSettings));
+                showToast('✅ تم حفظ إعدادات باقات الأفراح بنجاح', 'success');
+            } catch (err) {
+                showToast('حدث خطأ أثناء حفظ الإعدادات: ' + err.message, 'error');
             }
         }
 
@@ -2988,6 +3327,7 @@
                                 <div class="flex items-center justify-between mb-2 w-full">
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs font-black px-3 py-1 rounded-lg ${hall.color}">${hall.name}</span>
+                                        ${b.eventType === 'wedding' ? '<span class="text-xs font-black px-3 py-1 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center gap-1"><i data-lucide="gem" class="w-3 h-3"></i> فرح / خطوبة</span>' : ''}
                                         ${isOwner ? '<span class="text-xs font-bold px-3 py-1 rounded-lg bg-[#A88A45]/20 text-[#8f753a] flex items-center gap-1"><i data-lucide="user-check" class="w-3 h-3"></i> حجزي</span>' : ''}
                                     </div>
                                 </div>
@@ -3003,6 +3343,27 @@
                                     <i data-lucide="info" class="w-4 h-4 mt-0.5 text-amber-600 shrink-0"></i>
                                     <p class="leading-relaxed font-medium">${escapeHtml(b.notes)}</p>
                                 </div>` : ''}
+
+                                ${(() => {
+                                    if (b.eventType !== 'wedding' || !b.wedding) return '';
+                                    const rows = weddingSummaryRows(b).filter(r => r[0] !== 'المنيو' && r[0] !== 'ملاحظات المنيو');
+                                    const remainingClass = (b.wedding.remaining > 0) ? 'text-red-600' : 'text-emerald-700';
+                                    // منيو الباقة
+                                    const pkg = state.weddingSettings.packages.find(p => p.id === b.wedding.packageId);
+                                    const menuItems = (b.wedding.menuItems && b.wedding.menuItems.filter(m => m.trim()).length) ? b.wedding.menuItems.filter(m => m.trim()) : (pkg && pkg.menuItems ? pkg.menuItems.filter(m => m.trim()) : []);
+                                    const menuNotes = (b.wedding.menuNotes && b.wedding.menuNotes.trim()) ? b.wedding.menuNotes.trim() : (pkg && pkg.menuNotes ? pkg.menuNotes.trim() : '');
+                                    const menuHtml = (menuItems.length || menuNotes) ? `
+                                        <div class="mt-3 pt-3 border-t border-[#6E1418]/10">
+                                            <div class="flex items-center gap-1.5 text-[11px] font-black text-[#A88A45] mb-2"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> منيو الباقة</div>
+                                            ${menuItems.length ? `<div class="flex flex-wrap gap-1.5 mb-2">${menuItems.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+                                            ${menuNotes ? `<p class="text-xs text-slate-500 font-medium bg-amber-50 rounded-lg px-2.5 py-1.5 border border-amber-100">${escapeHtml(menuNotes)}</p>` : ''}
+                                        </div>` : '';
+                                    return `<div class="mt-4 p-3 bg-[#6E1418]/5 rounded-xl border border-[#6E1418]/10 space-y-1.5 text-sm">
+                                        <div class="flex items-center gap-1.5 text-[11px] font-black text-[#6E1418] mb-1"><i data-lucide="gem" class="w-3.5 h-3.5"></i> تفاصيل باقة الفرح</div>
+                                        ${rows.map((r, i) => `<div class="flex justify-between ${i === rows.length - 1 ? 'font-black ' + remainingClass : 'text-slate-600'}"><span>${r[0]}</span><span class="font-bold">${escapeHtml(String(r[1]))}</span></div>`).join('')}
+                                        ${menuHtml}
+                                    </div>`;
+                                })()}
 
                                 ${(() => {
                                     const bImages = getBookingImages(b);
@@ -3120,6 +3481,29 @@
             const createdAtDisplay = b.createdAt
                 ? new Date(b.createdAt).toLocaleDateString('ar-EG', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})
                 : '-';
+            const escName  = (b.companyName || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const escPhone = (b.phone || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const escHall  = (hall.name || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const acknowledgmentHtml = (b.eventType === 'wedding') ? `
+<div class="ack-box">
+    <div class="ack-title">تعهد و إقرار</div>
+    <div class="ack-line">أتعهد أنا: <strong>${escName}</strong></div>
+    <div class="ack-line">تليفون رقم: <strong>${escPhone}</strong></div>
+    <div class="ack-text">
+        * حمام السباحة آخر موعد لانتهاء الحفل الساعة الثانية عشر منتصف الليل، ويتم غلق الصوت تماماً على حمام السباحة في تمام الساعة الثانية عشر منتصف الليل، بدون أدنى مسؤولية للفندق عن التأخير في بدء الحفل.<br>
+        * ميعاد استلام الغرف الطبيعي الساعة الثانية ظهراً، ويتم تسليم الغرف قبل الموعد في حالة وجود إمكانية.<br>
+        كما إنني مسؤول مسؤولية كاملة وقانونية أمام جميع الجهات المختصة بعدم إطلاق الألعاب النارية بجميع أنواعها والطلقات النارية أو الصوت داخل محيط الفندق وموقف السيارات الخاص بالفندق، وذلك خلال الحفل المقام بفندق رستا بورسعيد.<br>
+        كما أن الفندق غير مسؤول عن تغير الأحوال الجوية وقت الحفل حيث أنه لا يوجد بديل.<br>
+        يتم الالتزام بعدد الأشخاص المتفق عليها في الحضور، وفي حالة حضور أفراد إضافية يتم احتساب الفرد بقيمة الوجبة المتفق عليها في الحفل للفرد حتى وإن لم تُقدَّم الوجبة.<br>
+        * تعاقد الاستديو: الفندق ما هو إلا وسيط، وأي نزاع يكون بين العميل والاستديو الفندق ليس طرفاً فيه. للعميل الحرية في تغيير الاستديو أو أي من المتعهدين عدا متعهد الفنانين وخصم قيمتهم والتعاقد بمعرفته.<br>
+        مقدم حجز 40% من قيمة الحفل لا ترد في حالة الإلغاء، ويسدد باقي الحساب قبل الحفل بيومين، ويعتبر الحفل لاغياً في حالة عدم سداد المبلغ كاملاً.<br>
+        ممنوع منعاً باتاً إحضار أي مأكولات أو مشروبات من خارج الفندق.<br>
+        استلمت نسخة وأوافق على ما بها من اشتراطات وتعليمات، وإنني مسؤول مسؤولية كاملة وقانونية أمام جميع الجهات المختصة.
+    </div>
+    <div class="ack-line">بقاعة: <strong>${escHall}</strong></div>
+    <div class="ack-line">بتاريخ: <strong>${dateRow}</strong></div>
+    <div class="ack-sign">التوقيع: <span class="sig-line"></span></div>
+</div>` : '';
 
             const rows = [
                 ['الشركة / الجهة', b.companyName || '-'],
@@ -3131,6 +3515,8 @@
                 ['تم الإنشاء بواسطة', (b.createdBy || '-').split('@')[0]],
                 ['تاريخ الإنشاء', createdAtDisplay],
             ];
+
+            weddingSummaryRows(b, { hideRoomsExtra: true }).forEach(r => rows.push(r));
 
             const printLinks = getBookingLinks(b);
             if (printLinks.length) {
@@ -3160,105 +3546,129 @@
         background: #ffffff;
         color: #1e293b;
         direction: rtl;
-        padding: 28px 32px;
-        font-size: 14px;
+        padding: 8px 16px;
+        font-size: 11px;
+        line-height: 1.15;
     }
     .page-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 24px;
-        padding-bottom: 18px;
-        border-bottom: 3px solid #6E1418;
+        margin-bottom: 6px;
+        padding-bottom: 5px;
+        border-bottom: 2px solid #6E1418;
     }
-    .logo-area { display: flex; align-items: center; gap: 12px; }
+    .logo-area { display: flex; align-items: center; gap: 10px; }
     .logo-box {
-        width: 52px; height: 52px;
+        width: 30px; height: 30px;
         background: linear-gradient(135deg, #6E1418, #8a1c22);
-        border-radius: 14px;
+        border-radius: 8px;
         display: flex; align-items: center; justify-content: center;
-        color: white; font-size: 24px; font-weight: 900;
+        color: white; font-size: 15px; font-weight: 900;
     }
-    .hotel-name { font-size: 21px; font-weight: 900; color: #6E1418; }
-    .hotel-sub { font-size: 12px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
+    .hotel-name { font-size: 14px; font-weight: 900; color: #6E1418; line-height: 1.2; }
+    .hotel-sub { font-size: 9px; color: #94a3b8; font-weight: 600; margin-top: 0px; }
     .meta-area { text-align: left; }
-    .print-date-label { font-size: 11px; color: #94a3b8; font-weight: 600; }
-    .print-date-val { font-size: 13px; font-weight: 700; color: #475569; margin-top: 2px; }
+    .print-date-label { font-size: 9.5px; color: #94a3b8; font-weight: 600; }
+    .print-date-val { font-size: 11.5px; font-weight: 700; color: #475569; margin-top: 1px; }
     .doc-title {
-        font-size: 17px; font-weight: 900;
+        font-size: 12.5px; font-weight: 900;
         color: #334155;
-        margin-bottom: 18px;
-        display: flex; align-items: center; gap: 10px;
+        margin-bottom: 5px;
+        display: flex; align-items: center; gap: 8px;
     }
     .doc-title::before {
         content: '';
         display: inline-block;
-        width: 5px; height: 22px;
+        width: 4px; height: 14px;
         background: #A88A45;
         border-radius: 4px;
     }
     .company-banner {
         background: linear-gradient(135deg, #6E1418, #8a1c22);
         color: #fff;
-        border-radius: 14px;
-        padding: 18px 22px;
-        margin-bottom: 22px;
+        border-radius: 12px;
+        padding: 5px 14px;
+        margin-bottom: 6px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 1px;
     }
-    .company-banner .cb-label { font-size: 11px; opacity: 0.75; font-weight: 700; letter-spacing: 0.4px; }
-    .company-banner .cb-value { font-size: 22px; font-weight: 900; color: #fff; }
-    .company-banner .cb-hall { font-size: 13px; font-weight: 700; color: #A88A45; margin-top: 4px; }
+    .company-banner .cb-label { font-size: 9.5px; opacity: 0.75; font-weight: 700; letter-spacing: 0.4px; }
+    .company-banner .cb-value { font-size: 14px; font-weight: 900; color: #fff; }
+    .company-banner .cb-hall { font-size: 9.5px; font-weight: 700; color: #A88A45; margin-top: 1px; }
     table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 13.5px;
+        font-size: 10.5px;
         border: 1px solid #f1f5f9;
-        border-radius: 12px;
+        border-radius: 8px;
         overflow: hidden;
     }
     tbody tr { border-bottom: 1px solid #f1f5f9; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:nth-child(even) { background: #fafafa; }
     td.label {
-        padding: 12px 16px;
+        padding: 2.5px 12px;
         font-weight: 800;
         color: #6E1418;
-        width: 180px;
+        width: 140px;
         background: #fdf6f2;
         white-space: nowrap;
-        border-right: 4px solid #A88A45;
+        border-right: 3px solid #A88A45;
+        line-height: 1.25;
     }
     td.value {
-        padding: 12px 16px;
+        padding: 2.5px 12px;
         color: #334155;
         font-weight: 600;
+        line-height: 1.25;
     }
     ${notesDisplay ? `
     .notes-box {
-        margin-top: 22px;
+        margin-top: 5px;
         background: #fffbeb;
         border: 1px solid #fde68a;
-        border-radius: 12px;
-        padding: 14px 18px;
+        border-radius: 8px;
+        padding: 4px 12px;
     }
-    .notes-box .nb-title { font-size: 12px; font-weight: 900; color: #92400e; margin-bottom: 6px; }
-    .notes-box .nb-text { font-size: 13.5px; color: #78350f; font-weight: 600; line-height: 1.7; white-space: pre-wrap; }
+    .notes-box .nb-title { font-size: 9.5px; font-weight: 900; color: #92400e; margin-bottom: 2px; }
+    .notes-box .nb-text { font-size: 10.5px; color: #78350f; font-weight: 600; line-height: 1.25; white-space: pre-wrap; }
+    ` : ''}
+    ${acknowledgmentHtml ? `
+    .ack-box {
+        margin-top: 5px;
+        background: #fafafa;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 6px 12px;
+    }
+    .ack-title {
+        font-size: 11px; font-weight: 900; color: #6E1418;
+        text-align: center;
+        margin-bottom: 4px;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .ack-line { font-size: 10px; color: #334155; font-weight: 700; margin-bottom: 2px; }
+    .ack-line strong { color: #6E1418; }
+    .ack-text { font-size: 9px; color: #475569; font-weight: 500; line-height: 1.35; text-align: justify; margin: 3px 0; }
+    .ack-sign { font-size: 10px; color: #334155; font-weight: 700; margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+    .ack-sign .sig-line { display: inline-block; width: 160px; border-bottom: 1px solid #94a3b8; height: 12px; }
     ` : ''}
     .footer {
-        margin-top: 32px;
-        padding-top: 14px;
+        margin-top: 6px;
+        padding-top: 4px;
         border-top: 1px solid #e2e8f0;
         display: flex;
         justify-content: space-between;
-        font-size: 10.5px;
+        font-size: 8.5px;
         color: #94a3b8;
         font-weight: 600;
     }
     @media print {
         body { padding: 0; }
-        @page { size: A4 portrait; margin: 14mm 16mm; }
+        @page { size: A4 portrait; margin: 6mm 9mm; }
         .company-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         td.label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
@@ -3293,6 +3703,7 @@ ${notesDisplay ? `
     <div class="nb-text">${notesDisplay}</div>
 </div>
 ` : ''}
+${acknowledgmentHtml}
 <div class="footer">
     <span>نظام إدارة حجوزات رستا – Resta Events Booking System</span>
     <span>${printDate}</span>
@@ -3362,6 +3773,7 @@ ${notesDisplay ? `
                 ? new Date(b.createdAt).toLocaleDateString('ar-EG', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})
                 : '-';
 
+            // بدون أسعار — سيتم إرفاق ملف PDF بالأسعار يدويًا مع البريد (من زر الطباعة)
             const lines = [
                 'تفاصيل الحجز - رستا بورسعيد',
                 '----------------------------------------',
@@ -3375,19 +3787,22 @@ ${notesDisplay ? `
                 `تاريخ الإنشاء: ${createdAtDisplay}`,
             ];
 
+            if (b.eventType === 'wedding' && b.wedding) {
+                lines.push('', '-- تفاصيل باقة الفرح --', ...weddingSummaryLines(b, { excludePrices: true }));
+            }
+
             if (b.notes) {
                 lines.push('', `ملاحظات: ${b.notes}`);
             }
 
-            const mailLinks = getBookingLinks(b);
-            if (mailLinks.length) {
-                lines.push('', mailLinks.length > 1 ? 'مرفقات (روابط):' : 'مرفقات (رابط):');
-                mailLinks.forEach((url, i) => lines.push(mailLinks.length > 1 ? `${i + 1}. ${url}` : url));
+            const emailLinks = getBookingLinks(b);
+            if (emailLinks.length) {
+                lines.push('', emailLinks.length > 1 ? 'مرفقات (روابط):' : 'مرفقات (رابط):');
+                emailLinks.forEach((url, i) => lines.push(emailLinks.length > 1 ? `${i + 1}. ${url}` : url));
             }
 
             const subject = `تفاصيل الحجز - ${b.companyName || ''} - ${hall.name}`;
             const body = lines.join('\n');
-
             const mailtoUrl = `mailto:${BOOKING_EMAIL_RECIPIENTS.join(';')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
             window.location.href = mailtoUrl;
         }
@@ -3436,6 +3851,10 @@ ${notesDisplay ? `
                 `تم الإنشاء بواسطة: ${(b.createdBy || '-').split('@')[0]}`,
                 `تاريخ الإنشاء: ${createdAtDisplay}`,
             ];
+
+            if (b.eventType === 'wedding' && b.wedding) {
+                lines.push('', '-- تفاصيل باقة الفرح --', ...weddingSummaryLines(b));
+            }
 
             if (b.notes) {
                 lines.push('', `ملاحظات: ${b.notes}`);
@@ -3576,6 +3995,20 @@ ${notesDisplay ? `
                                         </span>
                                         الأرشيف
                                     </button>
+                                    <button onclick="toggleQuickCalcModal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="gem" class="w-4 h-4 text-[#6E1418]"></i>
+                                        </span>
+                                        حاسبة باقة فرح سريعة
+                                    </button>
+                                    ${state.currentUserEmail === ADMIN_EMAIL ? `
+                                    <button onclick="toggleWeddingSettingsModal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="settings-2" class="w-4 h-4 text-[#6E1418]"></i>
+                                        </span>
+                                        إعدادات باقات الأفراح
+                                    </button>
+                                    ` : ''}
                                     ${state.currentUserEmail === ADMIN_EMAIL ? `
                                     <button onclick="exportBackup(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
@@ -3613,6 +4046,14 @@ ${notesDisplay ? `
                             <button onclick="toggleArchiveModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="الأرشيف">
                                 <i data-lucide="archive" class="w-5 h-5"></i>
                             </button>
+                            <button onclick="toggleQuickCalcModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="حاسبة باقة فرح سريعة">
+                                <i data-lucide="gem" class="w-5 h-5"></i>
+                            </button>
+                            ${state.currentUserEmail === ADMIN_EMAIL ? `
+                            <button onclick="toggleWeddingSettingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="إعدادات باقات الأفراح">
+                                <i data-lucide="settings-2" class="w-5 h-5"></i>
+                            </button>
+                            ` : ''}
 
                             <!-- زر الألعاب -->
                             <div class="relative shrink-0" id="gamesDropdownContainer">
@@ -3840,7 +4281,7 @@ ${notesDisplay ? `
                              ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
                              ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
                             <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" style="min-width:6px;"></div>
-                            <span>${escapeHtml(b.companyName)}</span>
+                            <span>${b.eventType === 'wedding' ? '💍 ' : ''}${escapeHtml(b.companyName)}</span>
                         </div>
                     `;
                 }).join('');
@@ -3944,6 +4385,22 @@ ${notesDisplay ? `
             form.querySelector('input[name="dateFrom"]').value = dateStr;
             form.querySelector('input[name="dateTo"]').value   = dateStr;
             form.querySelector('input[name="employee"]').value = getDefaultEmployeeName();
+            document.getElementById('globalEventType').value = 'normal';
+            document.getElementById('weddingCalcSection').classList.add('hidden');
+            fillWeddingFormFromBooking(null);
+
+            // إظهار قسم "نوع الحجز" للأدمن فقط
+            const bookingTypeSection = document.getElementById('bookingTypeSection');
+            if (bookingTypeSection) {
+                if (state.currentUserEmail === ADMIN_EMAIL) {
+                    bookingTypeSection.classList.remove('hidden');
+                } else {
+                    bookingTypeSection.classList.add('hidden');
+                    document.getElementById('globalEventType').value = 'normal';
+                    document.getElementById('weddingCalcSection').classList.add('hidden');
+                }
+            }
+
             form.querySelector('button[type="submit"]').innerHTML =
                 '<i data-lucide="check-circle" class="w-6 h-6 text-[#A88A45]"></i><span>حفظ بيانات الحجز</span>';
 
@@ -4245,6 +4702,25 @@ ${notesDisplay ? `
             setLinksInForm(getBookingLinks(booking));
             setFormImages(getBookingImages(booking));
 
+            // إظهار قسم "نوع الحجز" للأدمن فقط عند التعديل
+            const bookingTypeSectionEdit = document.getElementById('bookingTypeSection');
+            if (bookingTypeSectionEdit) {
+                if (state.currentUserEmail === ADMIN_EMAIL) {
+                    bookingTypeSectionEdit.classList.remove('hidden');
+                } else {
+                    bookingTypeSectionEdit.classList.add('hidden');
+                }
+            }
+
+            document.getElementById('globalEventType').value = booking.eventType === 'wedding' ? 'wedding' : 'normal';
+            if (booking.eventType === 'wedding') {
+                document.getElementById('weddingCalcSection').classList.remove('hidden');
+                fillWeddingFormFromBooking(booking.wedding);
+            } else {
+                document.getElementById('weddingCalcSection').classList.add('hidden');
+                fillWeddingFormFromBooking(null);
+            }
+
             form.querySelector('button[type="submit"]').innerHTML =
                 '<i data-lucide="check-circle" class="w-6 h-6 text-[#A88A45]"></i><span>حفظ التعديلات المطبقة</span>';
 
@@ -4274,6 +4750,9 @@ ${notesDisplay ? `
                 form.querySelector('input[name="employee"]').value = getDefaultEmployeeName();
                 setLinksInForm([]);
                 setFormImages([]);
+                document.getElementById('globalEventType').value = 'normal';
+                document.getElementById('weddingCalcSection').classList.add('hidden');
+                fillWeddingFormFromBooking(null);
                 form.querySelector('button[type="submit"]').innerHTML =
                     '<i data-lucide="check-circle" class="w-6 h-6 text-[#A88A45]"></i><span>حفظ بيانات الحجز</span>';
                 const titleEl = document.getElementById('globalModalTitle');
@@ -4285,6 +4764,570 @@ ${notesDisplay ? `
                 state.editingBookingId = null;
                 modal.classList.add('hidden');
             }
+        }
+
+        // ═══════════════════ حاسبة باقة الفرح — مدمجة داخل فورم الحجز ═══════════════════
+
+        function onEventTypeChange() {
+            const type = document.getElementById('globalEventType').value;
+            const section = document.getElementById('weddingCalcSection');
+            if (type === 'wedding') {
+                section.classList.remove('hidden');
+                if (!document.getElementById('weddingPackageSelect').options.length) {
+                    populateWeddingPackageSelect();
+                    renderWeddingExtrasInputs();
+                    renderWeddingPaymentsInputs();
+                    onWeddingPackageChange();
+                }
+                applyWeddingFieldPermissions();
+                recalcWeddingTotals();
+            } else {
+                section.classList.add('hidden');
+            }
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
+        function populateWeddingPackageSelect() {
+            const select = document.getElementById('weddingPackageSelect');
+            if (!select) return;
+            const current = select.value;
+            select.innerHTML = state.weddingSettings.packages.map(p =>
+                `<option value="${p.id}">${p.name} (افتراضي ${fmtEGP(p.price)}/فرد)</option>`
+            ).join('');
+            if (current && state.weddingSettings.packages.some(p => p.id === current)) select.value = current;
+        }
+
+        function onWeddingPackageChange() {
+            const pkgId = document.getElementById('weddingPackageSelect').value;
+            const pkg = state.weddingSettings.packages.find(p => p.id === pkgId);
+            if (pkg) document.getElementById('weddingPricePerPerson').value = pkg.price;
+            renderWeddingPackageMenuPreview(pkg ? (pkg.menuItems || []) : [], pkg ? (pkg.menuNotes || '') : '');
+            recalcWeddingTotals();
+        }
+
+        function renderWeddingPackageMenuPreview(items, notes) {
+            const box = document.getElementById('weddingPackageMenuPreview');
+            if (!box) return;
+            box.classList.remove('hidden');
+            const list = document.getElementById('weddingMenuItemsList');
+            list.innerHTML = (items && items.length ? items : ['']).map((item, i) => `
+                <div class="flex items-center gap-2">
+                    <input type="text" class="wedding-menu-item flex-1 text-sm" data-idx="${i}" value="${escapeHtml(item || '')}" placeholder="اسم الصنف">
+                    <button type="button" onclick="removeWeddingMenuItem(${i})" class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0" title="حذف الصنف">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+            document.getElementById('weddingMenuNotes').value = notes || '';
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
+        function getWeddingMenuItemsFromForm() {
+            return Array.from(document.querySelectorAll('.wedding-menu-item')).map(inp => inp.value.trim()).filter(v => v);
+        }
+
+        function getWeddingMenuNotesFromForm() {
+            const ta = document.getElementById('weddingMenuNotes');
+            return ta ? ta.value.trim() : '';
+        }
+
+        function addWeddingMenuItem() {
+            const items = getWeddingMenuItemsFromForm();
+            items.push('');
+            renderWeddingPackageMenuPreview(items, getWeddingMenuNotesFromForm());
+            document.querySelectorAll('.wedding-menu-item')[items.length - 1]?.focus();
+        }
+
+        function removeWeddingMenuItem(idx) {
+            const items = Array.from(document.querySelectorAll('.wedding-menu-item')).map(inp => inp.value);
+            items.splice(idx, 1);
+            renderWeddingPackageMenuPreview(items, getWeddingMenuNotesFromForm());
+        }
+
+        // بناء صف إضافة واحد (يُستخدم لعناصر الكتالوج الثابتة ولعناصر مخصّصة يضيفها المستخدم لهذا الحجز فقط)
+        function weddingExtraRowHtml(key, name, value, perGuest, checked) {
+            const safeName = (name || '').replace(/"/g, '&quot;');
+            return `
+                <div class="extra-row bg-slate-50 border border-slate-200 rounded-xl p-3" data-extra-row="${key}">
+                    <div class="flex items-center gap-2 mb-2">
+                        <input type="checkbox" class="wedding-extra-toggle" data-extra="${key}" ${checked ? 'checked' : ''} onchange="recalcWeddingTotals()">
+                        <input type="text" class="wedding-extra-name flex-1 text-sm font-bold text-slate-700 bg-transparent border-0 outline-none rounded px-1 focus:bg-white focus:ring-2 focus:ring-amber-100" data-extra="${key}" value="${safeName}" placeholder="اسم الإضافة" oninput="recalcWeddingTotals()">
+                        <button type="button" onclick="removeWeddingExtraRow('${key}')" class="text-slate-400 hover:text-red-600 transition-colors shrink-0 p-1" title="حذف هذه الإضافة">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" class="wedding-extra-value" data-extra="${key}" value="${value}" min="0" step="10" oninput="recalcWeddingTotals()">
+                        <label class="flex items-center gap-1 text-xs text-slate-400 shrink-0 cursor-pointer">
+                            <input type="checkbox" class="wedding-extra-perguest" data-extra="${key}" ${perGuest ? 'checked' : ''} onchange="recalcWeddingTotals()">
+                            × فرد
+                        </label>
+                    </div>
+                </div>
+            `;
+        }
+
+        // customExtras: عناصر خاصة بهذا الحجز فقط (أُضيفت يدويًا ولا توجد في كتالوج الإعدادات العام)
+        function renderWeddingExtrasInputs(customExtras) {
+            const container = document.getElementById('weddingExtrasContainer');
+            if (!container) return;
+            const catalogHtml = state.weddingSettings.extras.map(ex =>
+                weddingExtraRowHtml(ex.key, ex.name, ex.value, ex.perGuest, false)
+            ).join('');
+            const customHtml = (customExtras || []).map(ex =>
+                weddingExtraRowHtml(ex.key, ex.name, ex.value, ex.perGuest, !!ex.active)
+            ).join('');
+            container.innerHTML = catalogHtml + customHtml;
+            applyWeddingFieldPermissions();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // إضافة عنصر إضافة جديد مخصّص لهذا الحجز فقط (بدون التأثير على كتالوج الإعدادات العام)
+        function addWeddingExtraRow() {
+            const container = document.getElementById('weddingExtrasContainer');
+            if (!container) return;
+            const key = 'custom_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            container.insertAdjacentHTML('beforeend', weddingExtraRowHtml(key, '', 0, false, true));
+            applyWeddingFieldPermissions();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            const nameInput = container.querySelector(`.wedding-extra-name[data-extra="${key}"]`);
+            if (nameInput) nameInput.focus();
+            recalcWeddingTotals();
+        }
+
+        // حذف عنصر إضافة من هذا الحجز فقط (لا يمس كتالوج الإعدادات العام)
+        function removeWeddingExtraRow(key) {
+            const row = document.querySelector(`.extra-row[data-extra-row="${key}"]`);
+            if (row) row.remove();
+            recalcWeddingTotals();
+        }
+
+        function renderWeddingPaymentsInputs() {
+            const container = document.getElementById('weddingPaymentsContainer');
+            if (!container) return;
+            container.innerHTML = [1,2,3,4,5,6].map(n =>
+                `<input type="number" class="wedding-payment-input" placeholder="دفعة ${n}" min="0" step="50" oninput="recalcWeddingTotals()">`
+            ).join('');
+        }
+
+        // يقفل حقول الأسعار والخصومات على غير الأدمن (اختيار الباقة وعدد الأفراد والدفعات يبقى متاح للجميع)
+        function applyWeddingFieldPermissions() {
+            const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
+            const priceInput = document.getElementById('weddingPricePerPerson');
+            if (priceInput) priceInput.disabled = !isAdmin;
+            document.querySelectorAll('.wedding-extra-value').forEach(el => el.disabled = !isAdmin);
+            document.querySelectorAll('.wedding-extra-perguest').forEach(el => el.disabled = !isAdmin);
+        }
+
+        function getWeddingExtrasBreakdown() {
+            const guests = parseFloat(document.getElementById('weddingGuests').value) || 0;
+            let extrasTotal = 0, chairTotal = 0;
+            const extras = [];
+            document.querySelectorAll('.wedding-extra-toggle').forEach(cb => {
+                const key = cb.dataset.extra;
+                const nameInput = document.querySelector(`.wedding-extra-name[data-extra="${key}"]`);
+                const valInput = document.querySelector(`.wedding-extra-value[data-extra="${key}"]`);
+                const perGuestInput = document.querySelector(`.wedding-extra-perguest[data-extra="${key}"]`);
+                const def = state.weddingSettings.extras.find(e => e.key === key);
+                const name = (nameInput ? nameInput.value.trim() : '') || (def ? def.name : key);
+                const perGuest = perGuestInput ? perGuestInput.checked : !!(def && def.perGuest);
+                const value = parseFloat(valInput.value) || 0;
+                const active = cb.checked;
+                let lineTotal = 0;
+                if (active) {
+                    lineTotal = perGuest ? value * guests : value;
+                    if (perGuest) chairTotal += lineTotal; else extrasTotal += lineTotal;
+                }
+                extras.push({ key, name, perGuest, value, active, lineTotal });
+            });
+            return { guests, extras, extrasTotal, chairTotal };
+        }
+
+        function recalcWeddingTotals() {
+            const box = document.getElementById('weddingTotalsBox');
+            if (!box) return;
+            const price = parseFloat(document.getElementById('weddingPricePerPerson').value) || 0;
+            const { guests, extrasTotal, chairTotal } = getWeddingExtrasBreakdown();
+            const subtotal = price * guests;
+            const total = subtotal + extrasTotal + chairTotal;
+
+            let paid = 0;
+            document.querySelectorAll('.wedding-payment-input').forEach(inp => { paid += parseFloat(inp.value) || 0; });
+            const remaining = total - paid;
+
+            box.innerHTML = `
+                <div class="flex justify-between text-slate-600"><span>إجمالي الأفراد (${guests} × ${fmtEGP(price)})</span><span class="font-bold">${fmtEGP(subtotal)}</span></div>
+                <div class="flex justify-between text-slate-600"><span>الإضافات</span><span class="font-bold">${fmtEGP(extrasTotal)}</span></div>
+                <div class="flex justify-between text-slate-600"><span>كرسي الديكور</span><span class="font-bold">${fmtEGP(chairTotal)}</span></div>
+                <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(total)}</span></div>
+                <div class="flex justify-between text-emerald-700 font-bold"><span>المدفوع</span><span>${fmtEGP(paid)}</span></div>
+                <div class="flex justify-between font-black ${remaining > 0 ? 'text-red-600' : 'text-emerald-700'}"><span>المتبقي</span><span>${fmtEGP(remaining)}</span></div>
+            `;
+        }
+
+        function collectWeddingDataFromForm() {
+            const pkgId = document.getElementById('weddingPackageSelect').value;
+            const pkg = state.weddingSettings.packages.find(p => p.id === pkgId);
+            const price = parseFloat(document.getElementById('weddingPricePerPerson').value) || 0;
+            const { guests, extras, extrasTotal, chairTotal } = getWeddingExtrasBreakdown();
+            const subtotal = price * guests;
+            const total = subtotal + extrasTotal + chairTotal;
+            const payments = Array.from(document.querySelectorAll('.wedding-payment-input')).map(inp => parseFloat(inp.value) || 0);
+            const paidTotal = payments.reduce((s, n) => s + n, 0);
+
+            return {
+                packageId: pkgId,
+                packageName: pkg ? pkg.name : (pkgId || '-'),
+                pricePerPerson: price,
+                guests,
+                subtotal,
+                extras,
+                extrasTotal,
+                chairTotal,
+                total,
+                payments,
+                paidTotal,
+                remaining: total - paidTotal,
+                menuItems: getWeddingMenuItemsFromForm(),
+                menuNotes: getWeddingMenuNotesFromForm(),
+                calculatedAt: new Date().toISOString()
+            };
+        }
+
+        function fillWeddingFormFromBooking(w) {
+            if (!document.getElementById('weddingPackageSelect').options.length) populateWeddingPackageSelect();
+            // عناصر هذا الحجز التي لا توجد في كتالوج الإعدادات العام (أُضيفت يدويًا لهذا الحجز فقط) — لازم تُعرض كصفوف إضافية
+            const catalogKeys = new Set(state.weddingSettings.extras.map(ex => ex.key));
+            const customExtras = (w && w.extras) ? w.extras.filter(ex => !catalogKeys.has(ex.key)) : [];
+            renderWeddingExtrasInputs(customExtras);
+            renderWeddingPaymentsInputs();
+            applyWeddingFieldPermissions();
+            if (!w) { recalcWeddingTotals(); return; }
+
+            document.getElementById('weddingPackageSelect').value = w.packageId || '';
+            document.getElementById('weddingGuests').value = w.guests || 0;
+            document.getElementById('weddingPricePerPerson').value = w.pricePerPerson || 0;
+            const pkgForMenu = state.weddingSettings.packages.find(p => p.id === (w.packageId || ''));
+            const menuItems = (w.menuItems && w.menuItems.length) ? w.menuItems : (pkgForMenu ? pkgForMenu.menuItems : []);
+            const menuNotes = (w.menuNotes !== undefined && w.menuNotes !== '') ? w.menuNotes : (pkgForMenu ? pkgForMenu.menuNotes : '');
+            renderWeddingPackageMenuPreview(menuItems, menuNotes);
+
+            (w.extras || []).forEach(ex => {
+                const cb = document.querySelector(`.wedding-extra-toggle[data-extra="${ex.key}"]`);
+                const valInput = document.querySelector(`.wedding-extra-value[data-extra="${ex.key}"]`);
+                const nameInput = document.querySelector(`.wedding-extra-name[data-extra="${ex.key}"]`);
+                const perGuestInput = document.querySelector(`.wedding-extra-perguest[data-extra="${ex.key}"]`);
+                if (cb) cb.checked = !!ex.active;
+                if (valInput) valInput.value = ex.value;
+                if (nameInput && ex.name) nameInput.value = ex.name;
+                if (perGuestInput) perGuestInput.checked = !!ex.perGuest;
+            });
+
+            const paymentInputs = document.querySelectorAll('.wedding-payment-input');
+            (w.payments || []).forEach((val, i) => { if (paymentInputs[i]) paymentInputs[i].value = val || ''; });
+
+            recalcWeddingTotals();
+        }
+
+        // نص/صفوف تفاصيل باقة الفرح لإدراجها في: مودال التفاصيل، الطباعة، البريد، والمشاركة
+        // opts.excludePrices = true لإخفاء صفوف الإجمالي/المدفوع/المتبقي (يُستخدم في البريد لأن ملف PDF بالأسعار يُرفق يدويًا)
+        function weddingSummaryRows(b, opts) {
+            if (!b || b.eventType !== 'wedding' || !b.wedding) return [];
+            const excludePrices = !!(opts && opts.excludePrices);
+            const hideRoomsExtra = !!(opts && opts.hideRoomsExtra);
+            const w = b.wedding;
+            const activeExtras = (w.extras || []).filter(ex => ex.active && !(hideRoomsExtra && ex.key === 'rooms'));
+            const extrasLine = activeExtras.length
+                ? activeExtras.map(ex => ex.name).join(' + ')
+                : 'لا يوجد';
+            const pkg = state.weddingSettings.packages.find(p => p.id === w.packageId);
+            const menuItems = (w.menuItems && w.menuItems.filter(m => m.trim()).length) ? w.menuItems.filter(m => m.trim()) : (pkg && pkg.menuItems ? pkg.menuItems.filter(m => m.trim()) : []);
+            const menuNotes = (w.menuNotes && w.menuNotes.trim()) ? w.menuNotes.trim() : (pkg && pkg.menuNotes ? pkg.menuNotes.trim() : '');
+            const rows = [
+                ['نوع الحجز', 'فرح / خطوبة — باقة ' + (w.packageName || '-')],
+            ];
+            if (menuItems.length) rows.push(['المنيو', menuItems.join('، ')]);
+            if (menuNotes) rows.push(['ملاحظات المنيو', menuNotes]);
+            rows.push(
+                ['عدد الأفراد', String(w.guests || 0) + ' فرد'],
+                ['الإضافات', extrasLine],
+            );
+            if (!excludePrices) {
+                rows.push(
+                    ['إجمالي الحجز', fmtEGP(w.total)],
+                    ['المدفوع', fmtEGP(w.paidTotal)],
+                    ['المتبقي', fmtEGP(w.remaining)],
+                );
+            }
+            return rows;
+        }
+        function weddingSummaryLines(b, opts) {
+            return weddingSummaryRows(b, opts).map(r => `${r[0]}: ${r[1]}`);
+        }
+
+        // ═══════════════════ حاسبة باقة فرح سريعة (بدون حفظ كحجز) ═══════════════════
+
+        function toggleQuickCalcModal() {
+            if (isGuest()) return;
+            const modal = document.getElementById('quickCalcModal');
+            if (modal.classList.contains('hidden')) {
+                renderQuickCalcModal();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function renderQuickCalcModal() {
+            const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
+            const body = document.getElementById('quickCalcBody');
+            body.innerHTML = `
+                <div class="input-group bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <label class="required">الباقة</label>
+                    <select id="qcPackageSelect" onchange="onQcPackageChange()">
+                        ${state.weddingSettings.packages.map(p => `<option value="${p.id}">${p.name} (${fmtEGP(p.price)}/فرد)</option>`).join('')}
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div class="input-group bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <label class="required">عدد الأفراد</label>
+                        <input type="number" id="qcGuests" min="0" step="1" value="0" oninput="recalcQuickCalc()">
+                    </div>
+                    <div class="input-group bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <label>سعر الفرد (جنيه)</label>
+                        <input type="number" id="qcPricePerPerson" min="0" step="10" value="0" ${isAdmin ? '' : 'disabled'} oninput="recalcQuickCalc()">
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2.5" id="qcExtrasContainer">
+                    ${state.weddingSettings.extras.map(ex => `
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <label class="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2 cursor-pointer">
+                                <input type="checkbox" class="qc-extra-toggle" data-extra="${ex.key}" onchange="recalcQuickCalc()">
+                                ${ex.name} ${ex.perGuest ? '<span class="text-[10px] text-slate-400 font-normal">(× عدد الأفراد)</span>' : ''}
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" class="qc-extra-value" data-extra="${ex.key}" value="${ex.value}" min="0" step="10" ${isAdmin ? '' : 'disabled'} oninput="recalcQuickCalc()">
+                                <span class="text-xs text-slate-400 shrink-0">${ex.perGuest ? 'جنيه/فرد' : 'جنيه'}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div id="qcTotalsBox" class="bg-amber-50/60 rounded-xl p-4 space-y-1.5 text-sm border border-amber-100"></div>
+                <button type="button" onclick="convertQuickCalcToBooking()" class="w-full bg-gradient-to-r from-[#6E1418] to-[#8a1c22] hover:from-[#5a1013] hover:to-[#6E1418] text-white font-black py-4 rounded-2xl shadow-xl shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-3 text-lg">
+                    <i data-lucide="calendar-plus" class="w-6 h-6 text-[#A88A45]"></i>
+                    <span>تحويل إلى حجز جديد</span>
+                </button>
+            `;
+            onQcPackageChange();
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
+        function onQcPackageChange() {
+            const pkg = state.weddingSettings.packages.find(p => p.id === document.getElementById('qcPackageSelect').value);
+            if (pkg) document.getElementById('qcPricePerPerson').value = pkg.price;
+            recalcQuickCalc();
+        }
+
+        function recalcQuickCalc() {
+            const guests = parseFloat(document.getElementById('qcGuests').value) || 0;
+            const price = parseFloat(document.getElementById('qcPricePerPerson').value) || 0;
+            let extrasTotal = 0, chairTotal = 0;
+            document.querySelectorAll('.qc-extra-toggle').forEach(cb => {
+                if (!cb.checked) return;
+                const key = cb.dataset.extra;
+                const def = state.weddingSettings.extras.find(e => e.key === key) || {};
+                const val = parseFloat(document.querySelector(`.qc-extra-value[data-extra="${key}"]`).value) || 0;
+                if (def.perGuest) chairTotal += val * guests; else extrasTotal += val;
+            });
+            const subtotal = price * guests;
+            const total = subtotal + extrasTotal + chairTotal;
+            document.getElementById('qcTotalsBox').innerHTML = `
+                <div class="flex justify-between text-slate-600"><span>إجمالي الأفراد</span><span class="font-bold">${fmtEGP(subtotal)}</span></div>
+                <div class="flex justify-between text-slate-600"><span>الإضافات</span><span class="font-bold">${fmtEGP(extrasTotal)}</span></div>
+                <div class="flex justify-between text-slate-600"><span>كرسي الديكور</span><span class="font-bold">${fmtEGP(chairTotal)}</span></div>
+                <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(total)}</span></div>
+            `;
+        }
+
+        // ينقل بيانات الحاسبة السريعة إلى فورم حجز جديد (نوع فرح/خطوبة) ليكمل الموظف باقي بيانات الحجز
+        function convertQuickCalcToBooking() {
+            const pkgId = document.getElementById('qcPackageSelect').value;
+            const guests = document.getElementById('qcGuests').value;
+            const price = document.getElementById('qcPricePerPerson').value;
+            const extraStates = Array.from(document.querySelectorAll('.qc-extra-toggle')).map(cb => ({
+                key: cb.dataset.extra,
+                active: cb.checked,
+                value: parseFloat(document.querySelector(`.qc-extra-value[data-extra="${cb.dataset.extra}"]`).value) || 0
+            }));
+
+            document.getElementById('quickCalcModal').classList.add('hidden');
+            toggleGlobalBookingModal(); // يفتح فورم حجز جديد بالحالة الافتراضية
+
+            document.getElementById('globalEventType').value = 'wedding';
+            onEventTypeChange();
+
+            document.getElementById('weddingPackageSelect').value = pkgId;
+            document.getElementById('weddingGuests').value = guests;
+            document.getElementById('weddingPricePerPerson').value = price;
+            extraStates.forEach(st => {
+                const cb = document.querySelector(`.wedding-extra-toggle[data-extra="${st.key}"]`);
+                const valInput = document.querySelector(`.wedding-extra-value[data-extra="${st.key}"]`);
+                if (cb) cb.checked = st.active;
+                if (valInput) valInput.value = st.value;
+            });
+            recalcWeddingTotals();
+            showToast('تم نقل بيانات الحاسبة — أكمل بيانات القاعة والعميل والتاريخ', 'success');
+        }
+
+        // ═══════════════════ إعدادات باقات الأفراح (أدمن فقط) ═══════════════════
+
+        function toggleWeddingSettingsModal() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const modal = document.getElementById('weddingSettingsModal');
+            if (modal.classList.contains('hidden')) {
+                renderWeddingSettingsModal();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function renderWeddingSettingsModal() {
+            const body = document.getElementById('weddingSettingsBody');
+            body.innerHTML = `
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="font-bold text-[#6E1418] mb-3">أسعار الباقات (جنيه/فرد)</div>
+                    <div class="space-y-2.5">
+                        ${state.weddingSettings.packages.map((p, i) => `
+                            <div class="flex items-center gap-3">
+                                <span class="flex-1 text-sm font-bold text-slate-600">${p.name}</span>
+                                <input type="number" class="ws-package-price w-32" data-idx="${i}" value="${p.price}" min="0" step="10">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="font-bold text-[#6E1418] mb-3 flex items-center gap-2">
+                        <i data-lucide="utensils" class="w-4 h-4"></i> منيو الباقات
+                    </div>
+                    <div class="space-y-4">
+                        ${state.weddingSettings.packages.map((p, i) => `
+                            <div class="border border-slate-200 rounded-2xl overflow-hidden">
+                                <button type="button" onclick="toggleMenuSection(${i})"
+                                    class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                                    <span class="font-bold text-sm text-slate-700 flex items-center gap-2">
+                                        <i data-lucide="chef-hat" class="w-4 h-4 text-[#A88A45]"></i>
+                                        باقة ${p.name}
+                                        <span class="text-[10px] font-normal text-slate-400">(${(p.menuItems||[]).length} صنف)</span>
+                                    </span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 menu-chevron-${i} transition-transform"></i>
+                                </button>
+                                <div id="menuSection_${i}" class="hidden p-4 space-y-3 bg-white">
+                                    <div id="menuItems_${i}" class="space-y-2">
+                                        ${(p.menuItems||[]).map((item, j) => `
+                                            <div class="flex items-center gap-2 menu-item-row">
+                                                <input type="text" class="ws-menu-item flex-1 text-sm" data-pkg="${i}" data-item="${j}"
+                                                    value="${escapeHtml(item)}" placeholder="مثال: شوربة فراخ">
+                                                <button type="button" onclick="removeMenuItem(${i},${j})"
+                                                    class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    <button type="button" onclick="addMenuItem(${i})"
+                                        class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#6E1418]/10">
+                                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة صنف
+                                    </button>
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-500 mb-1 block">ملاحظات المنيو</label>
+                                        <textarea class="ws-menu-notes w-full text-sm rounded-xl border border-slate-200 p-2.5 resize-none bg-slate-50 outline-none focus:border-[#A88A45] focus:bg-white" 
+                                            data-pkg="${i}" rows="2" placeholder="أي تفاصيل إضافية عن المنيو...">${escapeHtml(p.menuNotes||'')}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="font-bold text-[#6E1418] mb-3">الإضافات</div>
+                    <div class="space-y-2.5">
+                        ${state.weddingSettings.extras.map((ex, i) => `
+                            <div class="flex items-center gap-3">
+                                <span class="flex-1 text-sm font-bold text-slate-600">${ex.name} ${ex.perGuest ? '<span class="text-[10px] text-slate-400">(جنيه/فرد)</span>' : ''}</span>
+                                <input type="number" class="ws-extra-value w-32" data-idx="${i}" value="${ex.value}" min="0" step="10">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <button type="button" onclick="commitWeddingSettingsFromForm()" class="w-full bg-gradient-to-r from-[#6E1418] to-[#8a1c22] text-white font-black py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-[#A88A45]"></i> حفظ الإعدادات
+                </button>
+            `;
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+
+        function toggleMenuSection(pkgIdx) {
+            const section = document.getElementById('menuSection_' + pkgIdx);
+            const chevron = document.querySelector('.menu-chevron-' + pkgIdx);
+            if (!section) return;
+            const isHidden = section.classList.contains('hidden');
+            section.classList.toggle('hidden', !isHidden);
+            if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
+        }
+
+        function addMenuItem(pkgIdx) {
+            // حفظ القيم الحالية أولاً قبل إعادة الرسم
+            _collectMenuFromForm();
+            const p = state.weddingSettings.packages[pkgIdx];
+            if (!p.menuItems) p.menuItems = [];
+            p.menuItems.push('');
+            renderWeddingSettingsModal();
+            // إعادة فتح القسم
+            const section = document.getElementById('menuSection_' + pkgIdx);
+            const chevron = document.querySelector('.menu-chevron-' + pkgIdx);
+            if (section) { section.classList.remove('hidden'); if (chevron) chevron.style.transform = 'rotate(180deg)'; }
+            // التركيز على آخر حقل
+            const inputs = document.querySelectorAll(`.ws-menu-item[data-pkg="${pkgIdx}"]`);
+            if (inputs.length) inputs[inputs.length - 1].focus();
+        }
+
+        function removeMenuItem(pkgIdx, itemIdx) {
+            _collectMenuFromForm();
+            const p = state.weddingSettings.packages[pkgIdx];
+            if (!p.menuItems) return;
+            p.menuItems.splice(itemIdx, 1);
+            renderWeddingSettingsModal();
+            const section = document.getElementById('menuSection_' + pkgIdx);
+            const chevron = document.querySelector('.menu-chevron-' + pkgIdx);
+            if (section) { section.classList.remove('hidden'); if (chevron) chevron.style.transform = 'rotate(180deg)'; }
+        }
+
+        function _collectMenuFromForm() {
+            document.querySelectorAll('.ws-menu-item').forEach(inp => {
+                const pi = Number(inp.dataset.pkg), ii = Number(inp.dataset.item);
+                if (state.weddingSettings.packages[pi]) {
+                    if (!state.weddingSettings.packages[pi].menuItems) state.weddingSettings.packages[pi].menuItems = [];
+                    state.weddingSettings.packages[pi].menuItems[ii] = inp.value;
+                }
+            });
+            document.querySelectorAll('.ws-menu-notes').forEach(ta => {
+                const pi = Number(ta.dataset.pkg);
+                if (state.weddingSettings.packages[pi]) state.weddingSettings.packages[pi].menuNotes = ta.value;
+            });
+        }
+
+        function commitWeddingSettingsFromForm() {
+            document.querySelectorAll('.ws-package-price').forEach(inp => {
+                state.weddingSettings.packages[Number(inp.dataset.idx)].price = parseFloat(inp.value) || 0;
+            });
+            document.querySelectorAll('.ws-extra-value').forEach(inp => {
+                state.weddingSettings.extras[Number(inp.dataset.idx)].value = parseFloat(inp.value) || 0;
+            });
+            _collectMenuFromForm();
+            saveWeddingSettingsToCloud();
         }
 
         function handleGlobalBookingSubmit(e) {
@@ -4336,7 +5379,9 @@ ${notesDisplay ? `
                         b.groupId === state.editingBookingId || b.id === state.editingBookingId
                       )?.createdBy || state.currentUserEmail)
                     : state.currentUserEmail,
-                createdAt:   new Date().toISOString()
+                createdAt:   new Date().toISOString(),
+                eventType:   form.eventType ? form.eventType.value : 'normal',
+                wedding:     (form.eventType && form.eventType.value === 'wedding') ? collectWeddingDataFromForm() : null
             };
 
             const start = new Date(bookingData.startDate);
@@ -4416,6 +5461,8 @@ ${notesDisplay ? `
                             notes:         bookingData.notes,
                             links:         bookingData.links,
                             images:        bookingData.images,
+                            eventType:     bookingData.eventType,
+                            wedding:       bookingData.wedding,
                             originalRange: bookingData.startDate + ' to ' + bookingData.endDate,
                             _isDirty:      true
                         };
