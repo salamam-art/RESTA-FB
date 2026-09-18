@@ -3506,11 +3506,10 @@
 </div>` : '';
 
             const rows = [
-                ['الشركة / الجهة', b.companyName || '-'],
+                [b.eventType === 'wedding' ? 'الاسم' : 'الشركة / الجهة', b.companyName || '-'],
                 ['القاعة', hall.name],
                 ['التاريخ', dateRow],
                 ['الوقت', timeDisplay],
-                ['الموظف المسؤول', b.employee || 'غير محدد'],
                 ['رقم الهاتف', b.phone || 'لا يوجد رقم'],
                 ['تم الإنشاء بواسطة', (b.createdBy || '-').split('@')[0]],
                 ['تاريخ الإنشاء', createdAtDisplay],
@@ -3690,7 +3689,7 @@
 </div>
 <div class="doc-title">تفاصيل الحجز</div>
 <div class="company-banner">
-    <div class="cb-label">الشركة / الجهة</div>
+    <div class="cb-label">${b.eventType === 'wedding' ? 'الاسم' : 'الشركة / الجهة'}</div>
     <div class="cb-value">${(b.companyName || '-').replace(/</g,'&lt;')}</div>
     <div class="cb-hall">${hall.name}</div>
 </div>
@@ -5048,8 +5047,14 @@ ${acknowledgmentHtml}
             ];
             if (menuItems.length) rows.push(['المنيو', menuItems.join('، ')]);
             if (menuNotes) rows.push(['ملاحظات المنيو', menuNotes]);
+            const guestsCount = w.guests || 0;
+            const pricePerPerson = w.pricePerPerson || 0;
+            const menuTotal = (w.subtotal !== undefined && w.subtotal !== null) ? w.subtotal : (guestsCount * pricePerPerson);
+            const guestsValue = (pricePerPerson && !excludePrices)
+                ? `${guestsCount} فرد × ${fmtEGP(pricePerPerson)} = ${fmtEGP(menuTotal)} (إجمالي المنيو)`
+                : `${guestsCount} فرد`;
             rows.push(
-                ['عدد الأفراد', String(w.guests || 0) + ' فرد'],
+                ['عدد الأفراد', guestsValue],
                 ['الإضافات', extrasLine],
             );
             if (!excludePrices) {
