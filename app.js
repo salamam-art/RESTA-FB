@@ -2202,7 +2202,34 @@
                 ['تاريخ الإنشاء', createdAtDisplay],
             ];
 
-            weddingSummaryRows(b, { hideRoomsExtra: true }).forEach(r => rows.push(r));
+            weddingSummaryRows(b, { hideRoomsExtra: true })
+                .filter(r => r[0] !== 'المنيو' && r[0] !== 'ملاحظات المنيو')
+                .forEach(r => rows.push(r));
+
+            // منيو باقة الفرح — تُعرض في صناديق منفصلة وواضحة بدل سطر نصي متلاصق
+            let menuBoxHtml = '';
+            if (b.eventType === 'wedding' && b.wedding) {
+                const wPkg = state.weddingSettings.packages.find(p => p.id === b.wedding.packageId);
+                const wMenuItems = (b.wedding.menuItems && b.wedding.menuItems.filter(m => m.trim()).length)
+                    ? b.wedding.menuItems.filter(m => m.trim())
+                    : (wPkg && wPkg.menuItems ? wPkg.menuItems.filter(m => m.trim()) : []);
+                const wMenuNotes = (b.wedding.menuNotes && b.wedding.menuNotes.trim())
+                    ? b.wedding.menuNotes.trim()
+                    : (wPkg && wPkg.menuNotes ? wPkg.menuNotes.trim() : '');
+                if (wMenuItems.length || wMenuNotes) {
+                    const itemsGridHtml = wMenuItems.length ? `
+                        <div class="menu-grid">
+                            ${wMenuItems.map(item => `<div class="menu-item-box">${item.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`).join('')}
+                        </div>` : '';
+                    const notesHtml = wMenuNotes ? `<div class="menu-notes">${wMenuNotes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : '';
+                    menuBoxHtml = `
+<div class="menu-box">
+    <div class="menu-box-title">منيو الباقة</div>
+    ${itemsGridHtml}
+    ${notesHtml}
+</div>`;
+                }
+            }
 
             const printLinks = getBookingLinks(b);
             if (printLinks.length) {
@@ -2310,6 +2337,48 @@
         font-weight: 600;
         line-height: 1.25;
     }
+    .menu-box {
+        margin-top: 5px;
+        background: #fdf6f2;
+        border: 1px solid #A88A45;
+        border-radius: 8px;
+        padding: 6px 12px;
+    }
+    .menu-box-title {
+        font-size: 10.5px;
+        font-weight: 900;
+        color: #6E1418;
+        margin-bottom: 5px;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #A88A45;
+    }
+    .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
+        margin-bottom: 4px;
+    }
+    .menu-item-box {
+        background: #ffffff;
+        border: 1px solid #A88A45;
+        border-radius: 6px;
+        padding: 5px 8px;
+        font-size: 13px;
+        font-weight: 900;
+        color: #8f753a;
+        text-align: center;
+        line-height: 1.3;
+    }
+    .menu-notes {
+        font-size: 10px;
+        color: #78350f;
+        font-weight: 600;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        padding: 4px 10px;
+        line-height: 1.3;
+    }
     ${notesDisplay ? `
     .notes-box {
         margin-top: 5px;
@@ -2383,6 +2452,7 @@
 <table>
     <tbody>${rowsHtml}</tbody>
 </table>
+${menuBoxHtml}
 ${notesDisplay ? `
 <div class="notes-box">
     <div class="nb-title">ملاحظات</div>
