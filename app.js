@@ -14,6 +14,7 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const storage = firebase.storage();
         const CLOUD_ENABLED = true; // Firebase مفعّل دائماً (بديل عن فحص وجود رابط GAS القديم)
         // آخر قيمة معروفة لـ meta/updatedAt — تُستخدم في الاشتراك اللحظي لتفادي إعادة
         // مزامنة غير ضرورية عندما يكون التغيير صادراً من كتابتنا نحن أنفسنا
@@ -3540,6 +3541,40 @@ ${acknowledgmentHtml}
             });
         }
 
+        // Converts a base64 dataURL (as produced by resizeImageSource) into a Blob,
+        // ready to upload to Firebase Storage.
+        function dataUrlToBlob(dataUrl) {
+            const parts = dataUrl.split(',');
+            const mimeMatch = parts[0].match(/data:(.*?);base64/);
+            const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+            const binary = atob(parts[1]);
+            const arr = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+            return new Blob([arr], { type: mime });
+        }
+
+        // Uploads a resized dataURL to Firebase Storage and returns its download URL,
+        // so the bookings tree stores a short link instead of the full base64 payload.
+        function uploadResizedImage(dataUrl) {
+            const blob = dataUrlToBlob(dataUrl);
+            const path = 'bookings/' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.jpg';
+            const ref = storage.ref().child(path);
+            return ref.put(blob, { contentType: blob.type || 'image/jpeg' }).then(snap => snap.ref.getDownloadURL());
+        }
+
+        // True for a Firebase Storage download URL (as opposed to a legacy base64 dataURL).
+        function isStorageImageUrl(url) {
+            return typeof url === 'string' && /^https?:\/\//.test(url) &&
+                (url.indexOf('firebasestorage') !== -1 || url.indexOf('storage.googleapis.com') !== -1);
+        }
+
+        // Best-effort delete from Storage; ignored if the file is already gone or the
+        // image was never uploaded there (legacy base64 entries have nothing to delete).
+        function deleteStorageImageSilently(url) {
+            if (!isStorageImageUrl(url)) return;
+            storage.refFromURL(url).delete().catch(() => {});
+        }
+
         function triggerImageFileInput() {
             const input = document.getElementById('imageFileInput');
             if (input) input.click();
@@ -3548,15 +3583,21 @@ ${acknowledgmentHtml}
         async function handleImageFilesSelected(event) {
             const files = Array.from(event.target.files || []).filter(f => f.type.startsWith('image/'));
             for (const file of files) {
+                const placeholderId = genImageId();
+                formImages.push({ id: placeholderId, data: '', uploading: true });
+                renderImageThumbs();
                 try {
                     const dataUrl = await resizeImageSource(file);
-                    formImages.push({ id: genImageId(), data: dataUrl });
+                    const url = await uploadResizedImage(dataUrl);
+                    const item = formImages.find(img => img.id === placeholderId);
+                    if (item) { item.data = url; item.uploading = false; }
                 } catch (err) {
+                    formImages = formImages.filter(img => img.id !== placeholderId);
                     alert('تعذّر تحميل إحدى الصور: ' + err.message);
                 }
+                renderImageThumbs();
             }
             event.target.value = ''; // allow re-selecting the same file
-            renderImageThumbs();
         }
 
         function setFormImages(images) {
@@ -3565,16 +3606,21 @@ ${acknowledgmentHtml}
         }
 
         function removeFormImage(id) {
+            const img = formImages.find(x => x.id === id);
             formImages = formImages.filter(img => img.id !== id);
             renderImageThumbs();
+            if (img) deleteStorageImageSilently(img.data);
         }
 
         function renderImageThumbs() {
             const container = document.getElementById('imageThumbsContainer');
             if (!container) return;
-            container.innerHTML = formImages.map((img, i) => `
-                <div class="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm group shrink-0">
-                    <img src="${img.data}" onclick="openImageLightbox(formImages.map(x=>x.data), ${i})" class="w-full h-full object-cover cursor-zoom-in">
+            container.innerHTML = formImages.map((img) => `
+                <div class="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm group shrink-0 ${img.uploading ? 'flex items-center justify-center bg-slate-100' : ''}">
+                    ${img.uploading
+                        ? '<span class="text-[10px] text-slate-400 text-center px-1">جاري الرفع...</span>'
+                        : `<img src="${img.data}" onclick="openImageLightbox(formImages.filter(x=>!x.uploading).map(x=>x.data), formImages.filter(x=>!x.uploading).findIndex(x=>x.id==='${img.id}'))" class="w-full h-full object-cover cursor-zoom-in">`
+                    }
                     <button type="button" onclick="removeFormImage('${img.id}')" title="حذف الصورة"
                         class="absolute top-1 left-1 w-6 h-6 flex items-center justify-center rounded-full bg-red-600/90 text-white shadow hover:bg-red-700 transition-colors">
                         <i data-lucide="x" class="w-3.5 h-3.5"></i>
