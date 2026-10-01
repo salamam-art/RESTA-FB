@@ -799,7 +799,7 @@
             const existingUser = state.users.find(u => u.email === email);
 
             if (existingUser) {
-                if (existingUser.password === password) {
+                if (String(existingUser.password) === password) {
                     performLogin(email);
                 } else {
                     alert('كلمة المرور غير صحيحة!');
