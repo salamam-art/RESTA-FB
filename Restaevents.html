@@ -165,7 +165,39 @@
             <div class="p-6 overflow-y-auto">
                 <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-start gap-3 text-blue-800">
                     <i data-lucide="info" class="w-5 h-5 mt-0.5 shrink-0"></i>
-                    <p class="text-sm">قائمة بجميع المستخدمين المسجلين بالنظام. إضافة المستخدمين وحذفهم وتغيير كلمات المرور تتم من Firebase Console فقط (Realtime Database ← users).</p>
+                    <p class="text-sm">قائمة بجميع المستخدمين المسجلين بالنظام. بصفتك مدير (Admin)، يمكنك تعديل كلمات المرور أو حذف الحسابات.</p>
+                </div>
+
+                <!-- Add New User Form - Admin Only -->
+                <div id="addUserFormSection" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6">
+                    <div class="flex items-center gap-2 text-slate-700 font-black text-base mb-4 border-b border-slate-200 pb-3">
+                        <i data-lucide="user-plus" class="w-5 h-5 text-[#A88A45]"></i>
+                        إضافة مستخدم جديد
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div class="input-group">
+                            <label class="required">البريد الإلكتروني</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <i data-lucide="mail" class="w-4 h-4 text-slate-400"></i>
+                                </div>
+                                <input type="email" id="newUserEmail" placeholder="user@example.com" dir="ltr" class="text-left pl-10">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label class="required">كلمة المرور</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <i data-lucide="lock" class="w-4 h-4 text-slate-400"></i>
+                                </div>
+                                <input type="password" id="newUserPassword" placeholder="••••••••" dir="ltr" class="text-left pl-10">
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="addNewUser()" class="bg-[#6E1418] hover:bg-[#5a1013] text-white font-bold px-6 py-2.5 rounded-xl shadow-md shadow-[#6E1418]/20 transition-all duration-200 flex items-center gap-2 text-sm active:scale-95">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                        إنشاء الحساب
+                    </button>
                 </div>
 
                 <div class="table-responsive rounded-xl border border-slate-200">
@@ -478,7 +510,7 @@
                                 <input type="tel" name="phone" placeholder="مثال: 01xxxxxxxxx">
                             </div>
                             <div class="input-group">
-                                <label>الموظف المسؤول</label>
+                                <label>القائم بالحجز</label>
                                 <input type="text" name="employee" placeholder="اسم الموظف المتابع">
                             </div>
                         </div>
@@ -774,7 +806,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">
