@@ -122,15 +122,6 @@
                 .replace(/'/g, '&#39;');
         }
 
-        // المستخدمون يُدارون من Firebase Console فقط (Realtime Database ← users).
-        // التطبيق يقرأ القائمة من السحابة ولا يكتب فيها أبدًا، وبالتالي أي نسخة محلية قديمة
-        // لا تقدر ترجّع مستخدمين محذوفين. الأدمن يفضل متاح محليًا حتى لو مش موجود في السحابة.
-        function withLocalAdmin(list) {
-            if (list.some(u => u.email === ADMIN_EMAIL)) return list;
-            const localAdmin = state.users.find(u => u.email === ADMIN_EMAIL);
-            return localAdmin ? [...list, localAdmin] : list;
-        }
-
         // قراءة لقطة كاملة من البيانات (bookings/logs/users/updatedAt) — بديل GET القديم على CLOUD_URL
         async function fetchCloudSnapshot() {
             const [bSnap, lSnap, uSnap, mSnap] = await Promise.all([
@@ -156,11 +147,12 @@
         // فايربيز للأبد — مفيش حاجة بتقوله يمسحه — وبيرجع يظهر كحجز مكرر في كل مزامنة تالية.
         // الكتابة الكاملة هنا ذاتية الإصلاح: أي حجز مش موجود في finalBookings بيتشال تلقائيًا
         // من فايربيز لأن set() بيستبدل العقدة بالكامل، فمفيش نسخ قديمة ممكن تفضل عالقة.
-        async function pushCloudSnapshot(finalBookings, finalLogs) {
+        async function pushCloudSnapshot(finalBookings, finalLogs, usersForCloud) {
             const now = new Date().toISOString();
             await Promise.all([
                 db.ref('bookings').set(finalBookings),
                 db.ref('logs').set(finalLogs),
+                db.ref('users').set(usersForCloud),
                 db.ref('meta/updatedAt').set(now)
             ]);
             _lastKnownUpdatedAt = now; // تسجيل فوري لتفادي إعادة مزامنة ذاتية عند وصول حدث المستمع اللحظي
@@ -310,6 +302,28 @@
             } else {
                 state.users.push({ email: ADMIN_EMAIL, password: ADMIN_PASS, createdAt: new Date().toISOString() });
                 saveUsers();
+                markUserDirty(ADMIN_EMAIL);
+            }
+
+            // تنظيف لمرة واحدة: حذف جميع الحسابات والإبقاء فقط على الحسابات المسموح بها
+            if (!localStorage.getItem('hotel_users_cleanup_v1')) {
+                const ALLOWED_EMAILS = ['salama.m@gmail.com', 'rihan@gmail.com', 'marwa@gmail.com'];
+                const removedEmails = state.users
+                    .filter(u => !ALLOWED_EMAILS.includes((u.email || '').toLowerCase()))
+                    .map(u => u.email);
+                if (removedEmails.length > 0) {
+                    state.users = state.users.filter(u => ALLOWED_EMAILS.includes((u.email || '').toLowerCase()));
+                    removedEmails.forEach(email => {
+                        if (!state.pendingDeletedUsers.includes(email)) {
+                            state.pendingDeletedUsers.push(email);
+                        }
+                    });
+                    state._opsVersion++;
+                    localStorage.setItem('hotel_deleted_users', JSON.stringify(state.pendingDeletedUsers));
+                    saveUsers();
+                    syncToCloud();
+                }
+                localStorage.setItem('hotel_users_cleanup_v1', '1');
             }
 
             // Migrate legacy bookings: assign groupId from id prefix if missing
@@ -404,7 +418,8 @@
             try {
                 const dirtyBookings     = state.bookings.filter(b => b._isDirty);
                 const pendingDels       = [...state.pendingDeletions];
-                const hasPendingChanges = dirtyBookings.length > 0 || pendingDels.length > 0;
+                const pendingDelUsers   = [...state.pendingDeletedUsers];
+                const hasPendingChanges = dirtyBookings.length > 0 || pendingDels.length > 0 || pendingDelUsers.length > 0;
 
                 const serverData = await fetchCloudSnapshot();
 
@@ -433,10 +448,16 @@
                     return;
                 }
 
-                // المستخدمون للقراءة فقط من السحابة — الرفع للحجوزات والسجلات فقط
-                const shouldPushUsers = hasPendingChanges;
+                // مستخدمون تم تعديلهم محليًا (إضافة جديدة أو تغيير باسورد) عبر action صريح
+                // بنعتمد على قائمة صريحة (dirtyUserEmails) بدل استنتاج "الفرق" بين القوائم،
+                // عشان أي جهاز (حتى جهاز الأدمن نفسه لو فاتح من كذا متصفح) ولسه شايل نسخة محلية
+                // قديمة، ميرجّعش يبعت مستخدمين اتحذفوا من جهاز تاني للسحابة تاني من غير قصد
+                const pendingUserChanges = [...(state.dirtyUserEmails || [])];
+                const hasPendingUserChanges = pendingUserChanges.length > 0;
+                const shouldPushUsers = hasPendingChanges || hasPendingUserChanges;
 
                 let finalBookings;
+                let usersForCloud;
 
                 if (shouldPushUsers) {
                     const bookingsMap = new Map(serverBookings.map(b => [String(b.id), b]));
@@ -448,9 +469,25 @@
                     pendingDels.forEach(id => bookingsMap.delete(String(id)));
                     finalBookings = Array.from(bookingsMap.values());
 
+                    // ── بناء قائمة المستخدمين اللي هتتبعت للسحابة ──
+                    // الأساس هو قائمة السحابة نفسها (المصدر الموثوق)، وفوقها بس بنطبّق:
+                    // 1. حذف المستخدمين اللي في pendingDelUsers
+                    // 2. تحديث/إضافة المستخدمين اللي فعليًا اتغيّروا محليًا (pendingUserChanges)
+                    // كده أي مستخدم تاني موجود محليًا بس ملوش تغيير صريح، مش هيتبعت تاني للسحابة
+                    const deletedUsersSet = new Set(pendingDelUsers);
+                    const usersMap = new Map(serverUsers.map(su => [su.email, su]));
+                    deletedUsersSet.forEach(email => usersMap.delete(email));
+                    pendingUserChanges.forEach(email => {
+                        if (deletedUsersSet.has(email)) return;
+                        const localUser = state.users.find(u => u.email === email);
+                        if (localUser) usersMap.set(email, localUser);
+                    });
+                    usersForCloud = Array.from(usersMap.values());
+
                     await pushCloudSnapshot(
                         finalBookings,
-                        mergeLogs(state.activityLogs, serverLogs)
+                        mergeLogs(state.activityLogs, serverLogs),
+                        usersForCloud
                     );
 
                     // فحص ثالث بعد الكتابة — لو حصل تغيير أثناء الكتابة، لا تُحدّث state
@@ -508,8 +545,11 @@
                 });
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
-                // السحابة هي المصدر الوحيد للمستخدمين — أي نسخة محلية قديمة بتتصفّى بعد كل مزامنة
-                const finalUsers = withLocalAdmin(serverUsers);
+                // ── بناء القائمة النهائية للمستخدمين بعد المزامنة ──
+                // السحابة هي المصدر الموثوق دايمًا. لو كنا بعتنا تعديلات (shouldPushUsers)
+                // فالقائمة اللي اتبعتت (usersForCloud) هي الصح، وإلا فقائمة السحابة نفسها كما هي.
+                // كده أي نسخة محلية قديمة (فيها مستخدم متحذف من جهاز تاني) بتتصفّى تلقائيًا بعد كل مزامنة
+                const finalUsers = shouldPushUsers ? usersForCloud : serverUsers;
 
                 state.bookings          = finalBookings;   
                 state.pendingDeletions  = [];
@@ -779,27 +819,17 @@
         }
 
         // --- Auth Functions ---
-        async function handleLogin(e) {
+        function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const password = document.getElementById('loginPassword').value;
 
             if (!email || !password) return;
 
-            // اقرأ قائمة المستخدمين من Firebase قبل التحقق (لو أوفلاين نستخدم النسخة المحلية)
-            try {
-                const uSnap = await Promise.race([
-                    db.ref('users').once('value'),
-                    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))
-                ]);
-                state.users = withLocalAdmin(fbValToArray(uSnap.val()));
-                saveUsers();
-            } catch (err) { /* أوفلاين — نكمل بالنسخة المحلية */ }
-
             const existingUser = state.users.find(u => u.email === email);
 
             if (existingUser) {
-                if (String(existingUser.password) === password) {
+                if (existingUser.password === password) {
                     performLogin(email);
                 } else {
                     alert('كلمة المرور غير صحيحة!');
@@ -1192,20 +1222,93 @@
                     <td class="font-bold text-slate-800" style="direction: ltr;">${user.email}</td>
                     <td><span class="font-mono text-[#A88A45] bg-[#A88A45]/10 rounded-lg px-3 py-1 font-bold text-xs">${user.password}</span></td>
                     <td class="text-sm text-slate-500 font-medium">${new Date(user.createdAt).toLocaleDateString('ar-EG')}</td>
-                    <td class="text-xs font-bold text-slate-400">${user.email === ADMIN_EMAIL ? 'أدمن النظام' : 'يُدار من Firebase'}</td>
+                    <td class="flex items-center gap-2 justify-end">
+                        <button onclick="changeUserPassword('${user.email}')" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="تغيير كلمة المرور">
+                            <i data-lucide="key" class="w-4 h-4"></i>
+                        </button>
+                        ${user.email !== ADMIN_EMAIL ? `
+                            <button onclick="deleteUser('${user.email}')" class="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="حذف المستخدم">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        ` : '<span class="text-xs font-bold text-white bg-slate-800 px-3 py-1 rounded-full mx-2">أدمن النظام</span>'}
+                    </td>
                 </tr>
             `).join('');
             if(typeof lucide!=="undefined") lucide.createIcons();
         }
 
-        // إضافة/حذف المستخدمين وتغيير كلمات المرور تتم من Firebase Console فقط:
-        // Realtime Database ← users. التطبيق هنا للقراءة فقط.
-        function _usersManagedInFirebase() {
-            showToast('إدارة المستخدمين تتم من Firebase فقط (Realtime Database ← users).', 'error');
+        function deleteUser(email) {
+            if (email === ADMIN_EMAIL) return;
+            if(confirm(`هل أنت متأكد من حذف المستخدم ${email}؟ \nلن يتمكن من الدخول مرة أخرى.`)) {
+                state.users = state.users.filter(u => u.email !== email);
+                if (!state.pendingDeletedUsers.includes(email)) {
+                    state.pendingDeletedUsers.push(email);
+                }
+                // ارفع العداد لضمان أولوية هذه العملية في syncToCloud
+                state._opsVersion++;
+                localStorage.setItem('hotel_deleted_users', JSON.stringify(state.pendingDeletedUsers));
+                saveUsers();
+                syncToCloud();
+                renderUsersTable();
+                showToast(`تم حذف المستخدم ${email} بنجاح. جاري المزامنة مع السحابة...`, 'success');
+            }
         }
-        function deleteUser() { _usersManagedInFirebase(); }
-        function changeUserPassword() { _usersManagedInFirebase(); }
-        function addNewUser() { _usersManagedInFirebase(); }
+
+        function changeUserPassword(email) {
+            const newPass = prompt(`أدخل كلمة المرور الجديدة للمستخدم ${email}:`);
+            if(newPass && newPass.trim() !== "") {
+                const userIndex = state.users.findIndex(u => u.email === email);
+                if(userIndex !== -1) {
+                    state.users[userIndex].password = newPass.trim();
+                    markUserDirty(email);
+                    saveUsers();
+                    syncToCloud();
+                    renderUsersTable();
+                    showToast("تم تحديث كلمة المرور بنجاح.", 'success');
+                }
+            }
+        }
+
+        function addNewUser() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+
+            const emailInput = document.getElementById('newUserEmail');
+            const passInput  = document.getElementById('newUserPassword');
+            const email    = (emailInput.value || '').trim().toLowerCase();
+            const password = (passInput.value  || '').trim();
+
+            // Validation: missing fields
+            if (!email || !password) {
+                showToast('يرجى إدخال البريد الإلكتروني وكلمة المرور.', 'error');
+                return;
+            }
+
+            // Validation: email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showToast('البريد الإلكتروني غير صحيح. يرجى إدخال بريد صحيح.', 'error');
+                return;
+            }
+
+            // Validation: duplicate email
+            if (state.users.find(u => u.email === email)) {
+                showToast('هذا البريد الإلكتروني مسجل مسبقاً في النظام.', 'error');
+                return;
+            }
+
+            // Create user
+            state.users.push({ email: email, password: password, createdAt: new Date().toISOString() });
+            markUserDirty(email);
+            saveUsers();
+            syncToCloud();
+            renderUsersTable();
+
+            // Clear inputs
+            emailInput.value = '';
+            passInput.value  = '';
+
+            showToast(`تم إنشاء حساب المستخدم (${email}) بنجاح ✓`, 'success');
+        }
 
         function toggleBookingsListModal() {
             const modal = document.getElementById('bookingsListModal');
@@ -2243,7 +2346,7 @@
         استلمت نسخة وأوافق على ما بها من اشتراطات وتعليمات، وإنني مسؤول مسؤولية كاملة وقانونية أمام جميع الجهات المختصة.
     </div>
     <div class="ack-line">بقاعة: <strong>${escHall}</strong></div>
-    <div class="ack-line">بتاريخ: <strong>${dateRow}</strong></div>
+    <div class="ack-line">بتاريخ: <strong class="date-strong">${dateRow}</strong></div>
     <div class="ack-sign">التوقيع: <span class="sig-line"></span></div>
 </div>` : '';
 
@@ -2337,7 +2440,7 @@
             const rowsHtml = rows.map(r => `
                 <tr>
                     <td class="label">${r[0]}</td>
-                    <td class="value">${r[1]}</td>
+                    <td class="value${r[0] === 'التاريخ' ? ' date-val' : ''}">${r[1]}</td>
                 </tr>
             `).join('');
 
@@ -2430,6 +2533,16 @@
         font-weight: 600;
         line-height: 1.25;
     }
+    /* التاريخ: خط أكبر + بولد + أسود صريح لوضوح أعلى */
+    td.value.date-val {
+        font-size: 17px;
+        font-weight: 900;
+        color: #000000;
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+    td.value.date-val span, .date-strong, .date-strong span { color: #000000 !important; }
+    .date-strong { font-size: 14px; font-weight: 900; }
     .menu-box {
         margin-top: 5px;
         background: #fdf6f2;
@@ -5823,6 +5936,7 @@ ${acknowledgmentHtml}
                 const restoreWrites = [
                     db.ref('bookings').set(restoredBookings.length ? restoredBookings : null),
                     db.ref('logs').set(restoredLogs.length ? restoredLogs : null),
+                    db.ref('users').set(restoredUsers.length ? restoredUsers : null),
                     db.ref('meta/updatedAt').set(new Date().toISOString())
                 ];
                 // لو الملف المستورد نسخة كاملة تحتوي أرشيفاً، نستعيد الأرشيف أيضاً بنفس منطق الاستبدال الكامل.
@@ -5838,6 +5952,7 @@ ${acknowledgmentHtml}
                 // تحديث state المحلية
                 state.bookings = restoredBookings;
                 state.activityLogs = restoredLogs;
+                state.users = restoredUsers;
                 state._opsVersion++;
                 saveLocal();
 
