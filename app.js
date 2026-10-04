@@ -786,7 +786,7 @@
 
             const wsData = [
                 ["الرقم المرجعي", "اسم الشركة/الجهة", "القاعة", "من تاريخ", "إلى تاريخ",
-                 "من وقت", "إلى وقت", "رقم الهاتف", "الموظف المسؤول",
+                 "من وقت", "إلى وقت", "رقم الهاتف", "القائم بالحجز",
                  "ملاحظات", "روابط المرفقات", "تم الإنشاء بواسطة", "تاريخ الإنشاء"],
                 ...bookings.map(b => [
                     b.id        || '',
@@ -1469,7 +1469,40 @@
             moveBookingToDate(id, newDate);
         }
 
-        function moveBookingToDate(id, newDate, _skipHistory) {
+        // ─── نافذة تأكيد نقل الحجز ──────────────────────────────────────
+        function showMoveConfirmModal(booking, newDate, onConfirm) {
+            const old = document.getElementById('moveConfirmModal');
+            if (old) old.remove();
+
+            const fmt = d => d.split('-').reverse().join('/');
+            const modal = document.createElement('div');
+            modal.id = 'moveConfirmModal';
+            modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl animate-fade-in text-center">
+                    <div class="w-20 h-20 bg-gradient-to-br from-slate-50 to-slate-100 rounded-[1.5rem] mx-auto mb-5 flex items-center justify-center border border-slate-200">
+                        <i data-lucide="calendar-clock" class="w-10 h-10 text-[#6E1418]"></i>
+                    </div>
+                    <h3 class="text-xl font-black text-[#6E1418] mb-2">تأكيد نقل الحجز</h3>
+                    <p class="text-sm text-slate-500 mb-2">هل تريد نقل حجز <b class="text-slate-800">${escapeHtml(booking.companyName || '')}</b>${booking.hallName ? ' (' + escapeHtml(booking.hallName) + ')' : ''}؟</p>
+                    <p class="text-sm font-bold text-slate-700 mb-6" dir="ltr">${fmt(booking.startDate)} &rarr; ${fmt(newDate)}</p>
+                    <div class="flex gap-3">
+                        <button id="moveConfirmCancel" class="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold py-3 rounded-xl border border-slate-200 transition-all">إلغاء</button>
+                        <button id="moveConfirmOk" class="flex-1 bg-[#6E1418] hover:bg-[#5a1013] text-white font-bold py-3 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all">تأكيد النقل</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+            const onKey = ev => { if (ev.key === 'Escape') close(); };
+            document.addEventListener('keydown', onKey);
+            modal.addEventListener('click', ev => { if (ev.target === modal) close(); });
+            document.getElementById('moveConfirmCancel').onclick = close;
+            document.getElementById('moveConfirmOk').onclick = () => { close(); onConfirm(); };
+        }
+
+        function moveBookingToDate(id, newDate, _skipHistory, _confirmed) {
             const booking = state.bookings.find(b => b.id === id);
             if (!booking) return;
 
@@ -1495,6 +1528,12 @@
             // فحص التعارض في القاعة نفسها باليوم الجديد (تجاهل هذا اليوم فقط من الحجز)
             if (checkConflict(booking.hallId, newDate, booking.startTime, booking.endTime, booking.id, false)) {
                 showToast('عذراً، يوجد حجز آخر في نفس التوقيت بتاريخ ' + newDate.split('-').reverse().join('/') + '.', 'error');
+                return;
+            }
+
+            // رسالة تأكيد قبل النقل (للسحب والإفلات فقط، وليس للتراجع/الإعادة)
+            if (!_skipHistory && !_confirmed) {
+                showMoveConfirmModal(booking, newDate, () => moveBookingToDate(id, newDate, false, true));
                 return;
             }
 
@@ -2346,7 +2385,7 @@
         استلمت نسخة وأوافق على ما بها من اشتراطات وتعليمات، وإنني مسؤول مسؤولية كاملة وقانونية أمام جميع الجهات المختصة.
     </div>
     <div class="ack-line">بقاعة: <strong>${escHall}</strong></div>
-    <div class="ack-line">بتاريخ: <strong>${dateRow}</strong></div>
+    <div class="ack-line">بتاريخ: <strong class="date-strong">${dateRow}</strong></div>
     <div class="ack-sign">التوقيع: <span class="sig-line"></span></div>
 </div>` : '';
 
@@ -2354,7 +2393,7 @@
                 ['التاريخ', dateRow],
                 ['الوقت', timeDisplay],
                 ['رقم الهاتف', b.phone || 'لا يوجد رقم'],
-                ['الموظف المسؤول', (b.employee || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;')],
+                ['القائم بالحجز', (b.employee || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;')],
                 ['تم الإنشاء بواسطة', (b.createdBy || '-').split('@')[0]],
                 ['تاريخ الإنشاء', createdAtDisplay],
             ];
@@ -2440,7 +2479,7 @@
             const rowsHtml = rows.map(r => `
                 <tr>
                     <td class="label">${r[0]}</td>
-                    <td class="value">${r[1]}</td>
+                    <td class="value${r[0] === 'التاريخ' ? ' date-val' : ''}">${r[1]}</td>
                 </tr>
             `).join('');
 
@@ -2533,6 +2572,16 @@
         font-weight: 600;
         line-height: 1.25;
     }
+    /* التاريخ: خط أكبر + بولد + أسود صريح لوضوح أعلى */
+    td.value.date-val {
+        font-size: 17px;
+        font-weight: 900;
+        color: #000000;
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+    td.value.date-val span, .date-strong, .date-strong span { color: #000000 !important; }
+    .date-strong { font-size: 14px; font-weight: 900; }
     .menu-box {
         margin-top: 5px;
         background: #fdf6f2;
@@ -2733,7 +2782,7 @@ ${acknowledgmentHtml}
                 `القاعة: ${hall.name}`,
                 `التاريخ: ${dateRow}`,
                 `الوقت: ${timeDisplay}`,
-                `الموظف المسؤول: ${b.employee || 'غير محدد'}`,
+                `القائم بالحجز: ${b.employee || 'غير محدد'}`,
                 `رقم الهاتف: ${b.phone || 'لا يوجد رقم'}`,
                 `تم الإنشاء بواسطة: ${(b.createdBy || '-').split('@')[0]}`,
                 `تاريخ الإنشاء: ${createdAtDisplay}`,
@@ -2850,7 +2899,7 @@ ${acknowledgmentHtml}
                 `القاعة: ${hall.name}`,
                 `التاريخ: ${dateRow}`,
                 `الوقت: ${timeDisplay}`,
-                `الموظف المسؤول: ${b.employee || 'غير محدد'}`,
+                `القائم بالحجز: ${b.employee || 'غير محدد'}`,
                 `رقم الهاتف: ${b.phone || 'لا يوجد رقم'}`,
                 `تم الإنشاء بواسطة: ${(b.createdBy || '-').split('@')[0]}`,
                 `تاريخ الإنشاء: ${createdAtDisplay}`,
@@ -4301,8 +4350,7 @@ ${acknowledgmentHtml}
 
             box.innerHTML = `
                 <div class="flex justify-between text-slate-600"><span>إجمالي الأفراد (${guests} × ${fmtEGP(price)})</span><span class="font-bold">${fmtEGP(subtotal)}</span></div>
-                <div class="flex justify-between text-slate-600"><span>الإضافات</span><span class="font-bold">${fmtEGP(extrasTotal)}</span></div>
-                <div class="flex justify-between text-slate-600"><span>كرسي الديكور</span><span class="font-bold">${fmtEGP(chairTotal)}</span></div>
+                <div class="flex justify-between text-slate-600"><span>الإضافات</span><span class="font-bold">${fmtEGP(extrasTotal + chairTotal)}</span></div>
                 <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(total)}</span></div>
                 <div class="flex justify-between text-emerald-700 font-bold"><span>المدفوع</span><span>${fmtEGP(paid)}</span></div>
                 <div class="flex justify-between font-black ${remaining > 0 ? 'text-red-600' : 'text-emerald-700'}"><span>المتبقي</span><span>${fmtEGP(remaining)}</span></div>
