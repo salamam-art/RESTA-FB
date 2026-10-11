@@ -260,6 +260,19 @@
             { id: 'pool', name: 'حمام السباحة', icon: 'waves', color: 'bg-cyan-50 text-cyan-700', border: 'border-cyan-400' },
         ];
 
+        // ===== وضع المستخدم الثابت (مثال: Restaevents.html?user=marwa) =====
+        // دخول تلقائي بدون شاشة تسجيل دخول، وبدون زر خروج أو بصمة أو خروج تلقائي.
+        // لإضافة مستخدم ثابت آخر: أضف سطرًا جديدًا داخل FIXED_USERS.
+        const FIXED_USERS = { marwa: 'marwa@gmail.com' };
+        const FIXED_USER_EMAIL = FIXED_USERS[(new URLSearchParams(location.search).get('user') || '').toLowerCase()] || '';
+        if (FIXED_USER_EMAIL) {
+            localStorage.setItem('hotel_app_email', FIXED_USER_EMAIL);
+            const fixedStyle = document.createElement('style');
+            fixedStyle.textContent = 'button[onclick="logout()"], button[onclick="toggleBiometricForCurrentUser()"]{display:none!important}';
+            document.head.appendChild(fixedStyle);
+        }
+        // ===== نهاية وضع المستخدم الثابت =====
+
         let state = {
             currentUserEmail: localStorage.getItem('hotel_app_email') || '',
             isLoggedIn: !!localStorage.getItem('hotel_app_email'),
@@ -908,6 +921,7 @@
         }
 
         function logout() {
+            if (FIXED_USER_EMAIL) return; // المستخدم الثابت لا يخرج
             if (CLOUD_ENABLED) teardownRealtimeSync();
             state.currentUserEmail = '';
             state.isLoggedIn = false;
@@ -1202,6 +1216,7 @@
         }
 
         async function attemptAutoUnlock() {
+            if (FIXED_USER_EMAIL) { unlockApp(); return; } // بدون قفل بصمة
             const stored = getBiometricCredential();
             const canTryBiometric = stored && stored.email === state.currentUserEmail &&
                 state.currentUserEmail !== GUEST_EMAIL && await isBiometricAvailable();
