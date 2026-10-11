@@ -25,11 +25,37 @@
         // منع تغيير قيمة حقول الأرقام (input type="number") بالخطأ عن طريق سكرول
         // عجلة الماوس أثناء التركيز عليها — الحقول لسه بتتعدل عادي بالكيبورد أو
         // بالأسهم الصغيرة الموجودة في الحقل، وسكرول الصفحة نفسها بيفضل شغال عادي.
-        document.addEventListener('wheel', function(e) {
-            if (document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'number') {
-                document.activeElement.blur();
+        // الحل: مستمع wheel (غير passive) بيتركب فقط على حقل الرقم المتركّز عليه،
+        // بيمنع تغيير القيمة وبيسكرول أقرب عنصر قابل للسكرول (جسم المودال) يدويًا.
+        (function() {
+            function findScrollParent(el) {
+                let p = el.parentElement;
+                while (p && p !== document.body && p !== document.documentElement) {
+                    const oy = getComputedStyle(p).overflowY;
+                    if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+                    p = p.parentElement;
+                }
+                return document.scrollingElement || document.documentElement;
             }
-        }, { passive: true });
+            function numberWheel(e) {
+                if (e.ctrlKey) return; // زوم
+                e.preventDefault();
+                const sp = findScrollParent(e.currentTarget);
+                let dy = e.deltaY, dx = e.deltaX;
+                if (e.deltaMode === 1) { dy *= 16; dx *= 16; }
+                else if (e.deltaMode === 2) { dy *= sp.clientHeight; dx *= sp.clientWidth; }
+                sp.scrollTop += dy;
+                if (dx) sp.scrollLeft += dx;
+            }
+            document.addEventListener('focusin', function(e) {
+                const t = e.target;
+                if (t && t.tagName === 'INPUT' && t.type === 'number') t.addEventListener('wheel', numberWheel, { passive: false });
+            });
+            document.addEventListener('focusout', function(e) {
+                const t = e.target;
+                if (t && t.tagName === 'INPUT' && t.type === 'number') t.removeEventListener('wheel', numberWheel);
+            });
+        })();
 
         // --- إعدادات باقات الأفراح والخطوبة (افتراضية — تُستبدل بإعدادات الأدمن من السحابة إن وُجدت) ---
         const DEFAULT_WEDDING_PACKAGES = [
@@ -81,6 +107,33 @@
         function fmtEGP(n) {
             const v = Math.round(Number(n) || 0);
             return v.toLocaleString('en-US') + ' جنيه';
+        }
+
+        // ─── تحويل أيقونات lucide داخل نطاق محدد فقط ─────────────────────────────
+        // lucide.createIcons() (نسخة 0.344) تمسح الصفحة كلها وتعيد بناء كل أيقونة حتى
+        // المحوّلة بالفعل (لأن الـ SVG الناتج يحتفظ بـ data-lucide)، وده كان بيبطّئ فتح
+        // وتعديل فورم الحجز خصوصاً الأفراح والمناسبات. هذه الدالة تحوّل فقط عناصر
+        // <i data-lucide> الجديدة غير المحوّلة داخل العنصر (أو الـ id) الممرَّر.
+        function refreshIcons(root) {
+            if (typeof lucide === 'undefined') return;
+            const scope = (typeof root === 'string' ? document.getElementById(root) : root) || document;
+            const pending = scope.querySelectorAll('[data-lucide]:not(svg)');
+            if (!pending.length) return;
+            // احتياط: لو المكتبة لا توفر icons/createElement نرجع للسلوك القديم
+            if (!lucide.icons || typeof lucide.createElement !== 'function') { lucide.createIcons(); return; }
+            pending.forEach(el => {
+                if (!el.parentNode) return;
+                const name = el.getAttribute('data-lucide');
+                const pascal = name.replace(/(\w)(\w*)(_|-|\s*)/g, (g0, g1, g2) => g1.toUpperCase() + g2.toLowerCase());
+                const iconNode = lucide.icons[pascal];
+                if (!iconNode) return;
+                const elAttrs = {};
+                Array.from(el.attributes).forEach(a => { elAttrs[a.name] = a.value; });
+                const cls = ['lucide', 'lucide-' + name].concat((elAttrs['class'] || '').split(' '))
+                    .map(s => s.trim()).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(' ');
+                const merged = Object.assign({}, iconNode[1], { 'data-lucide': name }, elAttrs, { 'class': cls });
+                el.parentNode.replaceChild(lucide.createElement([iconNode[0], merged, iconNode[2]]), el);
+            });
         }
 
         // ─── وضع الزائر (مشاهدة فقط) ─────────────────────────────
@@ -288,7 +341,7 @@
         }
 
         function init() {
-            if(typeof lucide!=="undefined") lucide.createIcons();
+            if(typeof lucide!=="undefined") refreshIcons();
             updateLoginScreenBiometricButton();
             
             // Ensure Admin Exists
@@ -708,7 +761,7 @@
             });
             
             container.appendChild(toast);
-            if(typeof lucide!=="undefined") lucide.createIcons(); // Ensure icons render
+            if(typeof lucide!=="undefined") refreshIcons('toast-container'); // Ensure icons render
             
             // إخفاء تلقائي بعد 5 ثوانٍ (شريط التقدم أعلاه يتزامن مع نفس المدة)
             toast._toastTimer = setTimeout(() => dismissToast(toast), 5000);
@@ -764,7 +817,7 @@
                         </div>
                     `}).join('');
                 }
-                if(typeof lucide!=="undefined") lucide.createIcons();
+                if(typeof lucide!=="undefined") refreshIcons('notificationsModal');
                 modal.classList.remove('hidden');
             } else {
                 modal.classList.add('hidden');
@@ -1031,7 +1084,7 @@
                     </div>
                 </div>`;
             document.body.appendChild(modal);
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (typeof lucide !== 'undefined') refreshIcons('biometricSetupModal');
             document.getElementById('biometricSetupSkip').onclick = () => modal.remove();
             document.getElementById('biometricSetupConfirm').onclick = async () => {
                 modal.remove();
@@ -1173,7 +1226,7 @@
             screen.classList.remove('hidden');
             document.getElementById('biometricLockStatus').textContent = 'استخدم بصمتك لفتح التطبيق...';
             document.getElementById('biometricLockActions').classList.add('hidden');
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (typeof lucide !== 'undefined') refreshIcons('biometricLockScreen');
         }
 
         function hideBiometricLockScreen() {
@@ -1184,7 +1237,7 @@
         function showBiometricFallback() {
             document.getElementById('biometricLockStatus').textContent = 'تعذر التحقق من البصمة';
             document.getElementById('biometricLockActions').classList.remove('hidden');
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (typeof lucide !== 'undefined') refreshIcons('biometricLockScreen');
         }
 
         async function retryBiometricUnlock() {
@@ -1234,7 +1287,7 @@
                     </td>
                 </tr>
             `).join('');
-            if(typeof lucide!=="undefined") lucide.createIcons();
+            if(typeof lucide!=="undefined") refreshIcons('usersModal');
         }
 
         function deleteUser(email) {
@@ -1335,7 +1388,7 @@
                     }).join('');
                 }
                 modal.classList.remove('hidden');
-                if(typeof lucide!=="undefined") lucide.createIcons();
+                if(typeof lucide!=="undefined") refreshIcons('bookingsListModal');
             } else {
                 modal.classList.add('hidden');
             }
@@ -1492,7 +1545,7 @@
                     </div>
                 </div>`;
             document.body.appendChild(modal);
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (typeof lucide !== 'undefined') refreshIcons('moveConfirmModal');
 
             const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
             const onKey = ev => { if (ev.key === 'Escape') close(); };
@@ -1869,7 +1922,7 @@
             const prev = document.getElementById('copyBookingRangePreview');
             prev.classList.add('hidden'); prev.textContent = '';
             document.getElementById('copyBookingModal').classList.remove('hidden');
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('copyBookingModal');
         }
 
         function onCopyBookingDateChange() {
@@ -1976,7 +2029,7 @@
             }
 
             modal.classList.remove('hidden');
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('deleteConfirmModal');
         }
 
         function closeDeleteConfirmModal() {
@@ -2298,7 +2351,7 @@
                 `;
             }).join('');
             
-            if(typeof lucide!=="undefined") lucide.createIcons();
+            if(typeof lucide!=="undefined") refreshIcons('detailsModal');
             modal.classList.remove('hidden');
         }
 
@@ -2994,7 +3047,7 @@ ${acknowledgmentHtml}
                     ${renderDashboard()}
                 </main>
             `;
-            if(typeof lucide!=="undefined") lucide.createIcons();
+            if(typeof lucide!=="undefined") refreshIcons('app');
         }
 
         function renderHeader() {
@@ -3474,7 +3527,7 @@ ${acknowledgmentHtml}
             document.getElementById('detailsModal').classList.add('hidden');
 
             modal.classList.remove('hidden');
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('globalBookingModal');
         }
 
         // ─── Attachment Links (multi-link support) ─────────────────────────
@@ -3488,7 +3541,7 @@ ${acknowledgmentHtml}
                 '<button type="button" onclick="removeLinkField(this)" class="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="حذف الرابط"><i data-lucide="x" class="w-4 h-4"></i></button>';
             container.appendChild(row);
             if (typeof value === 'string') row.querySelector('input').value = value;
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('linksContainer');
         }
 
         function removeLinkField(btn) {
@@ -3517,7 +3570,7 @@ ${acknowledgmentHtml}
             const list = (links && links.length) ? links : [''];
             container.querySelector('input').value = list[0] || '';
             for (let i = 1; i < list.length; i++) addLinkField(list[i]);
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('linksContainer');
         }
 
         function getLinksFromForm(form) {
@@ -3676,7 +3729,7 @@ ${acknowledgmentHtml}
                     </button>
                 </div>
             `).join('') || '<p class="text-xs text-slate-400">لا توجد صور مرفقة بعد</p>';
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('imageThumbsContainer');
         }
 
         // ─── Image lightbox (used both from the form and from the booking details card) ──
@@ -3694,7 +3747,7 @@ ${acknowledgmentHtml}
             if (!lightboxImages.length) return;
             renderLightbox();
             document.getElementById('imageLightbox').classList.remove('hidden');
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('imageLightbox');
         }
 
         function renderLightbox() {
@@ -3853,7 +3906,7 @@ ${acknowledgmentHtml}
             const titleEl = document.getElementById('globalModalTitle');
             if (titleEl) titleEl.textContent = copyOpts ? 'نسخ حجز — راجع التفاصيل ثم احفظ' : 'تعديل الحجز الحالي';
             modal.classList.remove('hidden');
-            if(typeof lucide!=="undefined") lucide.createIcons();
+            if(typeof lucide!=="undefined") refreshIcons('globalBookingModal');
         }
 
         function toggleGlobalBookingModal() {
@@ -3887,7 +3940,7 @@ ${acknowledgmentHtml}
                 if (titleEl) titleEl.textContent = 'حجز جديد';
 
                 modal.classList.remove('hidden');
-                if(typeof lucide!=="undefined") lucide.createIcons();
+                if(typeof lucide!=="undefined") refreshIcons('globalBookingModal');
             } else {
                 state.editingBookingId = null;
                 modal.classList.add('hidden');
@@ -3923,7 +3976,7 @@ ${acknowledgmentHtml}
                 section.classList.add('hidden');
                 if (otherSection) otherSection.classList.add('hidden');
             }
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('globalBookingModal');
         }
 
         // ═══════════════════ منيو مناسبة خاصة أخرى (عشاء / مؤتمر / حفل) — يدعم عدة منيوهات بتاريخ ووقت لكل منيو ═══════════════════
@@ -3985,7 +4038,7 @@ ${acknowledgmentHtml}
                     <textarea class="other-menu-block-notes" rows="2" placeholder="أي تفاصيل إضافية عن هذا المنيو...">${escapeHtml(m.notes || '')}</textarea>
                 </div>
             `).join('');
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('otherEventMenusContainer');
         }
 
         function recalcOtherMenuTotal(menuIdx) {
@@ -4118,7 +4171,7 @@ ${acknowledgmentHtml}
             const container = document.getElementById('otherCustomEquipContainer');
             if (!container) return;
             container.insertAdjacentHTML('beforeend', otherCustomEquipRowHtml('', '', 1));
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('otherCustomEquipContainer');
             const inputs = container.querySelectorAll('.other-custom-equip-name');
             if (inputs.length) inputs[inputs.length - 1].focus();
         }
@@ -4212,7 +4265,7 @@ ${acknowledgmentHtml}
                 </div>
             `).join('');
             document.getElementById('weddingMenuNotes').value = notes || '';
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('weddingPackageMenuPreview');
         }
 
         function getWeddingMenuItemsFromForm() {
@@ -4272,7 +4325,7 @@ ${acknowledgmentHtml}
             ).join('');
             container.innerHTML = catalogHtml + customHtml;
             applyWeddingFieldPermissions();
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (typeof lucide !== 'undefined') refreshIcons('weddingExtrasContainer');
         }
 
         // إضافة عنصر إضافة جديد مخصّص لهذا الحجز فقط (بدون التأثير على كتالوج الإعدادات العام)
@@ -4282,7 +4335,7 @@ ${acknowledgmentHtml}
             const key = 'custom_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
             container.insertAdjacentHTML('beforeend', weddingExtraRowHtml(key, '', 0, false, true));
             applyWeddingFieldPermissions();
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (typeof lucide !== 'undefined') refreshIcons('weddingExtrasContainer');
             const nameInput = container.querySelector(`.wedding-extra-name[data-extra="${key}"]`);
             if (nameInput) nameInput.focus();
             recalcWeddingTotals();
@@ -4517,7 +4570,7 @@ ${acknowledgmentHtml}
                 </button>
             `;
             onQcPackageChange();
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('quickCalcModal');
         }
 
         function onQcPackageChange() {
@@ -4664,7 +4717,7 @@ ${acknowledgmentHtml}
                     <i data-lucide="check-circle" class="w-5 h-5 text-[#A88A45]"></i> حفظ الإعدادات
                 </button>
             `;
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons('weddingSettingsModal');
         }
 
         function toggleMenuSection(pkgIdx) {
@@ -4938,7 +4991,7 @@ ${acknowledgmentHtml}
             const modal = document.getElementById('deletedBookingsModal');
             if (modal.classList.contains('hidden')) {
                 modal.classList.remove('hidden');
-                if (typeof lucide !== "undefined") lucide.createIcons();
+                if (typeof lucide !== "undefined") refreshIcons();
                 await loadDeletedBookings();
             } else {
                 modal.classList.add('hidden');
@@ -4962,7 +5015,7 @@ ${acknowledgmentHtml}
                         <span>جاري تحميل الحجوزات المحذوفة...</span>
                     </div>
                 </td></tr>`;
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons();
 
             let records = [];
             try {
@@ -5024,7 +5077,7 @@ ${acknowledgmentHtml}
                             <span>لا توجد حجوزات محذوفة حتى الآن</span>
                         </div>
                     </td></tr>`;
-                if (typeof lucide !== "undefined") lucide.createIcons();
+                if (typeof lucide !== "undefined") refreshIcons();
                 return;
             }
 
@@ -5088,7 +5141,7 @@ ${acknowledgmentHtml}
                 `;
             }).join('');
 
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons();
 
             const selectAllBox = document.getElementById('deletedBookingsSelectAll');
             if (selectAllBox) selectAllBox.checked = false;
@@ -5233,7 +5286,7 @@ ${acknowledgmentHtml}
             if (newSection) newSection.style.display = isArchiveAdmin() ? '' : 'none';
             if (modal.classList.contains('hidden')) {
                 modal.classList.remove('hidden');
-                if (typeof lucide !== "undefined") lucide.createIcons();
+                if (typeof lucide !== "undefined") refreshIcons();
                 if (isArchiveAdmin()) populateArchivableMonthsSelect();
                 await loadArchiveIndex();
             } else {
@@ -5323,7 +5376,7 @@ ${acknowledgmentHtml}
                     <i data-lucide="loader-2" class="w-7 h-7 text-slate-300 animate-spin"></i>
                     <span>جاري تحميل قائمة الأشهر المؤرشفة...</span>
                 </div>`;
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons();
 
             let months = [];
             try {
@@ -5348,7 +5401,7 @@ ${acknowledgmentHtml}
                         <i data-lucide="archive" class="w-10 h-10 text-slate-300"></i>
                         <span>لا توجد أشهر مؤرشفة حتى الآن</span>
                     </div>`;
-                if (typeof lucide !== "undefined") lucide.createIcons();
+                if (typeof lucide !== "undefined") refreshIcons();
                 return;
             }
 
@@ -5385,7 +5438,7 @@ ${acknowledgmentHtml}
                 </div>`;
             }).join('');
 
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons();
         }
 
         async function viewArchivedMonth(monthKey) {
@@ -5404,7 +5457,7 @@ ${acknowledgmentHtml}
                         <span>جاري تحميل التفاصيل...</span>
                     </div>
                 </td></tr>`;
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons();
 
             let records = [];
             try {
@@ -5427,7 +5480,7 @@ ${acknowledgmentHtml}
                             <span>لا توجد بيانات</span>
                         </div>
                     </td></tr>`;
-                if (typeof lucide !== "undefined") lucide.createIcons();
+                if (typeof lucide !== "undefined") refreshIcons();
                 return;
             }
 
@@ -5451,7 +5504,7 @@ ${acknowledgmentHtml}
                 </tr>`;
             }).join('');
 
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof lucide !== "undefined") refreshIcons();
         }
 
         async function restoreArchivedMonth(monthKey) {
@@ -5901,7 +5954,7 @@ ${acknowledgmentHtml}
                 </div>
             `;
             document.body.appendChild(modal);
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (typeof lucide !== 'undefined') refreshIcons();
         }
 
         // --- فتح منتقي الملفات لاستيراد النسخة الاحتياطية ---
@@ -5953,7 +6006,7 @@ ${acknowledgmentHtml}
                 });
 
                 modal.classList.remove('hidden');
-                if (typeof lucide !== 'undefined') lucide.createIcons();
+                if (typeof lucide !== 'undefined') refreshIcons();
             };
             reader.readAsText(file);
         }
