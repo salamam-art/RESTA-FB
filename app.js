@@ -3,18 +3,26 @@
         // كل منطق المزامنة، الـ opsVersion، الإشعارات... إلخ باقٍ كما هو تماماً،
         // تم فقط استبدال طبقة الاتصال بالسحابة.
         const firebaseConfig = {
-            apiKey: "AIzaSyDHjNvsMszkSaMFcbyP9oBKtMtT5x8Z5EE",
-            authDomain: "restaevents-eeffb.firebaseapp.com",
-            databaseURL: "https://restaevents-eeffb-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "restaevents-eeffb",
-            storageBucket: "restaevents-eeffb.firebasestorage.app",
-            messagingSenderId: "689779466978",
-            appId: "1:689779466978:web:c9eff234c04df512fc34bb",
-            measurementId: "G-FLWHW5PY98"
+            apiKey: "AIzaSyCSFdAvuqk4l1KJaCyuD5m1mm6q0duBW1I",
+            authDomain: "restaevents-cedd8.firebaseapp.com",
+            databaseURL: "https://restaevents-cedd8-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "restaevents-cedd8",
+            storageBucket: "restaevents-cedd8.firebasestorage.app",
+            messagingSenderId: "485150178953",
+            appId: "1:485150178953:web:788176badf6826282d5058",
+            measurementId: "G-0QPN5ZGSJB"
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const storage = firebase.storage();
+        const auth = firebase.auth();   // Firebase Authentication (بديل تسجيل الدخول القديم المخزّن في قاعدة البيانات)
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+        // وعد يتحقق عند استرجاع جلسة الدخول المحفوظة على الجهاز (أول استجابة من Firebase Auth)
+        const authReadyPromise = new Promise(resolve => {
+            const unsub = auth.onAuthStateChanged(u => { unsub(); resolve(u); });
+        });
+        // مفتاح البريد داخل قاعدة البيانات (Firebase لا يقبل النقطة في أسماء المفاتيح) — لازم يطابق قواعد الأمان
+        function emailKey(email) { return String(email || '').trim().toLowerCase().replace(/\./g, ','); }
         const CLOUD_ENABLED = true; // Firebase مفعّل دائماً (بديل عن فحص وجود رابط GAS القديم)
         // آخر قيمة معروفة لـ meta/updatedAt — تُستخدم في الاشتراك اللحظي لتفادي إعادة
         // مزامنة غير ضرورية عندما يكون التغيير صادراً من كتابتنا نحن أنفسنا
@@ -176,17 +184,17 @@
         }
 
         // قراءة لقطة كاملة من البيانات (bookings/logs/users/updatedAt) — بديل GET القديم على CLOUD_URL
+        // ملاحظة أمنية: الزائر (Anonymous) لا يقرأ السجلات (logs) — قواعد الأمان تمنعها عنه.
         async function fetchCloudSnapshot() {
-            const [bSnap, lSnap, uSnap, mSnap] = await Promise.all([
+            const guest = (typeof isGuest === 'function') && isGuest();
+            const [bSnap, lSnap, mSnap] = await Promise.all([
                 db.ref('bookings').once('value'),
-                db.ref('logs').once('value'),
-                db.ref('users').once('value'),
+                guest ? Promise.resolve({ val: () => null }) : db.ref('logs').once('value'),
                 db.ref('meta/updatedAt').once('value')
             ]);
             return {
                 bookings: fbValToArray(bSnap.val()),
                 logs: fbValToArray(lSnap.val()),
-                users: fbValToArray(uSnap.val()),
                 updatedAt: mSnap.val() || null
             };
         }
@@ -200,12 +208,11 @@
         // فايربيز للأبد — مفيش حاجة بتقوله يمسحه — وبيرجع يظهر كحجز مكرر في كل مزامنة تالية.
         // الكتابة الكاملة هنا ذاتية الإصلاح: أي حجز مش موجود في finalBookings بيتشال تلقائيًا
         // من فايربيز لأن set() بيستبدل العقدة بالكامل، فمفيش نسخ قديمة ممكن تفضل عالقة.
-        async function pushCloudSnapshot(finalBookings, finalLogs, usersForCloud) {
+        async function pushCloudSnapshot(finalBookings, finalLogs) {
             const now = new Date().toISOString();
             await Promise.all([
                 db.ref('bookings').set(finalBookings),
                 db.ref('logs').set(finalLogs),
-                db.ref('users').set(usersForCloud),
                 db.ref('meta/updatedAt').set(now)
             ]);
             _lastKnownUpdatedAt = now; // تسجيل فوري لتفادي إعادة مزامنة ذاتية عند وصول حدث المستمع اللحظي
@@ -265,8 +272,9 @@
         // لإضافة مستخدم ثابت آخر: أضف سطرًا جديدًا داخل FIXED_USERS.
         const FIXED_USERS = { marwa: 'marwa@gmail.com' };
         const FIXED_USER_EMAIL = FIXED_USERS[(new URLSearchParams(location.search).get('user') || '').toLowerCase()] || '';
+        // ملاحظة أمنية: لم يعد الدخول بدون كلمة مرور ممكنًا. المستخدم الثابت يسجّل الدخول مرة واحدة
+        // بكلمة المرور على كل جهاز، وبعدها تبقى جلسة Firebase محفوظة فيدخل تلقائيًا في المرات التالية.
         if (FIXED_USER_EMAIL) {
-            localStorage.setItem('hotel_app_email', FIXED_USER_EMAIL);
             const fixedStyle = document.createElement('style');
             fixedStyle.textContent = 'button[onclick="logout()"], button[onclick="toggleBiometricForCurrentUser()"]{display:none!important}';
             document.head.appendChild(fixedStyle);
@@ -276,15 +284,13 @@
         let state = {
             currentUserEmail: localStorage.getItem('hotel_app_email') || '',
             isLoggedIn: !!localStorage.getItem('hotel_app_email'),
-            users: JSON.parse(localStorage.getItem('hotel_users_db')) || [],
+            users: [],   // دليل المستخدمين (بريد + تاريخ فقط، بدون كلمات سر) — يُحمَّل للأدمن فقط عند فتح شاشة المستخدمين
             view: 'dashboard',
             activeTab: 'calendar',
             selectedHall: null,
             bookings: JSON.parse(localStorage.getItem('hotel_bookings_local')) || [],
             activityLogs: JSON.parse(localStorage.getItem('hotel_logs_local')) || [],
             pendingDeletions: JSON.parse(localStorage.getItem('hotel_deleted_ids')) || [],
-            pendingDeletedUsers: JSON.parse(localStorage.getItem('hotel_deleted_users')) || [],
-            dirtyUserEmails: JSON.parse(localStorage.getItem('hotel_dirty_users')) || [],
             notifications: JSON.parse(localStorage.getItem('hotel_notifications')) || [], 
             weddingSettings: JSON.parse(localStorage.getItem('hotel_wedding_settings')) || {
                 packages: DEFAULT_WEDDING_PACKAGES.map(p => ({ ...p })),
@@ -357,40 +363,9 @@
             if(typeof lucide!=="undefined") refreshIcons();
             updateLoginScreenBiometricButton();
             
-            // Ensure Admin Exists
-            const ADMIN_PASS = 'Hamada@1968';
-            const adminIndex = state.users.findIndex(u => u.email === ADMIN_EMAIL);
-            if (adminIndex !== -1) {
-                if (state.users[adminIndex].password !== ADMIN_PASS) {
-                    state.users[adminIndex].password = ADMIN_PASS;
-                    saveUsers();
-                }
-            } else {
-                state.users.push({ email: ADMIN_EMAIL, password: ADMIN_PASS, createdAt: new Date().toISOString() });
-                saveUsers();
-                markUserDirty(ADMIN_EMAIL);
-            }
-
-            // تنظيف لمرة واحدة: حذف جميع الحسابات والإبقاء فقط على الحسابات المسموح بها
-            if (!localStorage.getItem('hotel_users_cleanup_v1')) {
-                const ALLOWED_EMAILS = ['salama.m@gmail.com', 'rihan@gmail.com', 'marwa@gmail.com'];
-                const removedEmails = state.users
-                    .filter(u => !ALLOWED_EMAILS.includes((u.email || '').toLowerCase()))
-                    .map(u => u.email);
-                if (removedEmails.length > 0) {
-                    state.users = state.users.filter(u => ALLOWED_EMAILS.includes((u.email || '').toLowerCase()));
-                    removedEmails.forEach(email => {
-                        if (!state.pendingDeletedUsers.includes(email)) {
-                            state.pendingDeletedUsers.push(email);
-                        }
-                    });
-                    state._opsVersion++;
-                    localStorage.setItem('hotel_deleted_users', JSON.stringify(state.pendingDeletedUsers));
-                    saveUsers();
-                    syncToCloud();
-                }
-                localStorage.setItem('hotel_users_cleanup_v1', '1');
-            }
+            // تنظيف أي بيانات مستخدمين قديمة (فيها كلمات سر) كانت محفوظة على هذا الجهاز
+            ['hotel_users_db', 'hotel_deleted_users', 'hotel_dirty_users', 'hotel_users_cleanup_v1']
+                .forEach(k => localStorage.removeItem(k));
 
             // Migrate legacy bookings: assign groupId from id prefix if missing
             let migrated = false;
@@ -402,16 +377,60 @@
             });
             if (migrated) localStorage.setItem('hotel_bookings_local', JSON.stringify(state.bookings));
 
-            if (state.isLoggedIn) {
-                attemptAutoUnlock();
+            // الجلسة الحقيقية مصدرها Firebase Auth، مش localStorage: ننتظر استرجاع الجلسة المحفوظة
+            // ونتأكد إنها مطابقة للمستخدم المخزّن قبل فتح التطبيق.
+            authReadyPromise.then(reconcileSession);
+        }
+
+        // مطابقة حالة الواجهة مع جلسة Firebase Auth الفعلية
+        function reconcileSession(u) {
+            const localEmail = state.currentUserEmail;
+            const uEmail = u && u.email ? u.email.toLowerCase() : '';
+
+            // مستخدم ثابت (?user=marwa) عنده جلسة صالحة على الجهاز → دخول تلقائي
+            if (FIXED_USER_EMAIL && u && !u.isAnonymous && uEmail === FIXED_USER_EMAIL) {
+                state.currentUserEmail = FIXED_USER_EMAIL;
+                state.isLoggedIn = true;
+                localStorage.setItem('hotel_app_email', FIXED_USER_EMAIL);
+                unlockApp();
+                return;
             }
 
-            setupWeddingSettingsListener();
+            if (!state.isLoggedIn) { prefillFixedUserEmail(); return; }
+
+            const valid = u && (localEmail === GUEST_EMAIL ? u.isAnonymous : (!u.isAnonymous && uEmail === localEmail));
+            if (!valid) {
+                // الجلسة انتهت أو لا تطابق المستخدم المخزّن → نرجّع شاشة تسجيل الدخول
+                state.currentUserEmail = '';
+                state.isLoggedIn = false;
+                localStorage.removeItem('hotel_app_email');
+                hideBiometricLockScreen();
+                document.getElementById('app').style.display = 'none';
+                document.getElementById('loginModal').style.display = 'flex';
+                prefillFixedUserEmail();
+                updateLoginScreenBiometricButton();
+                return;
+            }
+            attemptAutoUnlock();
+        }
+
+        function prefillFixedUserEmail() {
+            if (!FIXED_USER_EMAIL) return;
+            const el = document.getElementById('loginEmail');
+            if (el && !el.value) el.value = FIXED_USER_EMAIL;
         }
 
         // ─── إعدادات باقات الأفراح والخطوبة (مشتركة بين جميع المستخدمين) ───
+        function teardownWeddingSettingsListener() {
+            try { db.ref('weddingSettings').off('value'); } catch (e) {}
+        }
+        // القراءة تحتاج جلسة Firebase صالحة (زائر أو موظف)، فنشغّل/نوقف الاشتراك مع حالة الدخول
+        auth.onAuthStateChanged((u) => {
+            if (u) setupWeddingSettingsListener(); else teardownWeddingSettingsListener();
+        });
         function setupWeddingSettingsListener() {
             if (!CLOUD_ENABLED) return;
+            teardownWeddingSettingsListener();
             db.ref('weddingSettings').on('value', (snap) => {
                 const val = snap.val();
                 if (val && Array.isArray(val.packages) && Array.isArray(val.extras)) {
@@ -423,7 +442,7 @@
                     const qc = document.getElementById('quickCalcModal');
                     if (qc && !qc.classList.contains('hidden')) renderQuickCalcModal();
                 }
-            });
+            }, (err) => { console.warn('weddingSettings listener cancelled:', err && err.code); });
         }
 
         async function saveWeddingSettingsToCloud() {
@@ -438,20 +457,6 @@
             } catch (err) {
                 showToast('حدث خطأ أثناء حفظ الإعدادات: ' + err.message, 'error');
             }
-        }
-
-        function saveUsers() {
-            localStorage.setItem('hotel_users_db', JSON.stringify(state.users));
-        }
-
-        // يعلّم مستخدم معيّن كـ"معدَّل محليًا" (إضافة/تغيير باسورد) عشان يتبعت فعليًا للسحابة
-        // في المزامنة الجاية، بدل الاعتماد على استنتاج الفرق بين القوائم
-        function markUserDirty(email) {
-            if (!state.dirtyUserEmails.includes(email)) {
-                state.dirtyUserEmails.push(email);
-            }
-            state._opsVersion++;
-            localStorage.setItem('hotel_dirty_users', JSON.stringify(state.dirtyUserEmails));
         }
 
         function showSync(text = "جاري المزامنة...", isError = false) {
@@ -484,8 +489,8 @@
             try {
                 const dirtyBookings     = state.bookings.filter(b => b._isDirty);
                 const pendingDels       = [...state.pendingDeletions];
-                const pendingDelUsers   = [...state.pendingDeletedUsers];
-                const hasPendingChanges = dirtyBookings.length > 0 || pendingDels.length > 0 || pendingDelUsers.length > 0;
+                // الزائر للقراءة فقط: لا يُسمح له بأي رفع (والقواعد تمنعه أيضًا من جهة السيرفر)
+                const hasPendingChanges = !isGuest() && (dirtyBookings.length > 0 || pendingDels.length > 0);
 
                 const serverData = await fetchCloudSnapshot();
 
@@ -501,31 +506,10 @@
 
                 const serverBookings = serverData.bookings || [];
                 const serverLogs     = serverData.logs     || [];
-                const serverUsers    = serverData.users    || [];
-
-                // ── حماية: لو حساب المستخدم الحالي اتحذف من مكان تاني (السيرفر ما عادش فيه إيميله) ──
-                // نعمل له تسجيل خروج فوري بدل ما نسيبه شغال بحساب محذوف، ونمنع أي رفع بيانات لحسابه
-                const serverEmailsSetCheck = new Set(serverUsers.map(su => su.email));
-                if (state.currentUserEmail && state.currentUserEmail !== GUEST_EMAIL &&
-                    state.currentUserEmail !== ADMIN_EMAIL && !serverEmailsSetCheck.has(state.currentUserEmail)) {
-                    state.isSyncing = false;
-                    showToast('تم حذف حسابك من قبل المدير. سيتم تسجيل خروجك.', 'error');
-                    setTimeout(logout, 1000);
-                    return;
-                }
-
-                // مستخدمون تم تعديلهم محليًا (إضافة جديدة أو تغيير باسورد) عبر action صريح
-                // بنعتمد على قائمة صريحة (dirtyUserEmails) بدل استنتاج "الفرق" بين القوائم،
-                // عشان أي جهاز (حتى جهاز الأدمن نفسه لو فاتح من كذا متصفح) ولسه شايل نسخة محلية
-                // قديمة، ميرجّعش يبعت مستخدمين اتحذفوا من جهاز تاني للسحابة تاني من غير قصد
-                const pendingUserChanges = [...(state.dirtyUserEmails || [])];
-                const hasPendingUserChanges = pendingUserChanges.length > 0;
-                const shouldPushUsers = hasPendingChanges || hasPendingUserChanges;
 
                 let finalBookings;
-                let usersForCloud;
 
-                if (shouldPushUsers) {
+                if (hasPendingChanges) {
                     const bookingsMap = new Map(serverBookings.map(b => [String(b.id), b]));
                     dirtyBookings.forEach(b => {
                         const clean = { ...b };
@@ -535,25 +519,9 @@
                     pendingDels.forEach(id => bookingsMap.delete(String(id)));
                     finalBookings = Array.from(bookingsMap.values());
 
-                    // ── بناء قائمة المستخدمين اللي هتتبعت للسحابة ──
-                    // الأساس هو قائمة السحابة نفسها (المصدر الموثوق)، وفوقها بس بنطبّق:
-                    // 1. حذف المستخدمين اللي في pendingDelUsers
-                    // 2. تحديث/إضافة المستخدمين اللي فعليًا اتغيّروا محليًا (pendingUserChanges)
-                    // كده أي مستخدم تاني موجود محليًا بس ملوش تغيير صريح، مش هيتبعت تاني للسحابة
-                    const deletedUsersSet = new Set(pendingDelUsers);
-                    const usersMap = new Map(serverUsers.map(su => [su.email, su]));
-                    deletedUsersSet.forEach(email => usersMap.delete(email));
-                    pendingUserChanges.forEach(email => {
-                        if (deletedUsersSet.has(email)) return;
-                        const localUser = state.users.find(u => u.email === email);
-                        if (localUser) usersMap.set(email, localUser);
-                    });
-                    usersForCloud = Array.from(usersMap.values());
-
                     await pushCloudSnapshot(
                         finalBookings,
-                        mergeLogs(state.activityLogs, serverLogs),
-                        usersForCloud
+                        mergeLogs(state.activityLogs, serverLogs)
                     );
 
                     // فحص ثالث بعد الكتابة — لو حصل تغيير أثناء الكتابة، لا تُحدّث state
@@ -611,22 +579,11 @@
                 });
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
-                // ── بناء القائمة النهائية للمستخدمين بعد المزامنة ──
-                // السحابة هي المصدر الموثوق دايمًا. لو كنا بعتنا تعديلات (shouldPushUsers)
-                // فالقائمة اللي اتبعتت (usersForCloud) هي الصح، وإلا فقائمة السحابة نفسها كما هي.
-                // كده أي نسخة محلية قديمة (فيها مستخدم متحذف من جهاز تاني) بتتصفّى تلقائيًا بعد كل مزامنة
-                const finalUsers = shouldPushUsers ? usersForCloud : serverUsers;
-
                 state.bookings          = finalBookings;   
                 state.pendingDeletions  = [];
-                state.pendingDeletedUsers = [];
-                state.dirtyUserEmails    = [];
                 state.activityLogs      = finalLogs;
-                state.users             = finalUsers;
 
                 localStorage.setItem('hotel_deleted_ids', JSON.stringify([]));
-                localStorage.setItem('hotel_deleted_users', JSON.stringify([]));
-                localStorage.setItem('hotel_dirty_users', JSON.stringify([]));
                 saveLocalStateOnly();
 
                 if (!(state.view === 'hall_detail' && state.activeTab === 'form')) {
@@ -636,14 +593,20 @@
                         const dateTitle = document.getElementById('modalDateTitle').dataset.date;
                         if (dateTitle) showDayDetails(dateTitle);
                     }
-                    const userModal = document.getElementById('usersModal');
-                    if (!userModal.classList.contains('hidden')) renderUsersTable();
                 }
 
                 if (!isSilent) showSync("تمت المزامنة بنجاح ✓");
 
             } catch (e) {
                 console.error("Sync Error:", e);
+                const denied = e && (e.code === 'PERMISSION_DENIED' || /permission_denied/i.test(e.message || ''));
+                if (denied && state.isLoggedIn) {
+                    // الحساب اتوقف/اتحذف من المدير (أو الجلسة لم تعد صالحة) → خروج فوري
+                    state.isSyncing = false;
+                    showToast('تم إيقاف حسابك أو انتهت صلاحية الدخول. سيتم تسجيل خروجك.', 'error');
+                    setTimeout(() => logout(true), 1000);
+                    return;
+                }
                 if (!isSilent) showSync("فشل المزامنة: " + e.message, true);
             }
 
@@ -707,7 +670,6 @@
         function saveLocalStateOnly() {
             localStorage.setItem('hotel_bookings_local', JSON.stringify(state.bookings));
             localStorage.setItem('hotel_logs_local', JSON.stringify(state.activityLogs));
-            localStorage.setItem('hotel_users_db', JSON.stringify(state.users));
             localStorage.setItem('hotel_notifications', JSON.stringify(state.notifications));
         }
 
@@ -885,23 +847,53 @@
         }
 
         // --- Auth Functions ---
-        function handleLogin(e) {
+        function authErrorMessage(err) {
+            const code = (err && err.code) || '';
+            if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-login-credentials', 'auth/invalid-email'].includes(code)) {
+                return 'البريد الإلكتروني أو كلمة المرور غير صحيحة!';
+            }
+            if (code === 'auth/too-many-requests') return 'محاولات كثيرة خاطئة. انتظر قليلًا ثم حاول مرة أخرى.';
+            if (code === 'auth/network-request-failed') return 'تعذر الاتصال بالإنترنت. تأكد من الشبكة وحاول مرة أخرى.';
+            if (code === 'auth/user-disabled') return 'هذا الحساب موقوف. يرجى التواصل مع المدير.';
+            if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
+                return 'طريقة الدخول هذه غير مفعّلة في Firebase Authentication. يرجى التواصل مع المدير.';
+            }
+            return 'تعذر تسجيل الدخول: ' + ((err && err.message) || code || 'خطأ غير معروف');
+        }
+
+        // هل الحساب مفعّل من المدير؟ (موجود في allowedUsers). الأدمن مستثنى — القواعد بتعرّفه بالإيميل.
+        async function isAccountAllowed(email) {
+            if (email === ADMIN_EMAIL) return true;
+            try {
+                const snap = await db.ref('allowedUsers/' + emailKey(email)).once('value');
+                return snap.exists();
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value.trim().toLowerCase();
             const password = document.getElementById('loginPassword').value;
 
             if (!email || !password) return;
 
-            const existingUser = state.users.find(u => u.email === email);
-
-            if (existingUser) {
-                if (existingUser.password === password) {
-                    performLogin(email);
-                } else {
-                    alert('كلمة المرور غير صحيحة!');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            try {
+                const cred = await auth.signInWithEmailAndPassword(email, password);
+                const signedEmail = (cred.user.email || email).toLowerCase();
+                if (!(await isAccountAllowed(signedEmail))) {
+                    await auth.signOut();
+                    alert('هذا الحساب غير مفعّل في النظام. يرجى التواصل مع المدير.');
+                    return;
                 }
-            } else {
-                alert('هذا البريد الإلكتروني غير مسجل في النظام. يرجى التواصل مع المدير لإنشاء حسابك.');
+                performLogin(signedEmail);
+            } catch (err) {
+                alert(authErrorMessage(err));
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
             }
         }
 
@@ -916,13 +908,24 @@
             offerBiometricSetup(email);
         }
 
-        function loginAsGuest() {
-            performLogin(GUEST_EMAIL);
+        // الزائر = جلسة Firebase مجهولة (Anonymous) — قواعد الأمان تسمح لها بالقراءة فقط
+        async function loginAsGuest() {
+            try {
+                const cur = auth.currentUser;
+                if (!cur || !cur.isAnonymous) await auth.signInAnonymously();
+                performLogin(GUEST_EMAIL);
+            } catch (err) {
+                alert(authErrorMessage(err));
+            }
         }
 
-        function logout() {
-            if (FIXED_USER_EMAIL) return; // المستخدم الثابت لا يخرج
+        // force=true: خروج كامل وإنهاء جلسة Firebase (يُستخدم عند إيقاف الحساب أو انتهاء الصلاحية).
+        // خروج عادي: لو البصمة مفعّلة لهذا المستخدم على الجهاز نُبقي جلسة Firebase (مقفولة بالبصمة)
+        // عشان الدخول بالبصمة يفضل شغال؛ وإلا بننهي الجلسة بالكامل. جلسة الزائر بتتحفظ لإعادة استخدامها.
+        function logout(force) {
+            if (FIXED_USER_EMAIL && !force) return; // المستخدم الثابت لا يخرج
             if (CLOUD_ENABLED) teardownRealtimeSync();
+            const prevEmail = state.currentUserEmail;
             state.currentUserEmail = '';
             state.isLoggedIn = false;
             localStorage.removeItem('hotel_app_email');
@@ -931,6 +934,13 @@
             document.getElementById('app').style.display = 'none';
             document.getElementById('loginEmail').value = '';
             document.getElementById('loginPassword').value = '';
+            prefillFixedUserEmail();
+
+            const stored = getBiometricCredential();
+            const keepSession = !force && prevEmail && (
+                prevEmail === GUEST_EMAIL || (stored && stored.email === prevEmail)
+            );
+            if (!keepSession) auth.signOut().catch(() => {});
             updateLoginScreenBiometricButton();
         }
 
@@ -1195,6 +1205,11 @@
                 showToast('لا يوجد بصمة مسجلة على هذا الجهاز بعد', 'error');
                 return;
             }
+            const fbUser = await authReadyPromise.then(() => auth.currentUser);
+            if (!fbUser || fbUser.isAnonymous || (fbUser.email || '').toLowerCase() !== stored.email) {
+                showToast('انتهت جلسة الدخول على هذا الجهاز. سجّل الدخول بكلمة المرور مرة واحدة ثم استخدم البصمة.', 'error');
+                return;
+            }
             const btn = document.getElementById('loginScreenBiometricBtn');
             if (btn) btn.disabled = true;
             state.currentUserEmail = stored.email;
@@ -1278,24 +1293,40 @@
                 alert("غير مصرح لك بالدخول!");
                 return;
             }
-            await loadFromCloud();
+            await loadUsersDirectory();
             document.getElementById('usersModal').classList.remove('hidden');
             renderUsersTable();
+        }
+
+        // دليل المستخدمين المفعّلين (allowedUsers): بريد + تاريخ فقط — كلمات السر عند Firebase Auth وليست عندنا
+        async function loadUsersDirectory() {
+            try {
+                const snap = await db.ref('allowedUsers').once('value');
+                const val = snap.val() || {};
+                const list = Object.keys(val).map(k => ({
+                    email: (val[k] && val[k].email) || k.replace(/,/g, '.'),
+                    createdAt: (val[k] && val[k].createdAt) || null
+                }));
+                if (!list.find(u => u.email === ADMIN_EMAIL)) list.unshift({ email: ADMIN_EMAIL, createdAt: null });
+                list.sort((x, y) => (x.email === ADMIN_EMAIL ? -1 : y.email === ADMIN_EMAIL ? 1 : x.email.localeCompare(y.email)));
+                state.users = list;
+            } catch (err) {
+                showToast('تعذر تحميل قائمة المستخدمين: ' + err.message, 'error');
+            }
         }
 
         function renderUsersTable() {
             const tbody = document.getElementById('usersTableBody');
             tbody.innerHTML = state.users.map(user => `
                 <tr class="transition-colors hover:bg-slate-50">
-                    <td class="font-bold text-slate-800" style="direction: ltr;">${user.email}</td>
-                    <td><span class="font-mono text-[#A88A45] bg-[#A88A45]/10 rounded-lg px-3 py-1 font-bold text-xs">${user.password}</span></td>
-                    <td class="text-sm text-slate-500 font-medium">${new Date(user.createdAt).toLocaleDateString('ar-EG')}</td>
+                    <td class="font-bold text-slate-800" style="direction: ltr;">${escapeHtml(user.email)}</td>
+                    <td class="text-sm text-slate-500 font-medium">${user.createdAt ? new Date(user.createdAt).toLocaleDateString('ar-EG') : '—'}</td>
                     <td class="flex items-center gap-2 justify-end">
-                        <button onclick="changeUserPassword('${user.email}')" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="تغيير كلمة المرور">
+                        <button data-email="${escapeHtml(user.email)}" onclick="sendUserPasswordReset(this.dataset.email)" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="إرسال رابط إعادة تعيين كلمة المرور">
                             <i data-lucide="key" class="w-4 h-4"></i>
                         </button>
                         ${user.email !== ADMIN_EMAIL ? `
-                            <button onclick="deleteUser('${user.email}')" class="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="حذف المستخدم">
+                            <button data-email="${escapeHtml(user.email)}" onclick="deleteUser(this.dataset.email)" class="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="إيقاف المستخدم">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         ` : '<span class="text-xs font-bold text-white bg-slate-800 px-3 py-1 rounded-full mx-2">أدمن النظام</span>'}
@@ -1305,39 +1336,40 @@
             if(typeof lucide!=="undefined") refreshIcons('usersModal');
         }
 
-        function deleteUser(email) {
-            if (email === ADMIN_EMAIL) return;
-            if(confirm(`هل أنت متأكد من حذف المستخدم ${email}؟ \nلن يتمكن من الدخول مرة أخرى.`)) {
+        async function deleteUser(email) {
+            if (state.currentUserEmail !== ADMIN_EMAIL || email === ADMIN_EMAIL) return;
+            if (!confirm(`هل أنت متأكد من إيقاف المستخدم ${email}؟ \nلن يتمكن من الدخول أو قراءة/كتابة أي بيانات بعد الآن.`)) return;
+            try {
+                // حذف الإدخال من allowedUsers يقطع صلاحيته فورًا من جهة قواعد الأمان
+                await db.ref('allowedUsers/' + emailKey(email)).remove();
                 state.users = state.users.filter(u => u.email !== email);
-                if (!state.pendingDeletedUsers.includes(email)) {
-                    state.pendingDeletedUsers.push(email);
-                }
-                // ارفع العداد لضمان أولوية هذه العملية في syncToCloud
-                state._opsVersion++;
-                localStorage.setItem('hotel_deleted_users', JSON.stringify(state.pendingDeletedUsers));
-                saveUsers();
-                syncToCloud();
                 renderUsersTable();
-                showToast(`تم حذف المستخدم ${email} بنجاح. جاري المزامنة مع السحابة...`, 'success');
+                showToast(`تم إيقاف المستخدم ${email}. (لحذف الحساب نهائيًا: Firebase Console ← Authentication)`, 'success');
+            } catch (err) {
+                showToast('تعذر إيقاف المستخدم: ' + err.message, 'error');
             }
         }
 
-        function changeUserPassword(email) {
-            const newPass = prompt(`أدخل كلمة المرور الجديدة للمستخدم ${email}:`);
-            if(newPass && newPass.trim() !== "") {
-                const userIndex = state.users.findIndex(u => u.email === email);
-                if(userIndex !== -1) {
-                    state.users[userIndex].password = newPass.trim();
-                    markUserDirty(email);
-                    saveUsers();
-                    syncToCloud();
-                    renderUsersTable();
-                    showToast("تم تحديث كلمة المرور بنجاح.", 'success');
-                }
+        // لا يمكن للأدمن قراءة/تعيين كلمة سر مستخدم آخر (وده أفضل أمنيًا) — بنبعت له رابط إعادة تعيين على بريده
+        async function sendUserPasswordReset(email) {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            if (!confirm(`سيتم إرسال رابط إعادة تعيين كلمة المرور إلى:\n${email}\nهل تريد المتابعة؟`)) return;
+            try {
+                await auth.sendPasswordResetEmail(email);
+                showToast(`تم إرسال رابط إعادة تعيين كلمة المرور إلى ${email}`, 'success');
+            } catch (err) {
+                showToast('تعذر إرسال الرابط: ' + authErrorMessage(err), 'error');
             }
         }
 
-        function addNewUser() {
+        // Firebase Auth instance ثانوي: بيسمح للأدمن ينشئ حساب جديد من غير ما يتسجّل خروجه هو
+        let _secondaryApp = null;
+        function getSecondaryAuth() {
+            if (!_secondaryApp) _secondaryApp = firebase.initializeApp(firebaseConfig, 'SecondaryAuth');
+            return _secondaryApp.auth();
+        }
+
+        async function addNewUser() {
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
 
             const emailInput = document.getElementById('newUserEmail');
@@ -1358,24 +1390,46 @@
                 return;
             }
 
+            // Validation: password strength (Firebase الحد الأدنى 6)
+            if (password.length < 8) {
+                showToast('كلمة المرور يجب ألا تقل عن 8 أحرف.', 'error');
+                return;
+            }
+
             // Validation: duplicate email
             if (state.users.find(u => u.email === email)) {
                 showToast('هذا البريد الإلكتروني مسجل مسبقاً في النظام.', 'error');
                 return;
             }
 
-            // Create user
-            state.users.push({ email: email, password: password, createdAt: new Date().toISOString() });
-            markUserDirty(email);
-            saveUsers();
-            syncToCloud();
-            renderUsersTable();
+            let existedInAuth = false;
+            const secAuth = getSecondaryAuth();
+            try {
+                try {
+                    await secAuth.createUserWithEmailAndPassword(email, password);
+                } catch (err) {
+                    if (err.code === 'auth/email-already-in-use') existedInAuth = true;
+                    else throw err;
+                } finally {
+                    try { await secAuth.signOut(); } catch (e) {}
+                }
 
-            // Clear inputs
-            emailInput.value = '';
-            passInput.value  = '';
+                const createdAt = new Date().toISOString();
+                await db.ref('allowedUsers/' + emailKey(email)).set({ email, createdAt, createdBy: ADMIN_EMAIL });
+                state.users.push({ email, createdAt });
+                renderUsersTable();
 
-            showToast(`تم إنشاء حساب المستخدم (${email}) بنجاح ✓`, 'success');
+                emailInput.value = '';
+                passInput.value  = '';
+
+                if (existedInAuth) {
+                    showToast(`الحساب (${email}) كان موجودًا؛ تم تفعيله بكلمة مروره السابقة. استخدم زر المفتاح لإعادة التعيين إن لزم.`, 'success');
+                } else {
+                    showToast(`تم إنشاء حساب المستخدم (${email}) بنجاح ✓`, 'success');
+                }
+            } catch (err) {
+                showToast('تعذر إنشاء الحساب: ' + authErrorMessage(err), 'error');
+            }
         }
 
         function toggleBookingsListModal() {
@@ -5820,7 +5874,6 @@ ${acknowledgmentHtml}
                     },
                     bookings: snapshot.bookings || [],
                     logs: snapshot.logs || [],
-                    users: snapshot.users || [],
                     updatedAt: snapshot.updatedAt || null
                 };
 
@@ -5891,7 +5944,6 @@ ${acknowledgmentHtml}
                     },
                     bookings: snapshot.bookings || [],
                     logs: snapshot.logs || [],
-                    users: snapshot.users || [],
                     updatedAt: snapshot.updatedAt || null,
                     archive: archiveData,
                     archiveIndex: archiveIndexVal
@@ -6032,7 +6084,6 @@ ${acknowledgmentHtml}
             try {
                 const restoredBookings     = backup.bookings     || [];
                 const restoredLogs         = backup.logs         || [];
-                const restoredUsers        = backup.users        || [];
                 // موجودة فقط في نسخة احتياطية "كاملة" (تصدير شامل الأرشيف) — غير موجودة في النسخة العادية
                 const restoredArchive      = backup.archive      || null;
                 const restoredArchiveIndex = backup.archiveIndex || null;
@@ -6042,7 +6093,6 @@ ${acknowledgmentHtml}
                 const restoreWrites = [
                     db.ref('bookings').set(restoredBookings.length ? restoredBookings : null),
                     db.ref('logs').set(restoredLogs.length ? restoredLogs : null),
-                    db.ref('users').set(restoredUsers.length ? restoredUsers : null),
                     db.ref('meta/updatedAt').set(new Date().toISOString())
                 ];
                 // لو الملف المستورد نسخة كاملة تحتوي أرشيفاً، نستعيد الأرشيف أيضاً بنفس منطق الاستبدال الكامل.
@@ -6058,7 +6108,6 @@ ${acknowledgmentHtml}
                 // تحديث state المحلية
                 state.bookings = restoredBookings;
                 state.activityLogs = restoredLogs;
-                state.users = restoredUsers;
                 state._opsVersion++;
                 saveLocal();
 
