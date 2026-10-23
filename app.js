@@ -2312,6 +2312,21 @@
                                 })()}
 
                                 ${(() => {
+                                    if (!isAdmin || b.eventType !== 'wedding') return '';
+                                    const vp = getVendorPhones();
+                                    const waIcon = '<svg viewBox="0 0 24 24" class="w-4 h-4 fill-current"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24"/></svg>';
+                                    const row = (key) => `<div class="flex items-center gap-2">
+                                        <span class="text-xs font-black text-slate-600 w-24 shrink-0">${VENDOR_WA_LABELS[key]}</span>
+                                        <input type="tel" dir="ltr" id="vendor-wa-${key}-${b.id}" data-vendor="${key}" value="${escapeHtml(vp[key])}" onchange="saveVendorPhone('${key}', this.value)" class="vendor-wa-input flex-1 min-w-0 text-xs font-mono font-bold rounded-lg border border-slate-200 px-2 py-1.5 bg-white outline-none focus:border-[#A88A45]">
+                                        <button type="button" onclick="sendVendorWhatsApp('${b.id}', '${key}')" class="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg transition-colors">${waIcon} إرسال</button>
+                                    </div>`;
+                                    return `<div class="mt-4 p-3 bg-green-50/60 rounded-xl border border-green-100 space-y-2 text-sm">
+                                        <div class="flex items-center gap-1.5 text-[11px] font-black text-green-700 mb-1">${waIcon} إرسال تفاصيل الفرح عبر واتساب</div>
+                                        ${row('dj')}${row('studio')}${row('decor')}
+                                    </div>`;
+                                })()}
+
+                                ${(() => {
                                     if (b.eventType !== 'other' || !b.otherMenu || !b.otherMenu.menus) return '';
                                     const menus = b.otherMenu.menus.filter(m => (m.items && m.items.filter(i => i.trim()).length) || (m.notes && m.notes.trim()) || (m.guests > 0) || (m.pricePerPerson > 0));
                                     if (!menus.length) return '';
@@ -2422,6 +2437,54 @@
             
             if(typeof lucide!=="undefined") refreshIcons('detailsModal');
             modal.classList.remove('hidden');
+        }
+
+        // ─── إرسال تفاصيل الفرح عبر واتساب (دي جي / استديو / ديكور) — للأدمن فقط ───
+        const VENDOR_WA_DEFAULTS = { dj: '01222689760', studio: '01011108704', decor: '01271991920' };
+        const VENDOR_WA_LABELS   = { dj: 'الدي جي', studio: 'الاستديو', decor: 'متعهد الديكور' };
+        function getVendorPhones() {
+            let saved = {};
+            try { saved = JSON.parse(localStorage.getItem('vendor_wa_phones')) || {}; } catch (e) {}
+            return { dj: saved.dj || VENDOR_WA_DEFAULTS.dj, studio: saved.studio || VENDOR_WA_DEFAULTS.studio, decor: saved.decor || VENDOR_WA_DEFAULTS.decor };
+        }
+        function saveVendorPhone(key, val) {
+            const cur = getVendorPhones();
+            cur[key] = String(val || '').trim() || VENDOR_WA_DEFAULTS[key];
+            try { localStorage.setItem('vendor_wa_phones', JSON.stringify(cur)); } catch (e) {}
+            // مزامنة نفس الحقل في باقي كروت الحجوزات المفتوحة
+            document.querySelectorAll('.vendor-wa-input[data-vendor="' + key + '"]').forEach(inp => { if (inp.value !== cur[key]) inp.value = cur[key]; });
+        }
+        function sendVendorWhatsApp(bookingId, key) {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const b = state.bookings.find(x => x.id === bookingId);
+            if (!b) return;
+            const inp = document.getElementById('vendor-wa-' + key + '-' + bookingId);
+            const phone = (inp ? inp.value : getVendorPhones()[key]) || '';
+            const link = getWhatsAppLink(phone);
+            if (!link) { showToast('❌ رقم الواتساب غير صحيح', 'error'); return; }
+            const hallName = (HALLS.find(h => h.id === b.hallId) || {}).name || b.hallName || '-';
+            const dateTxt  = b.startDate ? b.startDate.split('-').reverse().join('/') : '-';
+            const w = b.wedding || {};
+            const extras = w.extras || [];
+            // المطلوب يؤخذ من اسم الإضافة المفعّلة في حقلها الخاص داخل تفاصيل الفرح (كما هو مكتوب في الحجز)
+            const activeName = (k) => {
+                const ex = extras.find(x => x.key === k && x.active);
+                return ex ? String(ex.name || '').trim() : '';
+            };
+            const keyForVendor = { dj: 'dj', studio: 'video', decor: 'decor' };
+            const required = activeName(keyForVendor[key]) || 'لا يوجد';
+            const lines = [
+                'تاريخ الحفل: ' + dateTxt,
+                'القاعة: ' + hallName,
+                'رقم تليفون العميل: ' + (b.phone || 'لا يوجد'),
+                'المطلوب: ' + required
+            ];
+            if (key === 'decor') {
+                const chairName = activeName('chair');
+                if (chairName) lines.push('الكراسي: ' + chairName);
+                lines.push('عدد الكراسي المطلوبة: ' + (chairName ? (w.guests || 0) : 0));
+            }
+            window.open(link + '?text=' + encodeURIComponent(lines.join('\n')), '_blank', 'noopener');
         }
 
         function toggleBookingDetailsVisibility(id) {
