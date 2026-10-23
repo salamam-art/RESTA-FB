@@ -2315,12 +2315,14 @@
                                     if (!isAdmin || b.eventType !== 'wedding') return '';
                                     const vp = getVendorPhones();
                                     const waIcon = '<svg viewBox="0 0 24 24" class="w-4 h-4 fill-current"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24"/></svg>';
-                                    const row = (key) => `<div class="flex items-center gap-2">
-                                        <span class="text-xs font-black text-slate-600 w-24 shrink-0">${VENDOR_WA_LABELS[key]}</span>
-                                        <input type="tel" dir="ltr" id="vendor-wa-${key}-${b.id}" data-vendor="${key}" value="${escapeHtml(vp[key])}" onchange="saveVendorPhone('${key}', this.value)" class="vendor-wa-input flex-1 min-w-0 text-xs font-mono font-bold rounded-lg border border-slate-200 px-2 py-1.5 bg-white outline-none focus:border-[#A88A45]">
-                                        <button type="button" onclick="sendVendorWhatsApp('${b.id}', '${key}')" class="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg transition-colors">${waIcon} إرسال</button>
+                                    const row = (key) => `<div class="space-y-1.5">
+                                        <div class="text-xs font-black text-slate-700">${VENDOR_WA_LABELS[key]}</div>
+                                        <div class="flex items-stretch gap-2">
+                                            <input type="tel" dir="ltr" inputmode="tel" id="vendor-wa-${key}-${b.id}" data-vendor="${key}" value="${escapeHtml(vp[key])}" onchange="saveVendorPhone('${key}', this.value)" class="vendor-wa-input flex-1 min-w-0 text-base font-mono font-bold rounded-lg border border-slate-300 px-3 py-2 bg-white outline-none focus:border-[#A88A45]">
+                                            <a href="${buildVendorWhatsAppUrl(b.id, key) || '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation(); return prepareVendorWhatsApp(this, '${b.id}', '${key}')" class="shrink-0 inline-flex items-center justify-center gap-1.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 active:bg-green-800 px-4 rounded-lg transition-colors no-underline">${waIcon} إرسال</a>
+                                        </div>
                                     </div>`;
-                                    return `<div class="mt-4 p-3 bg-green-50/60 rounded-xl border border-green-100 space-y-2 text-sm">
+                                    return `<div class="mt-4 p-3 bg-green-50/60 rounded-xl border border-green-100 space-y-3 text-sm">
                                         <div class="flex items-center gap-1.5 text-[11px] font-black text-green-700 mb-1">${waIcon} إرسال تفاصيل الفرح عبر واتساب</div>
                                         ${row('dj')}${row('studio')}${row('decor')}
                                     </div>`;
@@ -2454,14 +2456,14 @@
             // مزامنة نفس الحقل في باقي كروت الحجوزات المفتوحة
             document.querySelectorAll('.vendor-wa-input[data-vendor="' + key + '"]').forEach(inp => { if (inp.value !== cur[key]) inp.value = cur[key]; });
         }
-        function sendVendorWhatsApp(bookingId, key) {
-            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+        function buildVendorWhatsAppUrl(bookingId, key) {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return '';
             const b = state.bookings.find(x => x.id === bookingId);
-            if (!b) return;
+            if (!b) return '';
             const inp = document.getElementById('vendor-wa-' + key + '-' + bookingId);
             const phone = (inp ? inp.value : getVendorPhones()[key]) || '';
             const link = getWhatsAppLink(phone);
-            if (!link) { showToast('❌ رقم الواتساب غير صحيح', 'error'); return; }
+            if (!link) return '';
             const hallName = (HALLS.find(h => h.id === b.hallId) || {}).name || b.hallName || '-';
             const dateTxt  = b.startDate ? b.startDate.split('-').reverse().join('/') : '-';
             const w = b.wedding || {};
@@ -2484,7 +2486,14 @@
                 if (chairName) lines.push('الكراسي: ' + chairName);
                 lines.push('عدد الكراسي المطلوبة: ' + (chairName ? (w.guests || 0) : 0));
             }
-            window.open(link + '?text=' + encodeURIComponent(lines.join('\n')), '_blank', 'noopener');
+            return link + '?text=' + encodeURIComponent(lines.join('\n'));
+        }
+        // يُستدعى عند الضغط على رابط "إرسال": يحدّث الرابط بأحدث رقم/نص ثم يترك المتصفح يفتحه (يعمل على الموبايل كرابط واتساب العميل)
+        function prepareVendorWhatsApp(a, bookingId, key) {
+            const url = buildVendorWhatsAppUrl(bookingId, key);
+            if (!url) { showToast('❌ رقم الواتساب غير صحيح', 'error'); return false; }
+            a.href = url;
+            return true;
         }
 
         function toggleBookingDetailsVisibility(id) {
