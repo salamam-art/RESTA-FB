@@ -4532,10 +4532,7 @@ ${acknowledgmentHtml}
                     </div>
                     <div class="flex items-center gap-2">
                         <input type="number" class="wedding-extra-value" data-extra="${key}" value="${value}" min="0" step="any" oninput="recalcWeddingTotals()">
-                        <label class="flex items-center gap-1 text-xs text-slate-400 shrink-0 cursor-pointer">
-                            <input type="checkbox" class="wedding-extra-perguest" data-extra="${key}" ${perGuest ? 'checked' : ''} onchange="recalcWeddingTotals()">
-                            × فرد
-                        </label>
+                        ${key === 'chair' ? '<span class="text-xs text-slate-400 shrink-0">× فرد</span>' : ''}
                     </div>
                 </div>
             `;
@@ -4601,10 +4598,9 @@ ${acknowledgmentHtml}
                 const key = cb.dataset.extra;
                 const nameInput = document.querySelector(`.wedding-extra-name[data-extra="${key}"]`);
                 const valInput = document.querySelector(`.wedding-extra-value[data-extra="${key}"]`);
-                const perGuestInput = document.querySelector(`.wedding-extra-perguest[data-extra="${key}"]`);
                 const def = state.weddingSettings.extras.find(e => e.key === key);
                 const name = (nameInput ? nameInput.value.trim() : '') || (def ? def.name : key);
-                const perGuest = perGuestInput ? perGuestInput.checked : !!(def && def.perGuest);
+                const perGuest = (key === 'chair'); // الكرسي فقط يُضرب تلقائيًا في عدد الأفراد
                 const value = parseFloat(valInput.value) || 0;
                 const active = cb.checked;
                 let lineTotal = 0;
@@ -4689,11 +4685,9 @@ ${acknowledgmentHtml}
                 const cb = document.querySelector(`.wedding-extra-toggle[data-extra="${ex.key}"]`);
                 const valInput = document.querySelector(`.wedding-extra-value[data-extra="${ex.key}"]`);
                 const nameInput = document.querySelector(`.wedding-extra-name[data-extra="${ex.key}"]`);
-                const perGuestInput = document.querySelector(`.wedding-extra-perguest[data-extra="${ex.key}"]`);
                 if (cb) cb.checked = !!ex.active;
                 if (valInput) valInput.value = ex.value;
                 if (nameInput && ex.name) nameInput.value = ex.name;
-                if (perGuestInput) perGuestInput.checked = !!ex.perGuest;
             });
 
             const paymentInputs = document.querySelectorAll('.wedding-payment-input');
