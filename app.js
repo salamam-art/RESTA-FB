@@ -1960,6 +1960,7 @@
         function copyOtherMenuForNewBooking(om, offsetDays) {
             if (!om) return null;
             const c = JSON.parse(JSON.stringify(om));
+            c.payments = [];
             (c.menus || []).forEach(m => { if (m.date) m.date = addDaysToDateStr(m.date, offsetDays); });
             return c;
         }
@@ -2371,6 +2372,23 @@
                                 })()}
 
                                 ${(() => {
+                                    if (!isAdmin || b.eventType !== 'other' || !b.otherMenu) return '';
+                                    const pays = (Array.isArray(b.otherMenu.payments) ? b.otherMenu.payments : []).filter(n => Number(n) > 0);
+                                    if (!pays.length) return '';
+                                    const mTotal = (b.otherMenu.menus || []).reduce((sum, m) => sum + ((m.total !== undefined && m.total !== null) ? Number(m.total) : (Number(m.guests) || 0) * (Number(m.pricePerPerson) || 0)), 0);
+                                    const eTotal = (b.otherMenu.equipment || []).reduce((sum, e) => sum + (Number(e.total) || 0), 0);
+                                    const grand = mTotal + eTotal;
+                                    const paid = pays.reduce((s, n) => s + Number(n), 0);
+                                    const rem = grand - paid;
+                                    return `<div class="mt-4 p-3 bg-[#6E1418]/5 rounded-xl border border-[#6E1418]/10 space-y-1.5 text-sm">
+                                        <div class="flex items-center gap-1.5 text-[11px] font-black text-[#6E1418] mb-1"><i data-lucide="wallet" class="w-3.5 h-3.5"></i> المقدمات والمتبقي</div>
+                                        <div class="flex justify-between text-slate-600"><span>الإجمالي</span><span class="font-bold">${fmtEGP(grand)}</span></div>
+                                        ${pays.map((n, i) => `<div class="flex justify-between text-emerald-700"><span>${pays.length > 1 ? 'مقدم ' + (i + 1) : 'مقدم حجز'}</span><span class="font-bold">${fmtEGP(n)}</span></div>`).join('')}
+                                        <div class="flex justify-between font-black ${rem > 0 ? 'text-red-600' : 'text-emerald-700'} pt-1.5 border-t border-[#6E1418]/10"><span>المتبقي</span><span>${fmtEGP(rem)}</span></div>
+                                    </div>`;
+                                })()}
+
+                                ${(() => {
                                     const bImages = getBookingImages(b);
                                     if (!bImages.length) return '';
                                     const thumbs = bImages.map((img, i) =>
@@ -2478,7 +2496,6 @@
             const lines = [
                 'تاريخ الحفل: ' + dateTxt,
                 'القاعة: ' + hallName,
-                'اسم العميل: ' + (b.companyName || 'لا يوجد'),
                 'رقم تليفون العميل: ' + (b.phone || 'لا يوجد'),
                 'المطلوب: ' + required
             ];
@@ -4181,6 +4198,7 @@ ${acknowledgmentHtml}
                 </div>
             `).join('');
             if (typeof lucide !== "undefined") refreshIcons('otherEventMenusContainer');
+            recalcOtherPayments();
         }
 
         function recalcOtherMenuTotal(menuIdx) {
@@ -4193,6 +4211,7 @@ ${acknowledgmentHtml}
             const guests = guestsEl ? (parseFloat(guestsEl.value) || 0) : 0;
             const price = priceEl ? (parseFloat(priceEl.value) || 0) : 0;
             totalEl.textContent = 'الإجمالي: ' + fmtEGP(guests * price);
+            recalcOtherPayments();
         }
 
         function getOtherMenusFromForm() {
@@ -4360,19 +4379,86 @@ ${acknowledgmentHtml}
         function recalcOtherEquipmentTotal() {
             const box = document.getElementById('otherEquipmentTotal');
             if (!box) return;
+            recalcOtherPayments();
             const list = getOtherEquipmentFromForm();
             if (!list.length) { box.classList.add('hidden'); box.textContent = ''; return; }
             box.classList.remove('hidden');
             box.textContent = 'إجمالي التجهيزات: ' + fmtEGP(list.reduce((sum, e) => sum + e.total, 0));
         }
 
+        // ═══════════════════ مقدمات الحجز للمناسبة الخاصة (أدمن فقط) — تُخصم من الإجمالي ويظهر المتبقي ═══════════════════
+
+        function otherPaymentRowHtml(val) {
+            const v = (val === '' || val === undefined || val === null) ? '' : (Number(val) || 0);
+            return `
+                <div class="other-payment-row flex items-center gap-2">
+                    <input type="number" class="other-payment-input flex-1" min="0" step="any" value="${v}" placeholder="مبلغ المقدم" oninput="recalcOtherPayments()">
+                    <span class="text-xs text-slate-400 shrink-0">جنيه</span>
+                    <button type="button" onclick="removeOtherPaymentRow(this)" class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0" title="حذف المقدم">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>`;
+        }
+
+        function renderOtherPayments(payments) {
+            const container = document.getElementById('otherPaymentsContainer');
+            if (!container) return;
+            const list = Array.isArray(payments) ? payments.filter(n => Number(n) > 0) : [];
+            container.innerHTML = list.map(n => otherPaymentRowHtml(n)).join('');
+            if (typeof lucide !== "undefined") refreshIcons('otherPaymentsContainer');
+            recalcOtherPayments();
+        }
+
+        function addOtherPaymentRow() {
+            const container = document.getElementById('otherPaymentsContainer');
+            if (!container) return;
+            container.insertAdjacentHTML('beforeend', otherPaymentRowHtml(''));
+            if (typeof lucide !== "undefined") refreshIcons('otherPaymentsContainer');
+            const inputs = container.querySelectorAll('.other-payment-input');
+            if (inputs.length) inputs[inputs.length - 1].focus();
+            recalcOtherPayments();
+        }
+
+        function removeOtherPaymentRow(btn) {
+            const row = btn.closest('.other-payment-row');
+            if (row) row.remove();
+            recalcOtherPayments();
+        }
+
+        function getOtherPaymentsFromForm() {
+            return Array.from(document.querySelectorAll('.other-payment-input'))
+                .map(inp => parseFloat(inp.value) || 0)
+                .filter(n => n > 0);
+        }
+
+        function recalcOtherPayments() {
+            const section = document.getElementById('otherPaymentsSection');
+            const box = document.getElementById('otherPaymentsTotalsBox');
+            if (!section || !box) return;
+            // القسم ظاهر للأدمن فقط (القيم تبقى محفوظة في الفورم حتى لا تضيع عند تعديل مستخدم آخر)
+            section.classList.toggle('hidden', state.currentUserEmail !== ADMIN_EMAIL);
+            const menusTotal = getOtherMenusFromForm().reduce((sum, m) => sum + (Number(m.total) || 0), 0);
+            const equipTotal = getOtherEquipmentFromForm().reduce((sum, e) => sum + (Number(e.total) || 0), 0);
+            const total = menusTotal + equipTotal;
+            const paid = getOtherPaymentsFromForm().reduce((s, n) => s + n, 0);
+            const remaining = total - paid;
+            box.innerHTML = `
+                <div class="flex justify-between text-slate-600"><span>إجمالي المنيو</span><span class="font-bold">${fmtEGP(menusTotal)}</span></div>
+                <div class="flex justify-between text-slate-600"><span>إجمالي التجهيزات</span><span class="font-bold">${fmtEGP(equipTotal)}</span></div>
+                <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(total)}</span></div>
+                <div class="flex justify-between text-emerald-700 font-bold"><span>مقدمات الحجز</span><span>${fmtEGP(paid)}</span></div>
+                <div class="flex justify-between font-black ${remaining > 0 ? 'text-red-600' : 'text-emerald-700'}"><span>المتبقي</span><span>${fmtEGP(remaining)}</span></div>
+            `;
+        }
+
         function collectOtherMenuDataFromForm() {
-            return { menus: getOtherMenusFromForm(), equipment: getOtherEquipmentFromForm() };
+            return { menus: getOtherMenusFromForm(), equipment: getOtherEquipmentFromForm(), payments: getOtherPaymentsFromForm() };
         }
 
         function fillOtherMenuFormFromBooking(om) {
             renderOtherEventMenus(om && om.menus && om.menus.length ? om.menus : null);
             renderOtherEquipment(om && om.equipment ? om.equipment : null);
+            renderOtherPayments(om && om.payments ? om.payments : null);
         }
 
         function populateWeddingPackageSelect() {

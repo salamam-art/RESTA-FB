@@ -600,6 +600,18 @@
                             </button>
                             <div id="otherEquipmentTotal" class="hidden text-xs font-bold text-[#6E1418] bg-amber-50/60 rounded-lg px-3 py-2 border border-amber-100"></div>
                         </div>
+
+                        <div id="otherPaymentsSection" class="hidden pt-4 mt-1 border-t border-slate-100 space-y-3">
+                            <div class="flex items-center gap-2 text-[#6E1418] font-bold">
+                                <i data-lucide="wallet" class="w-5 h-5"></i> المقدمات المدفوعة
+                                <span class="text-[10px] text-slate-400 font-normal">(تُخصم من الإجمالي)</span>
+                            </div>
+                            <div id="otherPaymentsContainer" class="space-y-2"></div>
+                            <button type="button" onclick="addOtherPaymentRow()" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#6E1418]/10">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة مقدم حجز
+                            </button>
+                            <div id="otherPaymentsTotalsBox" class="bg-amber-50/60 rounded-xl p-4 space-y-1.5 text-sm border border-amber-100"></div>
+                        </div>
                     </div>
 
                     <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
