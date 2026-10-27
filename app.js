@@ -4290,7 +4290,7 @@ ${acknowledgmentHtml}
                 return `
                 <div class="other-equip-row bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2" data-equip-key="${eq.key}">
                     <label class="flex items-center gap-2 flex-1 cursor-pointer" style="min-width:190px">
-                        <input type="checkbox" class="other-equip-toggle" style="width:16px;height:16px;padding:0;accent-color:#A88A45" ${s ? 'checked' : ''} onchange="recalcOtherEquipmentTotal()">
+                        <input type="checkbox" class="other-equip-toggle" ${s ? 'checked' : ''} onchange="recalcOtherEquipmentTotal()">
                         <span class="text-sm font-bold text-slate-700" dir="ltr">${escapeHtml(eq.name)}</span>
                     </label>
                     ${eq.hasQty ? `
@@ -5332,7 +5332,7 @@ ${acknowledgmentHtml}
                 return `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50 group">
                         <td class="px-3 py-3 text-center w-8">
-                            <input type="checkbox" class="deletedBookingRowCheckbox w-4 h-4 rounded border-slate-300 accent-[#6E1418] cursor-pointer" data-key="${r.key}" onchange="updateDeletedBookingsSelectAllState()">
+                            <input type="checkbox" class="deletedBookingRowCheckbox" data-key="${r.key}" onchange="updateDeletedBookingsSelectAllState()">
                         </td>
                         <td class="px-3 py-3 text-xs font-bold text-slate-300 text-center w-8 group-hover:text-slate-500">${records.length - i}</td>
                         <td class="px-3 py-3">

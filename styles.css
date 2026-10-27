@@ -82,9 +82,44 @@
             border-color: var(--brand-gold) !important;
             box-shadow: 0 0 0 4px rgba(168, 138, 69, 0.15) !important;
         }
-        #weddingCalcSection input[type="checkbox"],
-        #quickCalcBody input[type="checkbox"] {
-            width: 16px; height: 16px; accent-color: var(--brand-gold);
+        /* ===== Toggle Switch (يحل محل كل الـ checkbox في التطبيق) ===== */
+        input[type="checkbox"] {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            position: relative;
+            flex-shrink: 0;
+            width: 38px !important;
+            height: 22px !important;
+            min-width: 38px;
+            padding: 0 !important;
+            margin: 0;
+            border: none !important;
+            border-radius: 999px !important;
+            background-color: #cbd5e1 !important;
+            background-image: radial-gradient(circle, #ffffff 0 8px, transparent 8.5px);
+            background-size: 22px 22px;
+            background-repeat: no-repeat;
+            background-position: 0 center;
+            box-shadow: none;
+            cursor: pointer;
+            vertical-align: middle;
+            transition: background-color .2s ease, background-position .2s ease, box-shadow .2s ease;
+        }
+        input[type="checkbox"]:checked {
+            background-color: var(--brand-gold, #A88A45) !important;
+            background-position: 100% center;
+        }
+        input[type="checkbox"].deletedBookingRowCheckbox:checked,
+        #deletedBookingsSelectAll:checked {
+            background-color: #6E1418 !important;
+        }
+        input[type="checkbox"]:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(168, 138, 69, 0.3) !important;
+        }
+        input[type="checkbox"]:disabled {
+            opacity: .45;
+            cursor: not-allowed;
         }
         #weddingCalcSection input:disabled,
         #quickCalcBody input:disabled { opacity: .45; }
