@@ -199,32 +199,6 @@
         .calendar-scroll-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 10px; }
         .calendar-fixed-width { min-width: 850px; }
         
-        /* Mobile: الكاليندر قائمة عمودية (إسكرول فوق/تحت) بدل الإسكرول الأفقي */
-        .day-cell::before { display: none; }
-        @media (max-width: 768px) {
-            .calendar-scroll-wrapper { overflow-x: visible; padding-bottom: 0; }
-            .calendar-fixed-width { min-width: 0; }
-            .calendar-header-row, .calendar-pad-cell { display: none; }
-            .calendar-grid {
-                grid-template-columns: 1fr;
-                grid-auto-rows: auto;
-            }
-            .day-cell {
-                height: auto;
-                min-height: 64px;
-                overflow: visible;
-            }
-            .day-cell::before {
-                display: block;
-                content: attr(data-weekday);
-                font-size: 0.75rem;
-                font-weight: 900;
-                color: #94a3b8;
-                margin-bottom: 2px;
-            }
-            .day-bookings-container { overflow: visible; flex: none; }
-        }
-
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
