@@ -3517,7 +3517,7 @@ ${acknowledgmentHtml}
             const MAX_VISIBLE = 4;
 
             for (let i = 0; i < paddingDays; i++) {
-                days.push('<div class="rounded-xl bg-transparent" style="height:150px;"></div>');
+                days.push('<div class="calendar-pad-cell rounded-xl bg-transparent" style="height:150px;"></div>');
             }
 
             for (let i = 1; i <= daysInMonth; i++) {
@@ -3569,6 +3569,7 @@ ${acknowledgmentHtml}
                          ondragleave="handleDayDragLeave(event)"
                          ondrop="handleDayDrop(event, '${dateStr}')"
                          data-date="${dateStr}"
+                         data-weekday="${['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][new Date(year, month, i).getDay()]}"
                          class="day-cell ${isToday ? 'today-active z-10' : ''} cursor-pointer group">
                         <div class="flex items-center justify-between mb-1" style="flex-shrink:0;">
                             <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
