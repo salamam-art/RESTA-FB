@@ -4928,9 +4928,12 @@ ${acknowledgmentHtml}
                     <div class="font-bold text-[#6E1418] mb-3">الإضافات</div>
                     <div class="space-y-2.5">
                         ${state.weddingSettings.extras.map((ex, i) => `
-                            <div class="flex items-center gap-3">
-                                <span class="flex-1 text-sm font-bold text-slate-600">${ex.name} ${ex.perGuest ? '<span class="text-[10px] text-slate-400">(جنيه/فرد)</span>' : ''}</span>
-                                <input type="number" class="ws-extra-value w-32" data-idx="${i}" value="${ex.value}" min="0" step="any">
+                            <div class="space-y-1.5">
+                                <input type="text" class="ws-extra-name w-full text-sm font-bold text-slate-600" data-idx="${i}" value="${String(ex.name || '').replace(/"/g, '&quot;')}" placeholder="اسم الإضافة">
+                                <div class="flex items-center gap-2">
+                                    <input type="number" class="ws-extra-value flex-1" data-idx="${i}" value="${ex.value}" min="0" step="any">
+                                    ${ex.perGuest ? '<span class="text-[10px] text-slate-400 shrink-0">(جنيه/فرد)</span>' : ''}
+                                </div>
                             </div>
                         `).join('')}
                     </div>
@@ -4998,6 +5001,10 @@ ${acknowledgmentHtml}
             });
             document.querySelectorAll('.ws-extra-value').forEach(inp => {
                 state.weddingSettings.extras[Number(inp.dataset.idx)].value = parseFloat(inp.value) || 0;
+            });
+            document.querySelectorAll('.ws-extra-name').forEach(inp => {
+                const nm = inp.value.trim();
+                if (nm) state.weddingSettings.extras[Number(inp.dataset.idx)].name = nm;
             });
             _collectMenuFromForm();
             saveWeddingSettingsToCloud();
