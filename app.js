@@ -3455,8 +3455,8 @@ ${acknowledgmentHtml}
                         </div>
                     </div>
                     
-                    <div class="flex-1 p-0 overflow-x-auto">
-                        <table class="w-full text-sm text-right">
+                    <div class="flex-1 p-0 overflow-x-auto hall-stats-wrap">
+                        <table class="w-full text-sm text-right hall-stats-table">
                             <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                                 <tr>
                                     <th class="px-6 py-4">القاعة</th>
