@@ -1,3 +1,19 @@
+        // ===== 🌙 الوضع الداكن (Dark Mode) =====
+        // تطبيق الوضع المحفوظ فوراً قبل أي كود آخر. الافتراضي: الوضع الفاتح كما كان.
+        (function applySavedTheme() {
+            try { if (localStorage.getItem('hotel_theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+        })();
+        function isDarkMode() { return document.documentElement.classList.contains('dark'); }
+        function toggleTheme() {
+            const dark = !isDarkMode();
+            document.documentElement.classList.toggle('dark', dark);
+            try { localStorage.setItem('hotel_theme', dark ? 'dark' : 'light'); } catch (e) {}
+            // إعادة رسم الهيدر لتحديث أيقونة/نص الزر
+            const app = document.getElementById('app');
+            if (app && app.innerHTML.trim() && typeof render === 'function') render();
+        }
+        // ===== نهاية الوضع الداكن =====
+
         // --- Configuration ---
         // تم الانتقال من Google Apps Script + Google Sheets إلى Firebase Realtime Database
         // كل منطق المزامنة، الـ opsVersion، الإشعارات... إلخ باقٍ كما هو تماماً،
@@ -3283,11 +3299,11 @@ ${acknowledgmentHtml}
                                     <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                 </button>
                                 <div id="moreMenuDropdown" class="sync-dropdown hidden border border-slate-100">
-                                    <button onclick="toggleStatsModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-blue-600"></i>
+                                    <button onclick="toggleMoreMenu(); toggleTheme()">
+                                        <span class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                                            <i data-lucide="${isDarkMode() ? 'sun' : 'moon'}" class="w-4 h-4 text-slate-600"></i>
                                         </span>
-                                        الإحصائيات
+                                        ${isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن'}
                                     </button>
                                     <button onclick="exportToExcel(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
@@ -3332,12 +3348,6 @@ ${acknowledgmentHtml}
                                     </button>
                                     ` : ''}
                                     ${state.currentUserEmail === ADMIN_EMAIL ? `
-                                    <button onclick="exportBackup(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="hard-drive-download" class="w-4 h-4 text-indigo-600"></i>
-                                        </span>
-                                        تصدير نسخة احتياطية
-                                    </button>
                                     <button onclick="exportFullBackup(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
                                             <i data-lucide="database-backup" class="w-4 h-4 text-indigo-600"></i>
@@ -3354,9 +3364,6 @@ ${acknowledgmentHtml}
                                 </div>
                             </div>
 
-                            <button onclick="toggleStatsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shrink-0" title="الإحصائيات">
-                                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-                            </button>
                             <button onclick="exportToExcel()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
                                 <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
                             </button>
@@ -3380,6 +3387,10 @@ ${acknowledgmentHtml}
                             </button>
                             ` : ''}
 
+                            <!-- زر الوضع الداكن (ديسكتوب) -->
+                            <button onclick="toggleTheme()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="${isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن'}">
+                                <i data-lucide="${isDarkMode() ? 'sun' : 'moon'}" class="w-5 h-5"></i>
+                            </button>
                             <!-- زر الألعاب -->
                             <div class="relative shrink-0" id="gamesDropdownContainer">
                                 <button onclick="toggleGamesMenu(event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="الألعاب">
@@ -3421,10 +3432,6 @@ ${acknowledgmentHtml}
                             </div>
                             ` : ''}
                             ${state.currentUserEmail === ADMIN_EMAIL ? `
-                            <!-- زر تصدير نسخة احتياطية (أدمن فقط) -->
-                            <button onclick="exportBackup()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0" title="تصدير نسخة احتياطية (JSON)">
-                                <i data-lucide="hard-drive-download" class="w-5 h-5"></i>
-                            </button>
                             <!-- زر تصدير نسخة كاملة شاملة الأرشيف (أدمن فقط) -->
                             <button onclick="exportFullBackup()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0" title="تصدير نسخة كاملة شاملة الأرشيف (JSON)">
                                 <i data-lucide="database-backup" class="w-5 h-5"></i>
