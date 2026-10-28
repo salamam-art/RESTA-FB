@@ -346,7 +346,7 @@
 
         // إخفاء شاشة الترحيب بعد جاهزية التطبيق مع ضمان ظهورها لفترة كافية لرؤية الحركة
         function hideRestaSplashScreen() {
-            const MIN_SPLASH_MS = 1600;
+            const MIN_SPLASH_MS = 900;
             const splashStart = window.__restaSplashStart || Date.now();
             const elapsed = Date.now() - splashStart;
             const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
@@ -808,8 +808,31 @@
             }
         }
 
+        // --- تحميل مكتبة xlsx عند الحاجة فقط (لتسريع فتح التطبيق) ---
+        let _xlsxLoadingPromise = null;
+        function loadXlsxLibrary() {
+            if (typeof XLSX !== 'undefined') return Promise.resolve();
+            if (_xlsxLoadingPromise) return _xlsxLoadingPromise;
+            _xlsxLoadingPromise = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                s.onload = () => resolve();
+                s.onerror = () => { _xlsxLoadingPromise = null; s.remove(); reject(new Error('xlsx load failed')); };
+                document.head.appendChild(s);
+            });
+            return _xlsxLoadingPromise;
+        }
+
         // --- Export to Excel ---
-        function exportToExcel() {
+        async function exportToExcel() {
+            if (typeof XLSX === 'undefined') {
+                try {
+                    await loadXlsxLibrary();
+                } catch (e) {
+                    showToast('تعذر تحميل مكتبة التصدير، تحقق من الاتصال بالإنترنت', 'error');
+                    return;
+                }
+            }
             const bookings = [...state.bookings].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
             const wsData = [
