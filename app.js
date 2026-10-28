@@ -2679,6 +2679,27 @@
 </div>`;
             }
 
+            // المقدمات والمتبقي للمناسبة الخاصة — للأدمن فقط (نفس شرط الظهور على الشاشة)
+            if (b.eventType === 'other' && b.otherMenu && state.currentUserEmail === ADMIN_EMAIL) {
+                const pPays = (Array.isArray(b.otherMenu.payments) ? b.otherMenu.payments : []).filter(n => Number(n) > 0);
+                if (pPays.length) {
+                    const pMenusTotal = (b.otherMenu.menus || []).reduce((sum, m) => sum + ((m.total !== undefined && m.total !== null) ? Number(m.total) : (Number(m.guests) || 0) * (Number(m.pricePerPerson) || 0)), 0);
+                    const pEquipTotal = (b.otherMenu.equipment || []).reduce((sum, e) => sum + (Number(e.total) || 0), 0);
+                    const pGrand = pMenusTotal + pEquipTotal;
+                    const pPaid = pPays.reduce((s, n) => s + Number(n), 0);
+                    const pRem = pGrand - pPaid;
+                    const payLines = pPays.map((n, i) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;color:#000;padding:2px 0;"><span>${pPays.length > 1 ? 'مقدم ' + (i + 1) : 'مقدم حجز'}</span><span>${fmtEGP(n)}</span></div>`).join('');
+                    menuBoxHtml += `
+<div class="menu-box">
+    <div class="menu-box-title">المبالغ المدفوعة والمتبقي</div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:#000;padding:2px 0;"><span>الإجمالي</span><span>${fmtEGP(pGrand)}</span></div>
+    ${payLines}
+    <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:#000;border-top:1px solid #A88A45;margin-top:3px;padding-top:3px;"><span>إجمالي المدفوع</span><span>${fmtEGP(pPaid)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;color:#6E1418;padding-top:2px;"><span>المتبقي</span><span>${fmtEGP(pRem)}</span></div>
+</div>`;
+                }
+            }
+
             const printLinks = getBookingLinks(b);
             if (printLinks.length) {
                 // word-break: الروابط الطويلة (Google Drive مثلاً) لا تخرج عن عرض الصفحة أو تُقطع عند الطباعة
@@ -3483,7 +3504,7 @@ ${acknowledgmentHtml}
                     <i data-lucide="arrow-left" class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
                 </button>
 
-                <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-8 mt-6">
+                <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-2 md:p-8 mt-6">
                     <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 bg-[#A88A45]/10 rounded-xl flex items-center justify-center text-[#A88A45]">
@@ -3514,7 +3535,7 @@ ${acknowledgmentHtml}
 
             // MAX_VISIBLE: الحد الأقصى لعدد الحجوزات المعروضة في كل خلية
             // بناءً على ارتفاع الخلية (150px): header≈32px, كل tag≈25px → (150-32)/25 ≈ 4
-            const MAX_VISIBLE = 4;
+            const MAX_VISIBLE = window.matchMedia('(max-width: 767px)').matches ? 2 : 4; // موبايل: خلية أصغر فتظهر حجزين + زر المزيد
 
             for (let i = 0; i < paddingDays; i++) {
                 days.push('<div class="rounded-xl bg-transparent" style="height:150px;"></div>');

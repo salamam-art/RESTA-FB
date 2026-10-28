@@ -656,3 +656,28 @@
             font-weight: 600;
         }
         /* ===================== End PDF Export ===================== */
+
+        /* ===================== Calendar — Mobile Only (≤767px): يظهر الشهر كامل في عرض الشاشة بدون سكرول أفقي ===================== */
+        @media (max-width: 767px) {
+            .calendar-scroll-wrapper { overflow-x: visible; padding-bottom: 0; }
+            .calendar-fixed-width { min-width: 0; width: 100%; }
+
+            .calendar-header-row { gap: 2px; padding: 0 2px; margin-bottom: 2px; }
+            .calendar-header-row > div { font-size: 0.55rem; padding: 4px 0; letter-spacing: 0; }
+
+            .calendar-grid { grid-auto-rows: 74px; gap: 2px; padding: 2px; border-radius: 0.75rem; }
+            .calendar-grid > div:not(.day-cell) { height: 74px !important; }
+
+            .day-cell { height: 74px; padding: 2px; border-radius: 0.5rem; }
+            .day-cell.today-active { border-width: 1.5px; }
+            .day-cell > div:first-child { margin-bottom: 2px; }
+            .day-cell > div:first-child > span:first-child { width: 18px; height: 18px; font-size: 0.65rem; border-radius: 0.4rem; }
+            .day-cell > div:first-child > span:nth-child(2) { font-size: 8px; padding: 0 3px; }
+
+            .day-bookings-container { gap: 2px; }
+            .booking-tag { font-size: 0.5rem; padding: 0 2px; height: 14px; line-height: 12px; gap: 2px; border-right-width: 3px; border-radius: 0.3rem; }
+            .booking-tag > div { display: none; }
+            .booking-tag.my-booking { border-right-width: 3px; }
+            .more-bookings-btn { font-size: 0.5rem; height: 13px; padding: 0 2px; border-radius: 0.3rem; }
+        }
+        /* ===================== End Calendar Mobile ===================== */
