@@ -3260,6 +3260,12 @@ ${acknowledgmentHtml}
                                     <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                 </button>
                                 <div id="moreMenuDropdown" class="sync-dropdown hidden border border-slate-100">
+                                    <button onclick="toggleStatsModal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-blue-600"></i>
+                                        </span>
+                                        الإحصائيات
+                                    </button>
                                     <button onclick="exportToExcel(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
                                             <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
@@ -3325,6 +3331,9 @@ ${acknowledgmentHtml}
                                 </div>
                             </div>
 
+                            <button onclick="toggleStatsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shrink-0" title="الإحصائيات">
+                                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                            </button>
                             <button onclick="exportToExcel()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
                                 <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
                             </button>
@@ -3427,14 +3436,12 @@ ${acknowledgmentHtml}
             `;
         }
 
-        function renderDashboard() {
+        // ─── الإحصائيات (كانت في الشاشة الرئيسية — أصبحت نافذة من قائمة الهيدر) ───
+        function buildStatsSummaryHtml() {
             const totalBookings = state.bookings.length;
             const todayStr = new Date().toISOString().split('T')[0];
             const todayCount = state.bookings.filter(b => b.startDate === todayStr).length;
-            const futureCount = state.bookings.filter(b => b.startDate >= todayStr).length;
-
             return `
-                <!-- Summary Card -->
                 <div class="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row mb-2">
                     <div class="bg-gradient-to-br from-[#6E1418] to-[#8a1c22] p-6 text-white md:w-1/3 flex flex-col justify-center relative overflow-hidden">
                         <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
@@ -3497,7 +3504,40 @@ ${acknowledgmentHtml}
                         </table>
                     </div>
                 </div>
-                
+            `;
+        }
+
+        function toggleStatsModal() {
+            const modal = document.getElementById('statsModal');
+            if (!modal) return;
+            if (modal.classList.contains('hidden')) {
+                document.getElementById('statsModalBody').innerHTML = buildStatsSummaryHtml();
+                modal.classList.remove('hidden');
+                if (typeof lucide !== "undefined") refreshIcons('statsModal');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function renderDashboard() {
+            const totalBookings = state.bookings.length;
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayCount = state.bookings.filter(b => b.startDate === todayStr).length;
+            const futureCount = state.bookings.filter(b => b.startDate >= todayStr).length;
+
+            const accountLabel = isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر');
+
+            return `
+                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm">
+                    <span class="w-8 h-8 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0">
+                        <i data-lucide="user-circle" class="w-4 h-4"></i>
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-[10px] font-bold text-slate-400 leading-tight">مسجّل الدخول بحساب</div>
+                        <div dir="ltr" class="text-sm font-black text-[#6E1418] truncate text-right">${escapeHtml(accountLabel)}</div>
+                    </div>
+                </div>
+
                 <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-3 font-bold text-lg group">
                     <i data-lucide="list-video" class="w-6 h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
                     <span>عرض جدول الحجوزات القادمة بالتفصيل</span>
