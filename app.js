@@ -607,7 +607,7 @@
                     const modal = document.getElementById('detailsModal');
                     if (!modal.classList.contains('hidden')) {
                         const dateTitle = document.getElementById('modalDateTitle').dataset.date;
-                        if (dateTitle) showDayDetails(dateTitle);
+                        if (dateTitle) refreshDayDetails(dateTitle);
                     }
                 }
 
@@ -2184,7 +2184,7 @@
                 if (remaining.length === 0) {
                     closeDetailsModal();
                 } else {
-                    showDayDetails(dateTitle);
+                    refreshDayDetails(dateTitle);
                 }
             }
         }
@@ -2230,22 +2230,74 @@
                 if (remaining.length === 0) {
                     closeDetailsModal();
                 } else {
-                    showDayDetails(dateTitle);
+                    refreshDayDetails(dateTitle);
                 }
             }
         }
 
-        function showDayDetails(dateStr) {
+        // ─── نافذة اليوم: قائمة كروت الحجوزات ← تفاصيل الحجز ─────────────────
+        // فتح جديد (ضغط على يوم / إشعار / قائمة الحجوزات)
+        function showDayDetails(dateStr, bookingId) {
+            renderDayDetails(dateStr, { bookingId: bookingId || null, fresh: true });
+        }
+        // تحديث بعد تعديل/حذف/مزامنة — يحافظ على الشاشة الحالية بدون إعادة الحركات
+        function refreshDayDetails(dateStr) {
+            renderDayDetails(dateStr, { fresh: false, animate: false });
+        }
+        function openBookingFromDay(id) {
+            const d = document.getElementById('modalDateTitle').dataset.date;
+            if (d) renderDayDetails(d, { bookingId: id, fresh: true, dir: 'forward' });
+        }
+        function backToDayList() {
+            const d = document.getElementById('modalDateTitle').dataset.date;
+            if (d) renderDayDetails(d, { fresh: true, dir: 'back', forceList: true });
+        }
+        function closeDetailsModalAnimated() {
+            const modal = document.getElementById('detailsModal');
+            if (modal.classList.contains('hidden')) return;
+            modal.classList.add('is-closing');
+            clearTimeout(window._dayCloseTimer);
+            window._dayCloseTimer = setTimeout(() => {
+                modal.classList.remove('is-closing');
+                closeDetailsModal();
+            }, 190);
+        }
+
+        function renderDayDetails(dateStr, opts) {
+            opts = opts || {};
             let bookings = state.bookings.filter(b => b.startDate === dateStr);
             if (state.view !== 'dashboard' && state.selectedHall) {
                 bookings = bookings.filter(b => b.hallId === state.selectedHall.id);
             }
             if (bookings.length === 0) return;
+            // نفس ترتيب الكاليندر: يوم كامل أولًا ثم حسب وقت البداية
+            bookings = bookings.slice().sort((a, b) => {
+                if (!a.startTime) return -1;
+                if (!b.startTime) return 1;
+                return a.startTime.localeCompare(b.startTime);
+            });
+            const allBookings = bookings;
 
             const modal = document.getElementById('detailsModal');
             const content = document.getElementById('modalContent');
             const title = document.getElementById('modalDateTitle');
             const hallTitle = document.getElementById('modalHallTitle');
+
+            // تحديد الوضع: قائمة أم تفاصيل
+            let targetId = opts.forceList ? null : (opts.bookingId || null);
+            if (!opts.fresh && !targetId && modal.dataset.mode === 'detail') targetId = modal.dataset.bookingId || null;
+            if (targetId && !allBookings.some(b => String(b.id) === String(targetId))) targetId = null;
+            if (!targetId && allBookings.length === 1) targetId = allBookings[0].id; // حجز واحد → تفاصيل مباشرة
+            const mode = targetId ? 'detail' : 'list';
+            const wasOpen = !modal.classList.contains('hidden');
+            const animate = opts.animate !== false;
+            clearTimeout(window._dayCloseTimer);
+            modal.classList.remove('is-closing');
+            modal.dataset.mode = mode;
+            modal.dataset.bookingId = targetId ? String(targetId) : '';
+            if (mode === 'detail') {
+                bookings = allBookings.filter(b => String(b.id) === String(targetId));
+            }
 
             // Format date for display
             const displayDateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -2253,7 +2305,10 @@
 
             title.innerText = prettyDate;
             title.dataset.date = dateStr;
-            hallTitle.innerText = state.view === 'dashboard' ? 'سجل حجوزات اليوم لجميع القاعات' : state.selectedHall.name;
+            const _hallLabel = state.view === 'dashboard' ? 'سجل حجوزات اليوم لجميع القاعات' : state.selectedHall.name;
+            hallTitle.innerText = mode === 'list'
+                ? (allBookings.length === 2 ? 'حجزان في هذا اليوم' : allBookings.length + ' حجوزات في هذا اليوم') + ' — اختر حجزًا لعرض تفاصيله'
+                : _hallLabel;
 
             // إضافة زر حجز جديد في رأس نافذة التفاصيل
             const actionsEl = document.getElementById('detailsModalActions');
@@ -2277,7 +2332,7 @@
             // #modalContent, since toggleAttachmentDropdown() reparents them).
             cleanupAttachmentDropdowns();
 
-            content.innerHTML = bookings.map(b => {
+            const renderFullCard = (b) => {
                 const hall = HALLS.find(h => h.id === b.hallId);
                 const isOwner = b.createdBy === state.currentUserEmail;
                 const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
@@ -2492,8 +2547,57 @@
                         ` : ''}
                     </div>
                 `;
-            }).join('');
-            
+            };
+
+            // كارت مختصر لكل حجز في قائمة اليوم
+            const isAdminNow = state.currentUserEmail === ADMIN_EMAIL;
+            const renderListCard = (b, i) => {
+                const hall = HALLS.find(h => h.id === b.hallId) || { name: '', color: '', border: '', icon: 'calendar' };
+                const isOwner = b.createdBy === state.currentUserEmail;
+                const hiddenForMe = b.detailsHidden && !isAdminNow;
+                const timeTxt = (b.startTime && b.endTime) ? (b.startTime + ' - ' + b.endTime) : 'يوم كامل';
+                const delay = Math.min(i, 8) * 70;
+                const inner = `
+                    <div class="day-card-icon ${hall.color}"><i data-lucide="${hall.icon || 'calendar'}" class="w-5 h-5"></i></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <span class="text-[11px] font-black px-2.5 py-0.5 rounded-lg ${hall.color}">${hall.name}</span>
+                            ${b.eventType === 'wedding' ? '<span class="text-[11px] font-black px-2 py-0.5 rounded-lg bg-pink-50 text-pink-600">💍 فرح</span>' : ''}
+                            ${isOwner ? '<span class="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-[#A88A45]/20 text-[#8f753a] inline-flex items-center gap-1"><i data-lucide="user-check" class="w-3 h-3"></i> حجزي</span>' : ''}
+                        </div>
+                        <h4 class="font-black text-base text-[#6E1418] truncate">${escapeHtml(b.companyName)}</h4>
+                        ${hiddenForMe
+                            ? '<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mt-1"><i data-lucide="eye-off" class="w-3 h-3"></i> التفاصيل مخفية</div>'
+                            : `<div class="flex items-center gap-3 text-xs font-bold text-slate-500 mt-1 flex-wrap">
+                                   <span class="inline-flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i>${timeTxt}</span>
+                                   ${b.employee ? `<span class="inline-flex items-center gap-1 truncate"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i>${escapeHtml(b.employee)}</span>` : ''}
+                               </div>`}
+                    </div>
+                    ${hiddenForMe ? '' : '<i data-lucide="chevron-left" class="w-5 h-5 day-card-chevron shrink-0"></i>'}
+                `;
+                const cls = `day-card bg-white border border-slate-200 border-r-4 ${hall.border} ${animate ? 'day-card--anim' : ''}`;
+                if (hiddenForMe) return `<div class="${cls} day-card--static" style="--d:${delay}ms">${inner}</div>`;
+                return `<button type="button" onclick="openBookingFromDay('${b.id}')" class="${cls}" style="--d:${delay}ms">${inner}</button>`;
+            };
+
+            // كلاس حركة الانتقال بين الشاشتين
+            let viewCls = '';
+            if (animate) {
+                if (wasOpen && opts.dir === 'forward') viewCls = 'day-view--forward';
+                else if (wasOpen && opts.dir === 'back') viewCls = 'day-view--back';
+                else viewCls = 'day-view--fresh';
+            }
+
+            if (mode === 'list') {
+                content.innerHTML = `<div class="day-view ${viewCls}">${allBookings.map(renderListCard).join('')}</div>`;
+            } else {
+                const backBar = allBookings.length > 1
+                    ? `<button type="button" onclick="backToDayList()" class="day-back-btn"><i data-lucide="arrow-right" class="w-4 h-4"></i><span>كل حجوزات اليوم (${allBookings.length})</span></button>`
+                    : '';
+                content.innerHTML = `<div class="day-view ${viewCls}">${backBar}${bookings.map(renderFullCard).join('')}</div>`;
+            }
+            if (animate) content.scrollTop = 0;
+
             if(typeof lucide!=="undefined") refreshIcons('detailsModal');
             modal.classList.remove('hidden');
         }
@@ -2562,13 +2666,33 @@
             saveLocal();
             showToast(booking.detailsHidden ? '✅ تم إخفاء تفاصيل هذا الحجز عن باقي المستخدمين' : '✅ تم إظهار تفاصيل هذا الحجز لجميع المستخدمين', 'success');
             const title = document.getElementById('modalDateTitle');
-            if (title && title.dataset.date) showDayDetails(title.dataset.date);
+            if (title && title.dataset.date) refreshDayDetails(title.dataset.date);
         }
 
         function closeDetailsModal() {
-            document.getElementById('detailsModal').classList.add('hidden');
+            const _m = document.getElementById('detailsModal');
+            clearTimeout(window._dayCloseTimer);
+            _m.classList.remove('is-closing');
+            _m.classList.add('hidden');
+            _m.dataset.mode = '';
+            _m.dataset.bookingId = '';
             cleanupAttachmentDropdowns();
         }
+
+        // إغلاق بالضغط على الخلفية + زر Escape (في وضع التفاصيل مع أكثر من حجز يرجع للقائمة أولًا)
+        (function setupDayModalDismiss() {
+            const m = document.getElementById('detailsModal');
+            if (!m) return;
+            m.addEventListener('click', function (e) { if (e.target === m) closeDetailsModalAnimated(); });
+            document.addEventListener('keydown', function (e) {
+                if (e.key !== 'Escape' || m.classList.contains('hidden')) return;
+                const blockers = ['globalBookingModal', 'copyBookingModal', 'deleteConfirmModal', 'moveConfirmModal'];
+                if (blockers.some(id => { const el = document.getElementById(id); return el && !el.classList.contains('hidden'); })) return;
+                const d = document.getElementById('modalDateTitle').dataset.date;
+                const n = d ? state.bookings.filter(b => b.startDate === d && (state.view === 'dashboard' || !state.selectedHall || b.hallId === state.selectedHall.id)).length : 0;
+                if (m.dataset.mode === 'detail' && n > 1) backToDayList(); else closeDetailsModalAnimated();
+            });
+        })();
 
         function printSingleBooking(bookingId) {
             const b = state.bookings.find(x => x.id == bookingId || x.id === bookingId);
@@ -3262,7 +3386,7 @@ ${acknowledgmentHtml}
             const app = document.getElementById('app');
             app.innerHTML = `
                 ${renderHeader()}
-                <main class="max-w-7xl mx-auto p-4 md:p-8 pb-24 space-y-2 md:space-y-8">
+                <main class="max-w-7xl mx-auto p-4 md:p-8 pb-24 space-y-8">
                     ${renderDashboard()}
                 </main>
             `;
@@ -3558,7 +3682,7 @@ ${acknowledgmentHtml}
             const accountLabel = isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر');
 
             return `
-                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-1.5 md:py-2.5 shadow-sm">
+                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm">
                     <span class="w-8 h-8 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0">
                         <i data-lucide="user-circle" class="w-4 h-4"></i>
                     </span>
@@ -3568,19 +3692,19 @@ ${acknowledgmentHtml}
                     </div>
                 </div>
 
-                <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 px-3 py-2 md:p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-2 md:gap-3 font-bold text-sm md:text-lg group">
-                    <i data-lucide="list-video" class="w-4 h-4 md:w-6 md:h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
+                <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-3 font-bold text-lg group">
+                    <i data-lucide="list-video" class="w-6 h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
                     <span>عرض جدول الحجوزات القادمة بالتفصيل</span>
                     <i data-lucide="arrow-left" class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
                 </button>
 
-                <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-2 md:p-8 mt-0 md:mt-6">
-                    <div class="flex flex-col md:flex-row items-center justify-between mb-2 md:mb-8 gap-2 md:gap-4">
+                <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-2 md:p-8 mt-6">
+                    <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
                         <div class="flex items-center gap-3">
-                            <div class="w-7 h-7 md:w-10 md:h-10 bg-[#A88A45]/10 rounded-xl flex items-center justify-center text-[#A88A45]">
-                                <i data-lucide="calendar" class="w-4 h-4 md:w-5 md:h-5"></i>
+                            <div class="w-10 h-10 bg-[#A88A45]/10 rounded-xl flex items-center justify-center text-[#A88A45]">
+                                <i data-lucide="calendar" class="w-5 h-5"></i>
                             </div>
-                            <h2 class="text-base md:text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
+                            <h2 class="text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
                         </div>
                         <div class="flex bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-sm">
                             <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="-1" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>

@@ -912,3 +912,64 @@
         html.dark .attachment-dropdown a { background: var(--d-surface); color: #93c5fd; }
         html.dark .attachment-dropdown a:hover { background: var(--d-surface-2); color: #bfdbfe; }
         /* ===================== End Dark Mode ===================== */
+
+
+/* ===================== نافذة تفاصيل اليوم: كروت الحجوزات + الحركات ===================== */
+.day-backdrop { -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); animation: dayBackdropIn .28s ease-out backwards; }
+.day-panel { transform-origin: 50% 60%; animation: dayPanelIn .5s cubic-bezier(.34, 1.28, .64, 1) backwards; }
+#detailsModal.is-closing { animation: dayBackdropOut .19s ease-in forwards; }
+#detailsModal.is-closing .day-panel { animation: dayPanelOut .19s ease-in forwards; }
+
+@keyframes dayBackdropIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dayBackdropOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dayPanelIn  { from { opacity: 0; transform: translateY(28px) scale(.93); } to { opacity: 1; transform: none; } }
+@keyframes dayPanelOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(18px) scale(.95); } }
+@keyframes dayCardIn   { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes dayViewFresh   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes dayViewForward { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+@keyframes dayViewBack    { from { opacity: 0; transform: translateX(32px); }  to { opacity: 1; transform: none; } }
+
+.day-view--fresh   { animation: dayViewFresh   .4s cubic-bezier(.16, 1, .3, 1) backwards; }
+.day-view--forward { animation: dayViewForward .38s cubic-bezier(.16, 1, .3, 1) backwards; }
+.day-view--back    { animation: dayViewBack    .38s cubic-bezier(.16, 1, .3, 1) backwards; }
+
+.day-card {
+    display: flex; align-items: center; gap: .9rem; width: 100%;
+    text-align: right; border-radius: 1rem; padding: .95rem 1.1rem; margin-bottom: .75rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+    position: relative; overflow: hidden; cursor: pointer; font: inherit;
+    transition: transform .28s cubic-bezier(.16, 1, .3, 1), box-shadow .28s ease;
+}
+.day-card--anim { animation: dayCardIn .5s cubic-bezier(.16, 1, .3, 1) backwards; animation-delay: var(--d, 0ms); }
+.day-card--static { cursor: default; opacity: .85; }
+.day-card::after { /* لمعة تعدّي على الكارت */
+    content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
+    background: linear-gradient(100deg, transparent, rgba(168, 138, 69, .16), transparent);
+    transform: skewX(-18deg); transition: left .65s ease; pointer-events: none;
+}
+button.day-card:hover { transform: translateY(-3px); box-shadow: 0 14px 26px -12px rgba(110, 20, 24, .28); }
+button.day-card:hover::after { left: 130%; }
+button.day-card:active { transform: scale(.98); box-shadow: 0 2px 6px rgba(15, 23, 42, .08); }
+button.day-card:focus-visible { outline: 2px solid #A88A45; outline-offset: 2px; }
+.day-card-icon { width: 2.75rem; height: 2.75rem; border-radius: .9rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+button.day-card:hover .day-card-icon { transform: scale(1.1) rotate(-6deg); }
+.day-card-chevron { color: #A88A45; transition: transform .28s ease; }
+button.day-card:hover .day-card-chevron { transform: translateX(-5px); }
+
+.day-back-btn {
+    display: inline-flex; align-items: center; gap: .45rem; margin-bottom: 1rem;
+    font-size: .8rem; font-weight: 800; color: #6E1418; background: rgba(110, 20, 24, .06);
+    border: 1px solid rgba(110, 20, 24, .12); padding: .45rem .9rem; border-radius: .75rem;
+    cursor: pointer; transition: background .2s ease, transform .2s ease;
+}
+.day-back-btn:hover { background: rgba(110, 20, 24, .12); }
+.day-back-btn:hover svg { transform: translateX(3px); }
+.day-back-btn svg { transition: transform .2s ease; }
+.day-back-btn:active { transform: scale(.96); }
+
+@media (prefers-reduced-motion: reduce) {
+    .day-backdrop, .day-panel, .day-card--anim, .day-view--fresh, .day-view--forward, .day-view--back,
+    #detailsModal.is-closing, #detailsModal.is-closing .day-panel { animation: none !important; }
+    .day-card, .day-card::after, .day-card-icon, .day-card-chevron { transition: none !important; }
+}
+/* ===================== End Day Modal ===================== */

@@ -126,8 +126,8 @@
     </div>
 
     <!-- Details Modal -->
-    <div id="detailsModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center modal-backdrop p-4">
-        <div class="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in border border-slate-100">
+    <div id="detailsModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center modal-backdrop day-backdrop p-4">
+        <div class="day-panel bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border border-slate-100">
             <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center shrink-0">
                 <div class="flex items-center gap-4">
                     <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20">
@@ -140,7 +140,7 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <div id="detailsModalActions"></div>
-                    <button onclick="closeDetailsModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                    <button onclick="closeDetailsModalAnimated()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </div>
