@@ -3386,7 +3386,7 @@ ${acknowledgmentHtml}
             const app = document.getElementById('app');
             app.innerHTML = `
                 ${renderHeader()}
-                <main class="max-w-7xl mx-auto p-4 md:p-8 pb-24 space-y-8">
+                <main class="max-w-7xl mx-auto p-2 md:p-8 pb-16 md:pb-24 space-y-1.5 md:space-y-8">
                     ${renderDashboard()}
                 </main>
             `;
@@ -3682,36 +3682,36 @@ ${acknowledgmentHtml}
             const accountLabel = isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر');
 
             return `
-                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm">
-                    <span class="w-8 h-8 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0">
-                        <i data-lucide="user-circle" class="w-4 h-4"></i>
+                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl md:rounded-2xl px-3 py-1.5 md:px-4 md:py-2.5 shadow-sm">
+                    <span class="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0">
+                        <i data-lucide="user-circle" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
                     </span>
                     <div class="min-w-0 flex-1">
-                        <div class="text-[10px] font-bold text-slate-400 leading-tight">مسجّل الدخول بحساب</div>
-                        <div dir="ltr" class="text-sm font-black text-[#6E1418] truncate text-right">${escapeHtml(accountLabel)}</div>
+                        <div class="text-[9px] md:text-[10px] font-bold text-slate-400 leading-tight">مسجّل الدخول بحساب</div>
+                        <div dir="ltr" class="text-xs md:text-sm font-black text-[#6E1418] truncate text-right">${escapeHtml(accountLabel)}</div>
                     </div>
                 </div>
 
-                <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 p-4 rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-3 font-bold text-lg group">
-                    <i data-lucide="list-video" class="w-6 h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
+                <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 p-2 md:p-4 rounded-xl md:rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-2 md:gap-3 font-bold text-sm md:text-lg group">
+                    <i data-lucide="list-video" class="w-4 h-4 md:w-6 md:h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
                     <span>عرض جدول الحجوزات القادمة بالتفصيل</span>
                     <i data-lucide="arrow-left" class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
                 </button>
 
-                <div class="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-2 md:p-8 mt-6">
-                    <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 bg-[#A88A45]/10 rounded-xl flex items-center justify-center text-[#A88A45]">
-                                <i data-lucide="calendar" class="w-5 h-5"></i>
+                <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8 md:mt-6">
+                    <div class="flex flex-row flex-wrap items-center justify-between mb-1.5 md:mb-8 gap-1.5 md:gap-4">
+                        <div class="flex items-center gap-2 md:gap-3">
+                            <div class="w-7 h-7 md:w-10 md:h-10 bg-[#A88A45]/10 rounded-lg md:rounded-xl flex items-center justify-center text-[#A88A45]">
+                                <i data-lucide="calendar" class="w-4 h-4 md:w-5 md:h-5"></i>
                             </div>
-                            <h2 class="text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
+                            <h2 class="text-base md:text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
                         </div>
-                        <div class="flex bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-sm">
-                            <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="-1" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
-                            <span class="px-6 py-2 text-base font-black text-[#6E1418] flex items-center min-w-[140px] justify-center tracking-wide">
+                        <div class="flex bg-slate-50 border border-slate-200 rounded-lg md:rounded-xl p-0.5 md:p-1.5 shadow-sm">
+                            <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="-1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4 md:w-5 md:h-5"></i></button>
+                            <span class="px-2 py-0.5 md:px-6 md:py-2 text-xs md:text-base font-black text-[#6E1418] flex items-center md:min-w-[140px] justify-center tracking-wide">
                                 ${new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' })} (شهر ${state.currentMonth + 1})
                             </span>
-                            <button onclick="changeMonth(1)" ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="1" class="p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <button onclick="changeMonth(1)" ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-4 h-4 md:w-5 md:h-5"></i></button>
                         </div>
                     </div>
                     ${renderCalendar(true)}
