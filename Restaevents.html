@@ -43,7 +43,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20261029">
 </head>
 <body>
     <script>window.__restaSplashStart = Date.now();</script>
@@ -140,7 +140,7 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <div id="detailsModalActions"></div>
-                    <button onclick="closeDetailsModalAnimated()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                    <button onclick="(window.closeDetailsModalAnimated || closeDetailsModal)()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </div>
@@ -838,7 +838,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20261029"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">
