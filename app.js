@@ -6511,3 +6511,113 @@ ${acknowledgmentHtml}
             }
         }
 
+
+        // ─── زر Back في الموبايل: يقفل الشاشة المنبثقة المفتوحة بدل الخروج من التطبيق ───
+        // كل شاشة تتفتح بتضيف خطوة في سجل المتصفح، وزر الرجوع بيقفل آخر شاشة اتفتحت.
+        // مفيش تعديل مطلوب على دوال الفتح/القفل الموجودة — بنراقب ظهور/اختفاء الشاشات تلقائيًا.
+        (function setupBackButtonForModals() {
+            if (!window.history || !history.pushState || window.__restaBackSetup) return;
+            window.__restaBackSetup = true;
+
+            const SEL = '.modal-backdrop, #imageLightbox';
+            const IGNORE = ['loginModal', 'biometricLockScreen'];
+            const CLOSERS = {
+                detailsModal: 'closeDetailsModalAnimated',
+                copyBookingModal: 'closeCopyBookingModal',
+                deleteConfirmModal: 'closeDeleteConfirmModal',
+                imageLightbox: 'closeImageLightbox'
+            };
+            const stack = [];           // الشاشات المفتوحة بترتيب فتحها
+            const closing = new Set();  // شاشات بنقفلها بسبب زر الرجوع
+            const dyn = new Set();      // شاشات بتتعمل بالجافاسكريبت (تأكيد النقل، البصمة...)
+            const watched = new WeakSet();
+            let depth = 0;              // عدد الخطوات اللي ضفناها في سجل المتصفح
+            let busy = false;           // history.go() برمجي شغال
+
+            const isOpen = el => el.isConnected && !el.classList.contains('hidden') && getComputedStyle(el).display !== 'none';
+            const candidates = () => Array.from(new Set([...document.querySelectorAll(SEL), ...dyn])).filter(el => !IGNORE.includes(el.id));
+
+            function watch(el) {
+                if (watched.has(el)) return;
+                watched.add(el);
+                new MutationObserver(sync).observe(el, { attributes: true, attributeFilter: ['class', 'style'] });
+            }
+
+            function reconcile() {
+                if (busy) return;
+                try {
+                    if (depth > stack.length) {
+                        const n = depth - stack.length;
+                        depth -= n;
+                        busy = true;
+                        history.go(-n);
+                        setTimeout(() => { if (busy) { busy = false; reconcile(); } }, 700); // أمان لو popstate ما اتطلقش
+                        return;
+                    }
+                    while (depth < stack.length) history.pushState({ restaModal: ++depth }, '');
+                } catch (e) { /* بعض البيئات (WebView/iframe) بتمنع history */ }
+            }
+
+            function sync() {
+                for (let i = stack.length - 1; i >= 0; i--) if (!isOpen(stack[i])) stack.splice(i, 1);
+                closing.forEach(el => { if (!isOpen(el)) closing.delete(el); });
+                candidates().forEach(el => {
+                    watch(el);
+                    if (isOpen(el) && !stack.includes(el) && !closing.has(el)) stack.push(el);
+                });
+                reconcile();
+            }
+
+            function tryClose(el) {
+                closing.add(el);
+                const fn = window[CLOSERS[el.id]];
+                if (typeof fn === 'function') fn();
+                else {
+                    const x = el.querySelector('[data-lucide="x"], .lucide-x');
+                    const btn = x && x.closest('button');
+                    if (btn) btn.click();
+                    else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                }
+                // لو الشاشة لسه مفتوحة بعد لحظة نقفلها بالقوة
+                setTimeout(() => {
+                    if (isOpen(el)) { if (dyn.has(el)) el.remove(); else el.classList.add('hidden'); }
+                    sync();
+                }, 450);
+            }
+
+            function closeTop() {
+                const el = stack[stack.length - 1];
+                if (!el) return;
+                // داخل تفاصيل حجز من قائمة اليوم؟ ارجع للقائمة الأول بدل قفل النافذة
+                if (el.id === 'detailsModal' && el.dataset.mode === 'detail' && typeof backToDayList === 'function') {
+                    const t = document.getElementById('modalDateTitle');
+                    const d = t && t.dataset.date;
+                    const n = d ? state.bookings.filter(b => b.startDate === d && (state.view === 'dashboard' || !state.selectedHall || b.hallId === state.selectedHall.id)).length : 0;
+                    if (n > 1) { backToDayList(); reconcile(); return; }
+                }
+                stack.pop();
+                tryClose(el);
+            }
+
+            window.addEventListener('popstate', function (e) {
+                if (busy) { busy = false; reconcile(); return; }
+                depth = (e.state && e.state.restaModal) || 0;
+                if (stack.length > depth) closeTop();
+                else reconcile();
+            });
+
+            // شاشات بتتضاف للصفحة بالجافاسكريبت
+            new MutationObserver(function (muts) {
+                muts.forEach(m => {
+                    m.addedNodes.forEach(n => {
+                        if (n.nodeType === 1 && n.classList.contains('fixed') && n.classList.contains('inset-0') && !IGNORE.includes(n.id)) dyn.add(n);
+                    });
+                    m.removedNodes.forEach(n => dyn.delete(n));
+                });
+                sync();
+            }).observe(document.body, { childList: true });
+
+            // لو الصفحة اتعمل لها ريفريش وهي على خطوة تبعنا، نفك الخطوات القديمة
+            if (history.state && history.state.restaModal) { depth = history.state.restaModal; reconcile(); }
+            sync();
+        })();
