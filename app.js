@@ -3395,14 +3395,14 @@ ${acknowledgmentHtml}
 
         function renderHeader() {
             return `
-                <header class="glass-panel sticky top-0 z-40 border-b border-slate-200 shadow-sm">
-                    <div class="max-w-7xl mx-auto px-2 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
+                <header class="app-header glass-panel sticky top-0 z-40 border-b border-slate-200 shadow-sm">
+                    <div class="header-inner max-w-7xl mx-auto px-2 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
                         
 
 
-                        <div class="flex items-center gap-1 sm:gap-3 flex-nowrap justify-end">
+                        <div class="header-actions flex items-center gap-1 sm:gap-3 flex-nowrap justify-end">
                             ${!isGuest() ? `
-                            <div class="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5 shrink-0">
+                            <div class="hdr-undo-group flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5 shrink-0">
                                 <button onclick="performUndo()" ${moveUndoStack.length === 0 ? 'disabled' : ''} class="p-1.5 sm:p-2 text-slate-500 hover:text-[#6E1418] hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500" title="تراجع عن آخر نقل">
                                     <i data-lucide="undo-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                                 </button>
@@ -3578,9 +3578,9 @@ ${acknowledgmentHtml}
                                 </button>
                             ` : ''}
 
-                            <div class="h-6 sm:h-8 w-px bg-slate-200 mx-0.5 sm:mx-2 shrink-0"></div>
+                            <div class="hdr-divider h-6 sm:h-8 w-px bg-slate-200 mx-0.5 sm:mx-2 shrink-0"></div>
                             
-                            <button onclick="logout()" class="flex items-center gap-1 sm:gap-2 text-sm font-bold text-red-600 hover:bg-red-50 p-2 sm:px-4 sm:py-2 rounded-xl transition-all border border-transparent hover:border-red-100 shrink-0" title="خروج">
+                            <button onclick="logout()" class="hdr-logout flex items-center gap-1 sm:gap-2 text-sm font-bold text-red-600 hover:bg-red-50 p-2 sm:px-4 sm:py-2 rounded-xl transition-all border border-transparent hover:border-red-100 shrink-0" title="خروج">
                                 <span class="hidden sm:inline">خروج</span>
                                 <i data-lucide="log-out" class="w-5 h-5"></i>
                             </button>

@@ -973,3 +973,76 @@ button.day-card:hover .day-card-chevron { transform: translateX(-5px); }
     .day-card, .day-card::after, .day-card-icon, .day-card-chevron { transition: none !important; }
 }
 /* ===================== End Day Modal ===================== */
+
+/* ===================== قائمة جانبية يمين (ديسكتوب فقط) =====================
+   أيقونات الهيدر تتحول إلى شريط عمودي ثابت على اليمين عند عرض ≥ 1024px.
+   الموبايل والتابلت يبقون كما هم. */
+@media (min-width: 1024px) {
+    #app { padding-right: 68px; }
+
+    /* الهيدر نفسه يختفي (لا يحجز مساحة) والأيقونات تصبح الشريط الجانبي */
+    .app-header.glass-panel {
+        position: static;
+        height: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+    .app-header .header-inner { height: 0; padding: 0; max-width: none; }
+
+    .app-header .header-actions {
+        position: fixed;
+        top: 0; right: 0; bottom: 0;
+        width: 68px;
+        z-index: 40;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 2px;
+        padding: 12px 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-left: 1px solid #e2e8f0;
+        box-shadow: -6px 0 24px -14px rgba(0, 0, 0, 0.18);
+    }
+    html.dark .app-header .header-actions {
+        background: rgba(15, 23, 42, 0.92);
+        border-left-color: rgba(255, 255, 255, 0.06);
+    }
+
+    /* أزرار أصغر قليلاً ليتسع الشريط كله بدون تمرير */
+    .app-header .header-actions > button,
+    .app-header .header-actions > div > button { padding: 8px; }
+
+    /* تراجع/إعادة تصبح عمودية */
+    .app-header .header-actions .hdr-undo-group { flex-direction: column; }
+
+    /* الفاصل أفقي */
+    .app-header .header-actions .hdr-divider {
+        width: 28px; height: 1px; margin: 6px 0; flex-shrink: 0;
+    }
+
+    /* زر الخروج أسفل الشريط وبدون نص */
+    .app-header .header-actions .hdr-logout {
+        margin-top: auto;
+        padding: 8px;
+    }
+    .app-header .header-actions .hdr-logout span { display: none; }
+
+    /* قائمة الألعاب تفتح لليسار من الشريط */
+    .app-header .header-actions .sync-dropdown {
+        top: 0;
+        right: calc(100% + 12px);
+        transform-origin: top right;
+    }
+}
+
+/* شاشات قصيرة: السماح بالتمرير داخل الشريط */
+@media (min-width: 1024px) and (max-height: 640px) {
+    .app-header .header-actions { overflow-y: auto; }
+}
+/* ===================== End Desktop Sidebar ===================== */
