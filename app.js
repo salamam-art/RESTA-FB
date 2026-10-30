@@ -3853,8 +3853,8 @@ ${acknowledgmentHtml}
                 </button>
 
                 <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8">
-                    <div class="flex flex-row flex-wrap items-center justify-between mb-1.5 md:mb-8 gap-1.5 md:gap-4">
-                        <div class="flex items-center gap-2 md:gap-3">
+                    <div class="relative flex flex-row flex-wrap items-center justify-center mb-1.5 md:mb-8 gap-1.5 md:gap-4">
+                        <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2 md:gap-3">
                             <div class="w-7 h-7 md:w-10 md:h-10 bg-[#A88A45]/10 rounded-lg md:rounded-xl flex items-center justify-center text-[#A88A45]">
                                 <i data-lucide="calendar" class="w-4 h-4 md:w-5 md:h-5"></i>
                             </div>
