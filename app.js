@@ -720,22 +720,22 @@
                 ? 'cursor-pointer hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99]'
                 : '';
             const clickHint = bookingDate
-                ? `<span class="text-xs font-medium opacity-60 mt-0.5 block">اضغط لعرض التفاصيل</span>`
+                ? `<span class="text-[10px] font-medium opacity-60 mt-0.5 hidden md:block">اضغط لعرض التفاصيل</span>`
                 : '';
 
-            toast.className = `pointer-events-auto relative overflow-hidden p-4 pb-[18px] rounded-2xl border shadow-xl flex items-center gap-4 animate-slide-up transition-transform duration-200 ${bgClass} ${clickableStyles}`;
+            toast.className = `pointer-events-auto relative overflow-hidden px-2.5 py-1.5 pb-2 rounded-lg gap-2 md:px-3 md:py-2.5 md:pb-[14px] md:rounded-xl md:gap-2.5 border shadow-lg flex items-center animate-slide-up transition-transform duration-200 ${bgClass} ${clickableStyles}`;
             toast.innerHTML = `
-                <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center shrink-0 toast-icon-pop">
-                    <i data-lucide="${icon}" class="w-5 h-5"></i>
+                <div class="w-6 h-6 md:w-7 md:h-7 rounded-full ${iconBg} flex items-center justify-center shrink-0 toast-icon-pop">
+                    <i data-lucide="${icon}" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
                 </div>
-                <div class="flex-1">
-                    <p class="text-sm font-bold ${textClass}">${escapeHtml(message)}</p>
+                <div class="flex-1 min-w-0">
+                    <p class="text-[11px] md:text-xs font-bold leading-snug truncate md:whitespace-normal md:overflow-visible md:text-clip ${textClass}">${escapeHtml(message)}</p>
                     ${clickHint}
                 </div>
-                <button type="button" class="toast-close-btn text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors shrink-0">
-                    <i data-lucide="x" class="w-4 h-4"></i>
+                <button type="button" class="toast-close-btn text-slate-400 hover:text-slate-600 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors shrink-0">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
                 </button>
-                <div class="absolute bottom-0 right-0 left-0 h-[3px] bg-black/10">
+                <div class="absolute bottom-0 right-0 left-0 h-[2px] md:h-[3px] bg-black/10">
                     <div class="toast-progress-bar h-full ${progressClass}"></div>
                 </div>
             `;
