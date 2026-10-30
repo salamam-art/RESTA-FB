@@ -965,6 +965,7 @@
         function logout(force) {
             if (FIXED_USER_EMAIL && !force) return; // المستخدم الثابت لا يخرج
             if (CLOUD_ENABLED) teardownRealtimeSync();
+            stopAvatarListener();
             const prevEmail = state.currentUserEmail;
             state.currentUserEmail = '';
             state.isLoggedIn = false;
@@ -1333,9 +1334,21 @@
                 alert("غير مصرح لك بالدخول!");
                 return;
             }
-            await loadUsersDirectory();
+            await Promise.all([loadUsersDirectory(), loadAdminUserPhotos()]);
             document.getElementById('usersModal').classList.remove('hidden');
             renderUsersTable();
+        }
+
+        async function loadAdminUserPhotos() {
+            try {
+                const snap = await db.ref('userPhotos').once('value');
+                const val = snap.val() || {};
+                adminUserPhotos = {};
+                Object.keys(val).forEach(k => { if (val[k] && val[k].url) adminUserPhotos[k] = val[k].url; });
+            } catch (err) {
+                console.warn('loadAdminUserPhotos failed:', err && err.code);
+                adminUserPhotos = {};
+            }
         }
 
         // دليل المستخدمين المفعّلين (allowedUsers): بريد + تاريخ فقط — كلمات السر عند Firebase Auth وليست عندنا
@@ -1359,7 +1372,16 @@
             const tbody = document.getElementById('usersTableBody');
             tbody.innerHTML = state.users.map(user => `
                 <tr class="transition-colors hover:bg-slate-50">
-                    <td class="font-bold text-slate-800" style="direction: ltr;">${escapeHtml(user.email)}</td>
+                    <td class="font-bold text-slate-800" style="direction: ltr;">
+                        <div class="flex items-center gap-2">
+                            <button type="button" data-email="${escapeHtml(user.email)}" onclick="pickAccountAvatar(this.dataset.email)" class="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-[#A88A45]/50 bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center hover:ring-2 transition-all" title="تغيير صورة هذا الحساب">
+                                ${adminUserPhotos[emailKey(user.email)]
+                                    ? `<img src="${escapeHtml(adminUserPhotos[emailKey(user.email)])}" alt="" class="w-full h-full object-cover">`
+                                    : `<span class="font-black text-sm leading-none">${escapeHtml((user.email || '?').charAt(0).toUpperCase())}</span>`}
+                            </button>
+                            <span class="truncate">${escapeHtml(user.email)}</span>
+                        </div>
+                    </td>
                     <td class="text-sm text-slate-500 font-medium">${user.createdAt ? new Date(user.createdAt).toLocaleDateString('ar-EG') : '—'}</td>
                     <td class="flex items-center gap-2 justify-end">
                         <button data-email="${escapeHtml(user.email)}" onclick="sendUserPasswordReset(this.dataset.email)" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="إرسال رابط إعادة تعيين كلمة المرور">
@@ -4094,12 +4116,14 @@ ${acknowledgmentHtml}
             const futureCount = state.bookings.filter(b => b.startDate >= todayStr).length;
 
             const accountLabel = isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر');
+            const avatarOn = avatarEnabled();
+            if (avatarOn) ensureAvatarListener();
 
             return `
                 <div class="flex md:block">
                 <div class="flex-1 min-w-0 flex items-center gap-2 bg-white border border-slate-200 rounded-xl md:rounded-2xl px-3 py-1.5 md:px-4 md:py-2.5 shadow-sm">
-                    <span class="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0">
-                        <i data-lucide="user-circle" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
+                    <span id="accountAvatar" ${avatarOn ? 'onclick="pickAccountAvatar()" role="button" title="تغيير صورة الحساب"' : ''} class="w-6 h-6 md:w-8 md:h-8 ${avatarOn ? 'rounded-full overflow-hidden cursor-pointer ring-1 ring-[#A88A45]/50' : 'rounded-lg'} bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0 transition-opacity">
+                        ${accountAvatarInner()}
                     </span>
                     <div class="min-w-0 flex-1">
                         <div class="text-[9px] md:text-[10px] font-bold text-slate-400 leading-tight">مسجّل الدخول بحساب</div>
@@ -4473,6 +4497,125 @@ ${acknowledgmentHtml}
         function deleteStorageImageSilently(url) {
             if (!isStorageImageUrl(url)) return;
             storage.refFromURL(url).delete().catch(() => {});
+        }
+
+        // ─── صورة الحساب (Avatar) بجانب الإيميل ───────────────────────────
+        // الصورة تُرفع إلى Storage (avatars/<emailKey>.jpg) ويُحفظ رابطها في userPhotos/<emailKey>.
+        // الزائر والمستخدم الثابت (?user=) يبقون على الأيقونة الافتراضية ولا يمكنهم التغيير.
+        const AVATAR_SIZE = 256; // px — مربعة، وتُعرض دائرية بالـ CSS
+        const AVATAR_JPEG_QUALITY = 0.85;
+        let avatarListenerEmail = '';
+
+        function avatarEnabled() {
+            return !!(state.isLoggedIn && state.currentUserEmail && !isGuest() && !FIXED_USER_EMAIL);
+        }
+        // صور كل الحسابات (يحمّلها الأدمن فقط عند فتح نافذة المستخدمين): { emailKey: url }
+        let adminUserPhotos = {};
+        // المستخدم يغيّر صورته فقط، والأدمن يغيّر صورة أي حساب
+        function canEditAvatarFor(email) {
+            if (!avatarEnabled()) return false;
+            const target = String(email || state.currentUserEmail).toLowerCase();
+            return target === String(state.currentUserEmail).toLowerCase() || state.currentUserEmail === ADMIN_EMAIL;
+        }
+        function getCachedAvatar(email) {
+            try { return localStorage.getItem('hotel_avatar_' + emailKey(email)) || ''; } catch (e) { return ''; }
+        }
+        function setCachedAvatar(email, url) {
+            try {
+                if (url) localStorage.setItem('hotel_avatar_' + emailKey(email), url);
+                else localStorage.removeItem('hotel_avatar_' + emailKey(email));
+            } catch (e) {}
+        }
+        // محتوى الدائرة: الصورة، أو أول حرف من الإيميل، أو الأيقونة الافتراضية (زائر/مستخدم ثابت)
+        function accountAvatarInner() {
+            if (!avatarEnabled()) return '<i data-lucide="user-circle" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>';
+            const url = getCachedAvatar(state.currentUserEmail);
+            if (url) return '<img src="' + escapeHtml(url) + '" alt="" class="w-full h-full object-cover">';
+            const letter = (state.currentUserEmail || '?').charAt(0).toUpperCase();
+            return '<span class="font-black text-xs md:text-sm leading-none">' + escapeHtml(letter) + '</span>';
+        }
+        function updateAccountAvatarDom() {
+            const el = document.getElementById('accountAvatar');
+            if (el) el.innerHTML = accountAvatarInner();
+        }
+        // مزامنة صورة الحساب بين الأجهزة (اشتراك واحد لكل مستخدم)
+        function ensureAvatarListener() {
+            if (!CLOUD_ENABLED || !avatarEnabled()) return;
+            const email = state.currentUserEmail;
+            if (avatarListenerEmail === email) return;
+            stopAvatarListener();
+            avatarListenerEmail = email;
+            db.ref('userPhotos/' + emailKey(email)).on('value', (snap) => {
+                if (state.currentUserEmail !== email) return;
+                const v = snap.val();
+                setCachedAvatar(email, v && v.url ? v.url : '');
+                updateAccountAvatarDom();
+            }, (err) => { console.warn('userPhotos listener cancelled:', err && err.code); });
+        }
+        function stopAvatarListener() {
+            if (!avatarListenerEmail) return;
+            try { db.ref('userPhotos/' + emailKey(avatarListenerEmail)).off('value'); } catch (e) {}
+            avatarListenerEmail = '';
+        }
+        // قصّ مربع من منتصف الصورة + تصغير + ضغط JPEG
+        function makeAvatarDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('تعذّرت قراءة الملف'));
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('تعذّرت قراءة الصورة'));
+                    img.onload = () => {
+                        const side = Math.min(img.width, img.height);
+                        const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+                        const canvas = document.createElement('canvas');
+                        canvas.width = AVATAR_SIZE; canvas.height = AVATAR_SIZE;
+                        canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+                        resolve(canvas.toDataURL('image/jpeg', AVATAR_JPEG_QUALITY));
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        function pickAccountAvatar(targetEmail) {
+            if (!canEditAvatarFor(targetEmail)) return;
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = () => {
+                const f = input.files && input.files[0];
+                if (f) uploadAccountAvatar(f, targetEmail);
+            };
+            input.click();
+        }
+        async function uploadAccountAvatar(file, targetEmail) {
+            if (!canEditAvatarFor(targetEmail)) return;
+            if (!/^image\//.test(file.type || '')) { showToast('الملف المختار ليس صورة.', 'error'); return; }
+            const email = targetEmail || state.currentUserEmail;
+            const isSelf = String(email).toLowerCase() === String(state.currentUserEmail).toLowerCase();
+            const key = emailKey(email);
+            const setBusy = (on) => { const el = isSelf ? document.getElementById('accountAvatar') : null; if (el) el.style.opacity = on ? '0.5' : ''; };
+            setBusy(true);
+            try {
+                const blob = dataUrlToBlob(await makeAvatarDataUrl(file));
+                const snap = await storage.ref().child('avatars/' + key + '.jpg').put(blob, { contentType: 'image/jpeg' });
+                const baseUrl = await snap.ref.getDownloadURL();
+                const url = baseUrl + (baseUrl.indexOf('?') > -1 ? '&' : '?') + 'v=' + Date.now();
+                await db.ref('userPhotos/' + key).set({ url, updatedAt: new Date().toISOString() });
+                if (isSelf) { setCachedAvatar(email, url); updateAccountAvatarDom(); }
+                if (state.currentUserEmail === ADMIN_EMAIL) {
+                    adminUserPhotos[key] = url;
+                    const um = document.getElementById('usersModal');
+                    if (um && !um.classList.contains('hidden')) renderUsersTable();
+                }
+                showToast(isSelf ? 'تم تحديث صورة الحساب ✅' : 'تم تحديث صورة ' + email + ' ✅', 'success');
+            } catch (e) {
+                console.error('avatar upload failed:', e);
+                showToast('تعذّر رفع الصورة، حاول مرة أخرى.', 'error');
+            } finally {
+                setBusy(false);
+            }
         }
 
         function triggerImageFileInput() {
