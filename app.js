@@ -3858,7 +3858,6 @@ ${acknowledgmentHtml}
                             <div class="w-7 h-7 md:w-10 md:h-10 bg-[#A88A45]/10 rounded-lg md:rounded-xl flex items-center justify-center text-[#A88A45]">
                                 <i data-lucide="calendar" class="w-4 h-4 md:w-5 md:h-5"></i>
                             </div>
-                            <h2 class="text-base md:text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
                         </div>
                         <div class="flex bg-slate-50 border border-slate-200 rounded-lg md:rounded-xl p-0.5 md:p-1.5 shadow-sm">
                             <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="-1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4 md:w-5 md:h-5"></i></button>
