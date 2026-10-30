@@ -1031,3 +1031,12 @@ html.touch-edge-left::before, html.touch-edge-right::after {
 }
 html.touch-edge-left::before { left: 0; background: linear-gradient(to right, rgba(168, 138, 69, 0.5), transparent); }
 html.touch-edge-right::after { right: 0; background: linear-gradient(to left, rgba(168, 138, 69, 0.5), transparent); }
+
+/* ===================== لمسات جمالية للكاليندر ===================== */
+/* الأيام اللي عدّت تبقى أخف */
+.day-cell.past-day:not(.selected-day):not(.drag-over) { opacity: 0.55; }
+
+/* ظهور قائمة اليوم */
+@keyframes agendaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.agenda-anim { animation: agendaIn .22s ease-out; }
+@media (prefers-reduced-motion: reduce) { .agenda-anim { animation: none; } }

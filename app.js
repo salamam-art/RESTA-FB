@@ -3469,15 +3469,23 @@ ${acknowledgmentHtml}
                     </div>`;
             }).join('');
 
+            const body = bookings.length
+                ? `<div class="flex flex-col gap-1.5">${items}</div>`
+                : `<div class="flex flex-col items-center gap-1 py-5 text-slate-400">
+                        <i data-lucide="calendar-check" class="w-7 h-7 text-[#A88A45]/60"></i>
+                        <div class="text-xs font-bold">لا توجد حجوزات في هذا اليوم</div>
+                   </div>`;
             return `
-                <div class="flex items-center justify-between gap-2 mb-2">
-                    <div class="min-w-0">
-                        <div class="text-sm font-black text-[#6E1418] truncate">${pretty}</div>
-                        <div class="text-[11px] font-bold text-slate-400">${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات في هذا اليوم'}</div>
+                <div class="agenda-anim">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <div class="min-w-0">
+                            <div class="text-sm font-black text-[#6E1418] truncate">${pretty}</div>
+                            ${bookings.length ? `<div class="text-[11px] font-bold text-slate-400">${bookings.length} حجز</div>` : ''}
+                        </div>
+                        ${addBtn}
                     </div>
-                    ${addBtn}
-                </div>
-                <div class="flex flex-col gap-1.5">${items}</div>`;
+                    ${body}
+                </div>`;
         }
 
         function selectCalendarDay(dateStr) {
@@ -3836,7 +3844,8 @@ ${acknowledgmentHtml}
             const accountLabel = isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر');
 
             return `
-                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl md:rounded-2xl px-3 py-1.5 md:px-4 md:py-2.5 shadow-sm">
+                <div class="flex md:block">
+                <div class="flex-1 min-w-0 flex items-center gap-2 bg-white border border-slate-200 rounded-xl md:rounded-2xl px-3 py-1.5 md:px-4 md:py-2.5 shadow-sm">
                     <span class="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0">
                         <i data-lucide="user-circle" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
                     </span>
@@ -3846,11 +3855,13 @@ ${acknowledgmentHtml}
                     </div>
                 </div>
 
-                <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 p-2 md:p-4 rounded-xl md:rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-2 md:gap-3 font-bold text-sm md:text-lg group">
+                <button onclick="toggleBookingsListModal()" class="shrink-0 md:w-full bg-white border border-slate-200 text-slate-700 p-2 md:p-4 rounded-xl md:rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-2 md:gap-3 font-bold text-sm md:text-lg group">
                     <i data-lucide="list-video" class="w-4 h-4 md:w-6 md:h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
-                    <span>عرض جدول الحجوزات القادمة بالتفصيل</span>
-                    <i data-lucide="arrow-left" class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
+                    <span class="md:hidden">الحجوزات القادمة</span>
+                    <span class="hidden md:inline">عرض جدول الحجوزات القادمة بالتفصيل</span>
+                    <i data-lucide="arrow-left" class="hidden md:block w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
                 </button>
+                </div>
 
                 <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8">
                     <div class="relative flex flex-row flex-wrap items-center justify-center mb-1.5 md:mb-8 gap-1.5 md:gap-4">
@@ -3932,6 +3943,7 @@ ${acknowledgmentHtml}
                     : '';
 
                 const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                const isPast = isPastDateStr(dateStr);
                 const heat = totalCount === 0 ? 0 : totalCount === 1 ? 1 : totalCount === 2 ? 2 : totalCount <= 4 ? 3 : 4;
                 const dotsHtml = dayBookings.slice(0, 8).map(b =>
                     `<span class="day-dot" style="background:${HALL_DOT_COLORS[b.hallId] || '#94a3b8'};"></span>`
@@ -3942,7 +3954,7 @@ ${acknowledgmentHtml}
                          ondragleave="handleDayDragLeave(event)"
                          ondrop="handleDayDrop(event, '${dateStr}')"
                          data-date="${dateStr}"
-                         class="day-cell ${isToday ? 'today-active z-10' : ''} ${heat ? 'heat-' + heat : ''} ${state.selectedDay === dateStr ? 'selected-day' : ''} cursor-pointer group">
+                         class="day-cell ${isToday ? 'today-active z-10' : ''} ${heat ? 'heat-' + heat : ''} ${state.selectedDay === dateStr ? 'selected-day' : ''} ${isPast ? 'past-day' : ''} cursor-pointer group">
                         <div class="flex items-center justify-between mb-1" style="flex-shrink:0;">
                             <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
                             ${totalCount > 0 ? `<span class="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">${totalCount}</span>` : ''}
