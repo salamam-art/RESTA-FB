@@ -973,3 +973,35 @@ button.day-card:hover .day-card-chevron { transform: translateX(-5px); }
     .day-card, .day-card::after, .day-card-icon, .day-card-chevron { transition: none !important; }
 }
 /* ===================== End Day Modal ===================== */
+
+/* ===================== Calendar — Mobile: نقط ملونة + تدرج الزحمة + قائمة اليوم ===================== */
+.day-dots, .day-agenda { display: none; }
+@media (max-width: 767px) {
+    /* الأسماء تتخفى وتظهر نقطة لكل حجز بلون القاعة */
+    .day-bookings-container { display: none; }
+    .day-dots { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 3px; padding: 0 2px; }
+    .day-dot { width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; }
+
+    .calendar-grid { grid-auto-rows: 56px; }
+    .calendar-grid > div:not(.day-cell) { height: 56px !important; }
+    .day-cell { height: 56px; }
+
+    /* اليوم المحدد */
+    .day-cell.selected-day { box-shadow: inset 0 0 0 2px #6E1418; }
+
+    /* تدرج لوني حسب عدد الحجوزات */
+    .day-cell.heat-1:not(.today-active):not(.drag-over) { background-color: rgba(110, 20, 24, 0.07); }
+    .day-cell.heat-2:not(.today-active):not(.drag-over) { background-color: rgba(110, 20, 24, 0.14); }
+    .day-cell.heat-3:not(.today-active):not(.drag-over) { background-color: rgba(110, 20, 24, 0.24); }
+    .day-cell.heat-4:not(.today-active):not(.drag-over) { background-color: rgba(110, 20, 24, 0.36); }
+    html.dark .day-cell.heat-1:not(.today-active):not(.drag-over) { background-color: rgba(168, 138, 69, 0.12); }
+    html.dark .day-cell.heat-2:not(.today-active):not(.drag-over) { background-color: rgba(168, 138, 69, 0.22); }
+    html.dark .day-cell.heat-3:not(.today-active):not(.drag-over) { background-color: rgba(168, 138, 69, 0.34); }
+    html.dark .day-cell.heat-4:not(.today-active):not(.drag-over) { background-color: rgba(168, 138, 69, 0.46); }
+    html.dark .day-cell.selected-day { box-shadow: inset 0 0 0 2px #A88A45; }
+
+    /* قائمة حجوزات اليوم المحدد */
+    .day-agenda { display: block; margin-top: 10px; padding: 10px 4px 2px; border-top: 1px solid #e2e8f0; }
+    html.dark .day-agenda { border-top-color: var(--d-border); }
+    .agenda-item.touch-drag-ghost { width: 170px !important; }
+}

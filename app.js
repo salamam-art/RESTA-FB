@@ -314,6 +314,7 @@
             },
             currentMonth: new Date().getMonth(),
             currentYear: new Date().getFullYear(),
+            selectedDay: new Date().toISOString().split('T')[0], // اليوم المحدد (عرض الموبايل)
             editingBookingId: null,
             isSyncing: false,
             // --- Race condition fix ---
@@ -3379,14 +3380,112 @@ ${acknowledgmentHtml}
                 state.currentMonth = 11;
                 state.currentYear--;
             }
+            // عرض الموبايل: لو الشهر الجديد هو الشهر الحالي نحدد النهارده، وإلا نمسح التحديد
+            const _now = new Date();
+            state.selectedDay = (state.currentMonth === _now.getMonth() && state.currentYear === _now.getFullYear())
+                ? _now.toISOString().split('T')[0]
+                : null;
             render();
         }
+
+        // ─── Calendar mobile: نقط + قائمة اليوم + سحب بين الشهور ─────────
+        const HALL_DOT_COLORS = { yacht: '#3b82f6', italian: '#ef4444', greenhouse: '#22c55e', bar: '#a855f7', pool: '#06b6d4' };
+
+        function isMobileCalendar() {
+            return window.matchMedia('(max-width: 767px)').matches;
+        }
+
+        function renderDayAgendaHtml() {
+            const dateStr = state.selectedDay;
+            if (!dateStr) {
+                return '<div class="text-center text-xs font-bold text-slate-400 py-4">اضغط على يوم لعرض حجوزاته</div>';
+            }
+            const bookings = state.bookings.filter(b => b.startDate === dateStr).sort((a, b) => {
+                if (!a.startTime) return -1;
+                if (!b.startTime) return 1;
+                return a.startTime.localeCompare(b.startTime);
+            });
+            const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
+            const canAdd = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr));
+            const addBtn = canAdd ? `
+                <button onclick="openNewBookingForDate('${dateStr}')" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                    <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i><span>حجز جديد</span>
+                </button>` : '';
+
+            const items = bookings.map(b => {
+                const hall = HALLS.find(h => h.id === b.hallId) || { name: '' };
+                const isMyBooking = b.createdBy === state.currentUserEmail;
+                const canDrag = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || isMyBooking);
+                const time = b.startTime ? (b.startTime + (b.endTime ? ' – ' + b.endTime : '')) : 'طوال اليوم';
+                return `
+                    <div onclick="showDayDetails('${dateStr}', '${b.id}')"
+                         style="border-right:4px solid ${HALL_DOT_COLORS[b.hallId] || '#94a3b8'};"
+                         class="agenda-item flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm active:bg-slate-50"
+                         draggable="${canDrag}"
+                         ondragstart="${canDrag ? `handleBookingDragStart(event, '${b.id}')` : ''}"
+                         ondragend="${canDrag ? 'handleBookingDragEnd(event)' : ''}"
+                         ontouchstart="${canDrag ? `handleBookingTouchStart(event, '${b.id}')` : ''}"
+                         ontouchmove="${canDrag ? 'handleBookingTouchMove(event)' : ''}"
+                         ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
+                         ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-black text-slate-800 truncate">${b.eventType === 'wedding' ? '💍 ' : ''}${escapeHtml(b.companyName)}</div>
+                            <div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>
+                        </div>
+                        <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
+                    </div>`;
+            }).join('');
+
+            return `
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <div class="min-w-0">
+                        <div class="text-sm font-black text-[#6E1418] truncate">${pretty}</div>
+                        <div class="text-[11px] font-bold text-slate-400">${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات في هذا اليوم'}</div>
+                    </div>
+                    ${addBtn}
+                </div>
+                <div class="flex flex-col gap-1.5">${items}</div>`;
+        }
+
+        function selectCalendarDay(dateStr) {
+            state.selectedDay = dateStr;
+            document.querySelectorAll('.day-cell.selected-day').forEach(el => el.classList.remove('selected-day'));
+            const cell = document.querySelector('.day-cell[data-date="' + dateStr + '"]');
+            if (cell) cell.classList.add('selected-day');
+            const box = document.getElementById('dayAgenda');
+            if (box) {
+                box.innerHTML = renderDayAgendaHtml();
+                refreshIcons('dayAgenda');
+            }
+        }
+
+        // سحب أفقي على الكاليندر (موبايل) للتنقل بين الشهور — السحب لليمين = الشهر التالي (نفس اتجاه سهم الشمال)
+        (function initCalendarSwipe() {
+            let sx = 0, sy = 0, tracking = false;
+            document.addEventListener('touchstart', function (e) {
+                tracking = false;
+                if (!isMobileCalendar() || e.touches.length !== 1) return;
+                if (!e.target.closest || !e.target.closest('.calendar-scroll-wrapper')) return;
+                sx = e.touches[0].clientX;
+                sy = e.touches[0].clientY;
+                tracking = true;
+            }, { passive: true });
+            document.addEventListener('touchend', function (e) {
+                if (!tracking) return;
+                tracking = false;
+                if (typeof touchDragActive !== 'undefined' && touchDragActive) return;
+                const t = e.changedTouches[0];
+                if (!t) return;
+                const dx = t.clientX - sx, dy = t.clientY - sy;
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) changeMonth(dx > 0 ? 1 : -1);
+            }, { passive: true });
+        })();
 
         function render() {
             const app = document.getElementById('app');
             app.innerHTML = `
                 ${renderHeader()}
-                <main class="max-w-7xl mx-auto p-2 md:p-8 pb-16 md:pb-24 space-y-1.5 md:space-y-8">
+                <main class="max-w-7xl mx-auto p-2 md:p-8 pb-16 md:pb-24 space-y-0">
                     ${renderDashboard()}
                 </main>
             `;
@@ -3698,7 +3797,7 @@ ${acknowledgmentHtml}
                     <i data-lucide="arrow-left" class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
                 </button>
 
-                <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8 md:mt-6">
+                <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8">
                     <div class="flex flex-row flex-wrap items-center justify-between mb-1.5 md:mb-8 gap-1.5 md:gap-4">
                         <div class="flex items-center gap-2 md:gap-3">
                             <div class="w-7 h-7 md:w-10 md:h-10 bg-[#A88A45]/10 rounded-lg md:rounded-xl flex items-center justify-center text-[#A88A45]">
@@ -3715,6 +3814,7 @@ ${acknowledgmentHtml}
                         </div>
                     </div>
                     ${renderCalendar(true)}
+                    <div id="dayAgenda" class="day-agenda">${renderDayAgendaHtml()}</div>
                 </div>
             `;
         }
@@ -3778,13 +3878,17 @@ ${acknowledgmentHtml}
                     : '';
 
                 const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                const heat = totalCount === 0 ? 0 : totalCount === 1 ? 1 : totalCount === 2 ? 2 : totalCount <= 4 ? 3 : 4;
+                const dotsHtml = dayBookings.slice(0, 8).map(b =>
+                    `<span class="day-dot" style="background:${HALL_DOT_COLORS[b.hallId] || '#94a3b8'};"></span>`
+                ).join('');
                 days.push(`
                     <div onclick="handleDayClick('${dateStr}')"
                          ondragover="handleDayDragOver(event)"
                          ondragleave="handleDayDragLeave(event)"
                          ondrop="handleDayDrop(event, '${dateStr}')"
                          data-date="${dateStr}"
-                         class="day-cell ${isToday ? 'today-active z-10' : ''} cursor-pointer group">
+                         class="day-cell ${isToday ? 'today-active z-10' : ''} ${heat ? 'heat-' + heat : ''} ${state.selectedDay === dateStr ? 'selected-day' : ''} cursor-pointer group">
                         <div class="flex items-center justify-between mb-1" style="flex-shrink:0;">
                             <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
                             ${totalCount > 0 ? `<span class="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">${totalCount}</span>` : ''}
@@ -3793,6 +3897,7 @@ ${acknowledgmentHtml}
                             ${tagsHtml}
                             ${moreHtml}
                         </div>
+                        <div class="day-dots">${dotsHtml}</div>
                     </div>
                 `);
             }
@@ -3827,6 +3932,7 @@ ${acknowledgmentHtml}
 
         // ─── Calendar Day Click Handler ───────────────────────────────────
         function handleDayClick(dateStr) {
+            if (isMobileCalendar()) { selectCalendarDay(dateStr); return; }
             let dayBookings = state.bookings.filter(b => b.startDate === dateStr);
             if (state.view !== 'dashboard' && state.selectedHall) {
                 dayBookings = dayBookings.filter(b => b.hallId === state.selectedHall.id);
