@@ -590,8 +590,9 @@
                             || _delLogsForCompany.find(l => l.startDate && l.startDate === b.startDate)
                             || _delLogsForCompany[0];
                         const _deletedByName = (((_delLogMatch && _delLogMatch.user) || '').split('@')[0]) || 'مستخدم آخر';
-                        addNotification(`تم حذف حجز بواسطة ${_deletedByName}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'delete', b.startDate);
-                        showToast(`تم حذف حجز بواسطة ${_deletedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error');
+                        const _byPart = isGuest() ? '' : ` بواسطة ${_deletedByName}`; // الزائر لا يقرأ السجلات فلا يمكن معرفة الاسم
+                        addNotification(`تم حذف حجز${_byPart}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'delete', b.startDate);
+                        showToast(`تم حذف حجز${_byPart} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error');
                     }
                 });
 
