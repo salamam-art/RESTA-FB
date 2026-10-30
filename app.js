@@ -314,6 +314,7 @@
             },
             currentMonth: new Date().getMonth(),
             currentYear: new Date().getFullYear(),
+            selectedDay: new Date().toISOString().split('T')[0], // اليوم المحدد (عرض الموبايل)
             editingBookingId: null,
             isSyncing: false,
             // --- Race condition fix ---
@@ -964,7 +965,6 @@
         function logout(force) {
             if (FIXED_USER_EMAIL && !force) return; // المستخدم الثابت لا يخرج
             if (CLOUD_ENABLED) teardownRealtimeSync();
-            stopAvatarListener();
             const prevEmail = state.currentUserEmail;
             state.currentUserEmail = '';
             state.isLoggedIn = false;
@@ -1333,21 +1333,9 @@
                 alert("غير مصرح لك بالدخول!");
                 return;
             }
-            await Promise.all([loadUsersDirectory(), loadAdminUserPhotos()]);
+            await loadUsersDirectory();
             document.getElementById('usersModal').classList.remove('hidden');
             renderUsersTable();
-        }
-
-        async function loadAdminUserPhotos() {
-            try {
-                const snap = await db.ref('userPhotos').once('value');
-                const val = snap.val() || {};
-                adminUserPhotos = {};
-                Object.keys(val).forEach(k => { if (val[k] && val[k].url) adminUserPhotos[k] = val[k].url; });
-            } catch (err) {
-                console.warn('loadAdminUserPhotos failed:', err && err.code);
-                adminUserPhotos = {};
-            }
         }
 
         // دليل المستخدمين المفعّلين (allowedUsers): بريد + تاريخ فقط — كلمات السر عند Firebase Auth وليست عندنا
@@ -1371,16 +1359,7 @@
             const tbody = document.getElementById('usersTableBody');
             tbody.innerHTML = state.users.map(user => `
                 <tr class="transition-colors hover:bg-slate-50">
-                    <td class="font-bold text-slate-800" style="direction: ltr;">
-                        <div class="flex items-center gap-2">
-                            <button type="button" data-email="${escapeHtml(user.email)}" onclick="pickAccountAvatar(this.dataset.email)" class="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-[#A88A45]/50 bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center hover:ring-2 transition-all" title="تغيير صورة هذا الحساب">
-                                ${adminUserPhotos[emailKey(user.email)]
-                                    ? `<img src="${escapeHtml(adminUserPhotos[emailKey(user.email)])}" alt="" class="w-full h-full object-cover">`
-                                    : `<span class="font-black text-sm leading-none">${escapeHtml((user.email || '?').charAt(0).toUpperCase())}</span>`}
-                            </button>
-                            <span class="truncate">${escapeHtml(user.email)}</span>
-                        </div>
-                    </td>
+                    <td class="font-bold text-slate-800" style="direction: ltr;">${escapeHtml(user.email)}</td>
                     <td class="text-sm text-slate-500 font-medium">${user.createdAt ? new Date(user.createdAt).toLocaleDateString('ar-EG') : '—'}</td>
                     <td class="flex items-center gap-2 justify-end">
                         <button data-email="${escapeHtml(user.email)}" onclick="sendUserPasswordReset(this.dataset.email)" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="إرسال رابط إعادة تعيين كلمة المرور">
@@ -1821,6 +1800,35 @@
         let touchGhostEl = null;
         let touchCurrentDayCell = null;
         let touchSourceEl = null;
+        let touchEdgeTimer = null, touchEdgeDelta = 0, touchLastX = 0, touchLastY = 0;
+
+        // أثناء سحب حجز: الوقوف عند حافة الشاشة يمين/شمال يقلّب الشهر (شمال = التالي، يمين = السابق، زي الأسهم)
+        function clearTouchEdge() {
+            if (touchEdgeTimer) { clearTimeout(touchEdgeTimer); touchEdgeTimer = null; }
+            touchEdgeDelta = 0;
+            document.documentElement.classList.remove('touch-edge-left', 'touch-edge-right');
+        }
+
+        function updateTouchEdgeZone(x) {
+            const EDGE = 44;
+            const delta = x <= EDGE ? 1 : (x >= window.innerWidth - EDGE ? -1 : 0);
+            if (delta === touchEdgeDelta) return;
+            clearTouchEdge();
+            if (!delta) return;
+            touchEdgeDelta = delta;
+            document.documentElement.classList.add(delta === 1 ? 'touch-edge-left' : 'touch-edge-right');
+            const tick = () => {
+                if (!touchDragActive || !touchEdgeDelta) return;
+                changeMonth(touchEdgeDelta);
+                // الكاليندر اتبنى من جديد: أعد تحديد اليوم اللي تحت الإصبع عشان الإفلات ميروحش لخلية قديمة
+                const el = document.elementFromPoint(touchLastX, touchLastY);
+                const cell = el ? el.closest('.day-cell[data-date]') : null;
+                touchCurrentDayCell = cell;
+                if (cell) cell.classList.add('drag-over');
+                touchEdgeTimer = setTimeout(tick, 900);
+            };
+            touchEdgeTimer = setTimeout(tick, 600);
+        }
 
         const TOUCH_LONG_PRESS_MS = 1000;
         const TOUCH_MOVE_TOLERANCE = 10;
@@ -1907,6 +1915,9 @@
             e.preventDefault();
             positionTouchGhost(touch.clientX, touch.clientY);
             dragPointerY = touch.clientY;
+            touchLastX = touch.clientX;
+            touchLastY = touch.clientY;
+            updateTouchEdgeZone(touch.clientX);
             startDragAutoScroll();
 
             const elUnder = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -1940,9 +1951,10 @@
         }
 
         function cleanupTouchDrag() {
+            clearTouchEdge();
             if (touchGhostEl) { touchGhostEl.remove(); touchGhostEl = null; }
             restoreTouchDraggable();
-            document.querySelectorAll('.booking-tag.dragging').forEach(elx => elx.classList.remove('dragging'));
+            document.querySelectorAll('.booking-tag.dragging, .agenda-item.dragging').forEach(elx => elx.classList.remove('dragging'));
             if (touchCurrentDayCell) touchCurrentDayCell.classList.remove('drag-over');
             touchCurrentDayCell = null;
             document.querySelectorAll('[data-month-nav].drag-over').forEach(b => b.classList.remove('drag-over'));
@@ -3401,14 +3413,142 @@ ${acknowledgmentHtml}
                 state.currentMonth = 11;
                 state.currentYear--;
             }
+            // عرض الموبايل: لو الشهر الجديد هو الشهر الحالي نحدد النهارده، وإلا نمسح التحديد
+            const _now = new Date();
+            state.selectedDay = (state.currentMonth === _now.getMonth() && state.currentYear === _now.getFullYear())
+                ? _now.toISOString().split('T')[0]
+                : null;
             render();
         }
+
+        // ─── Calendar mobile: نقط + قائمة اليوم + سحب بين الشهور ─────────
+        const HALL_DOT_COLORS = { yacht: '#3b82f6', italian: '#ef4444', greenhouse: '#22c55e', bar: '#a855f7', pool: '#06b6d4' };
+
+        function isMobileCalendar() {
+            return window.matchMedia('(max-width: 767px)').matches;
+        }
+
+        function renderDayAgendaHtml() {
+            const dateStr = state.selectedDay;
+            if (!dateStr) {
+                return '<div class="text-center text-xs font-bold text-slate-400 py-4">اضغط على يوم لعرض حجوزاته</div>';
+            }
+            const bookings = state.bookings.filter(b => b.startDate === dateStr).sort((a, b) => {
+                if (!a.startTime) return -1;
+                if (!b.startTime) return 1;
+                return a.startTime.localeCompare(b.startTime);
+            });
+            const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
+            const canAdd = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr));
+            const addBtn = canAdd ? `
+                <button onclick="openNewBookingForDate('${dateStr}')" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                    <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i><span>حجز جديد</span>
+                </button>` : '';
+
+            const items = bookings.map(b => {
+                const hall = HALLS.find(h => h.id === b.hallId) || { name: '' };
+                const isMyBooking = b.createdBy === state.currentUserEmail;
+                const canDrag = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || isMyBooking);
+                const time = b.startTime ? (b.startTime + (b.endTime ? ' – ' + b.endTime : '')) : 'طوال اليوم';
+                return `
+                    <div onclick="showDayDetails('${dateStr}', '${b.id}')"
+                         style="border-right:4px solid ${HALL_DOT_COLORS[b.hallId] || '#94a3b8'};"
+                         class="agenda-item flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm active:bg-slate-50"
+                         draggable="${canDrag}"
+                         ondragstart="${canDrag ? `handleBookingDragStart(event, '${b.id}')` : ''}"
+                         ondragend="${canDrag ? 'handleBookingDragEnd(event)' : ''}"
+                         ontouchstart="${canDrag ? `handleBookingTouchStart(event, '${b.id}')` : ''}"
+                         ontouchmove="${canDrag ? 'handleBookingTouchMove(event)' : ''}"
+                         ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
+                         ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-black text-slate-800 truncate">${b.eventType === 'wedding' ? '💍 ' : ''}${escapeHtml(b.companyName)}</div>
+                            <div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>
+                        </div>
+                        <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
+                    </div>`;
+            }).join('');
+
+            const body = bookings.length
+                ? `<div class="flex flex-col gap-1.5">${items}</div>`
+                : `<div class="flex flex-col items-center gap-1 py-5 text-slate-400">
+                        <i data-lucide="calendar-check" class="w-7 h-7 text-[#A88A45]/60"></i>
+                        <div class="text-xs font-bold">لا توجد حجوزات في هذا اليوم</div>
+                   </div>`;
+            return `
+                <div class="agenda-anim">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <div class="min-w-0">
+                            <div class="text-sm font-black text-[#6E1418] truncate">${pretty}</div>
+                            ${bookings.length ? `<div class="text-[11px] font-bold text-slate-400">${bookings.length} حجز</div>` : ''}
+                        </div>
+                        ${addBtn}
+                    </div>
+                    ${body}
+                </div>`;
+        }
+
+        function selectCalendarDay(dateStr) {
+            state.selectedDay = dateStr;
+            document.querySelectorAll('.day-cell.selected-day').forEach(el => el.classList.remove('selected-day'));
+            const cell = document.querySelector('.day-cell[data-date="' + dateStr + '"]');
+            if (cell) cell.classList.add('selected-day');
+            const box = document.getElementById('dayAgenda');
+            if (box) {
+                box.innerHTML = renderDayAgendaHtml();
+                refreshIcons('dayAgenda');
+            }
+        }
+
+        // سحب أفقي على الكاليندر (موبايل) للتنقل بين الشهور — السحب لليمين = الشهر التالي (نفس اتجاه سهم الشمال)
+        (function initCalendarSwipe() {
+            let sx = 0, sy = 0, tracking = false, animating = false;
+
+            // أنيميشن: الشهر الحالي يخرج، وبعده الجديد يدخل من الاتجاه المعاكس
+            function swipeToMonth(next) {
+                const w = document.querySelector('.calendar-scroll-wrapper');
+                if (!w || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    changeMonth(next ? 1 : -1);
+                    return;
+                }
+                animating = true;
+                w.classList.add(next ? 'cal-out-right' : 'cal-out-left');
+                setTimeout(function () {
+                    changeMonth(next ? 1 : -1);
+                    const nw = document.querySelector('.calendar-scroll-wrapper');
+                    if (nw) {
+                        const cls = next ? 'cal-in-from-left' : 'cal-in-from-right';
+                        nw.classList.add(cls);
+                        nw.addEventListener('animationend', function () { nw.classList.remove(cls); }, { once: true });
+                    }
+                    animating = false;
+                }, 130);
+            }
+
+            document.addEventListener('touchstart', function (e) {
+                tracking = false;
+                if (animating || !isMobileCalendar() || e.touches.length !== 1) return;
+                if (!e.target.closest || !e.target.closest('.calendar-scroll-wrapper')) return;
+                sx = e.touches[0].clientX;
+                sy = e.touches[0].clientY;
+                tracking = true;
+            }, { passive: true });
+            document.addEventListener('touchend', function (e) {
+                if (!tracking) return;
+                tracking = false;
+                if (typeof touchDragActive !== 'undefined' && touchDragActive) return;
+                const t = e.changedTouches[0];
+                if (!t) return;
+                const dx = t.clientX - sx, dy = t.clientY - sy;
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) swipeToMonth(dx > 0);
+            }, { passive: true });
+        })();
 
         function render() {
             const app = document.getElementById('app');
             app.innerHTML = `
                 ${renderHeader()}
-                <main class="max-w-7xl mx-auto p-2 md:p-8 pb-16 md:pb-24 space-y-1.5 md:space-y-8">
+                <main class="max-w-7xl mx-auto p-2 md:p-8 pb-16 md:pb-24 space-y-0">
                     ${renderDashboard()}
                 </main>
             `;
@@ -3492,6 +3632,12 @@ ${acknowledgmentHtml}
                                         </span>
                                         إعدادات باقات الأفراح
                                     </button>
+                                    <button onclick="toggleFinanceStatsModal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-[#6E1418]"></i>
+                                        </span>
+                                        الإحصائيات المالية
+                                    </button>
                                     ` : ''}
                                     ${state.currentUserEmail === ADMIN_EMAIL ? `
                                     <button onclick="exportFullBackup(); toggleMoreMenu()">
@@ -3530,6 +3676,9 @@ ${acknowledgmentHtml}
                             </button>
                             <button onclick="toggleWeddingSettingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="إعدادات باقات الأفراح">
                                 <i data-lucide="settings-2" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="toggleFinanceStatsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="الإحصائيات المالية">
+                                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                             </button>
                             ` : ''}
 
@@ -3683,6 +3832,249 @@ ${acknowledgmentHtml}
             `;
         }
 
+        // ═══════════════ الإحصائيات المالية (للأدمن فقط) ═══════════════
+        let financePeriod = 'all';
+
+        function fmtCompact(n) {
+            n = Math.round(Number(n) || 0);
+            if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return Math.round(n / 1000) + 'K';
+            return String(n);
+        }
+
+        // سجل مالي واحد لكل حجز (الحجز متعدد الأيام يتكرر كسجل لكل يوم، فنجمّعه بالـ groupId)
+        function getFinanceRecords() {
+            const map = new Map();
+            state.bookings.forEach(b => {
+                const isWedding = b.eventType === 'wedding' && b.wedding;
+                const isOther = b.eventType === 'other' && b.otherMenu;
+                if (!isWedding && !isOther) return;
+                const key = b.groupId || String(b.id).split('_d')[0];
+                const prev = map.get(key);
+                if (prev && prev.date <= b.startDate) return;
+                let total = 0, paid = 0, guests = 0;
+                if (isWedding) {
+                    const w = b.wedding;
+                    total = Number(w.total) || 0;
+                    paid = Array.isArray(w.payments) ? w.payments.reduce((x, n) => x + (Number(n) || 0), 0) : (Number(w.paidTotal) || 0);
+                    guests = Number(w.guests) || 0;
+                } else {
+                    const om = b.otherMenu;
+                    const menus = Array.isArray(om.menus) ? om.menus : [];
+                    const equip = Array.isArray(om.equipment) ? om.equipment : [];
+                    total = menus.reduce((x, m) => x + (Number(m.total) || 0), 0) + equip.reduce((x, e) => x + (Number(e.total) || 0), 0);
+                    paid = (Array.isArray(om.payments) ? om.payments : []).reduce((x, n) => x + (Number(n) || 0), 0);
+                    guests = menus.reduce((x, m) => x + (Number(m.guests) || 0), 0);
+                }
+                if (total <= 0 && paid <= 0) return;
+                map.set(key, {
+                    id: b.id, date: b.startDate, name: b.companyName || '-',
+                    type: isWedding ? 'wedding' : 'other',
+                    total, paid, guests, remaining: Math.max(0, total - paid)
+                });
+            });
+            return Array.from(map.values());
+        }
+
+        function ensureFinanceModal() {
+            let m = document.getElementById('financeStatsModal');
+            if (m) return m;
+            m = document.createElement('div');
+            m.id = 'financeStatsModal';
+            m.className = 'hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4';
+            m.setAttribute('onclick', 'if (event.target === this) toggleFinanceStatsModal()');
+            m.innerHTML = `
+                <div class="bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
+                    <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center shrink-0">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
+                                <i data-lucide="bar-chart-3" class="w-5 h-5 text-[#A88A45]"></i>
+                            </div>
+                            <h3 class="font-black text-xl tracking-wide">الإحصائيات المالية</h3>
+                        </div>
+                        <button onclick="toggleFinanceStatsModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div class="px-4 py-3 bg-white border-b border-slate-200 flex items-center gap-2 shrink-0">
+                        <i data-lucide="calendar" class="w-4 h-4 text-[#A88A45] shrink-0"></i>
+                        <select id="financePeriodSelect" onchange="setFinancePeriod(this.value)" class="flex-1 min-w-0 bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold"></select>
+                    </div>
+                    <div id="financeStatsBody" class="overflow-y-auto flex-1 bg-slate-50 p-3 sm:p-5"></div>
+                </div>`;
+            document.body.appendChild(m);
+            return m;
+        }
+
+        function toggleFinanceStatsModal() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const modal = ensureFinanceModal();
+            if (modal.classList.contains('hidden')) {
+                renderFinanceStats();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function setFinancePeriod(v) {
+            financePeriod = v || 'all';
+            renderFinanceStats();
+        }
+
+        function openBookingFromFinance(date, id) {
+            const m = document.getElementById('financeStatsModal');
+            if (m) m.classList.add('hidden');
+            showDayDetails(date, id);
+        }
+
+        function renderFinanceStats() {
+            const all = getFinanceRecords();
+
+            // قائمة الفترات المتاحة (سنوات + شهور فيها بيانات)
+            const years = Array.from(new Set(all.map(r => r.date.slice(0, 4)))).sort().reverse();
+            const months = Array.from(new Set(all.map(r => r.date.slice(0, 7)))).sort().reverse();
+            if (financePeriod !== 'all' && !years.includes(financePeriod) && !months.includes(financePeriod)) financePeriod = 'all';
+            const monthLabel = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' }); };
+            const sel = document.getElementById('financePeriodSelect');
+            if (sel) {
+                sel.innerHTML = `<option value="all">كل الفترات</option>`
+                    + (years.length ? `<optgroup label="السنوات">${years.map(y => `<option value="${y}">سنة ${y}</option>`).join('')}</optgroup>` : '')
+                    + (months.length ? `<optgroup label="الشهور">${months.map(k => `<option value="${k}">${monthLabel(k)}</option>`).join('')}</optgroup>` : '');
+                sel.value = financePeriod;
+            }
+
+            const body = document.getElementById('financeStatsBody');
+            if (!body) return;
+            const recs = all.filter(r => financePeriod === 'all' || r.date.startsWith(financePeriod));
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            if (!recs.length) {
+                body.innerHTML = `<div class="flex flex-col items-center gap-2 py-12 text-slate-400">
+                    <i data-lucide="wallet" class="w-9 h-9 text-[#A88A45]/60"></i>
+                    <div class="text-sm font-bold">لا توجد حجوزات بمبالغ مسجلة في هذه الفترة</div></div>`;
+                refreshIcons('financeStatsModal');
+                return;
+            }
+
+            const sum = (arr, k) => arr.reduce((x, r) => x + r[k], 0);
+            const total = sum(recs, 'total'), paid = sum(recs, 'paid'), remaining = sum(recs, 'remaining');
+            const pct = total > 0 ? Math.min(100, Math.round(paid / total * 100)) : 0;
+
+            // 1) الملخص
+            const card = (label, val, cls) => `<div class="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm">
+                <div class="text-[11px] font-bold text-slate-400 mb-1">${label}</div>
+                <div class="text-base sm:text-xl font-black ${cls}">${val}</div></div>`;
+            const summaryHtml = `
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                    ${card('عدد الحجوزات', recs.length, 'text-slate-800')}
+                    ${card('إجمالي القيمة', fmtEGP(total), 'text-[#6E1418]')}
+                    ${card('المحصّل', fmtEGP(paid), 'text-emerald-700')}
+                    ${card('المتبقي', fmtEGP(remaining), remaining > 0 ? 'text-red-600' : 'text-emerald-700')}
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm mt-2 sm:mt-3">
+                    <div class="flex justify-between text-xs font-black mb-2"><span class="text-slate-500">نسبة التحصيل</span><span class="text-[#6E1418]">${pct}%</span></div>
+                    <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full bg-emerald-500" style="width:${pct}%"></div></div>
+                </div>`;
+
+            // 3) مقارنة النوعين
+            const typeCard = (label, icon, list) => {
+                const n = list.length;
+                const t = sum(list, 'total'), p = sum(list, 'paid'), rem = sum(list, 'remaining'), g = sum(list, 'guests');
+                const row = (l, v, cls) => `<div class="flex justify-between text-xs sm:text-sm py-1.5 border-b border-slate-100 last:border-0"><span class="text-slate-500 font-bold">${l}</span><span class="font-black ${cls || 'text-slate-800'}">${v}</span></div>`;
+                return `<div class="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-2"><div class="text-sm font-black text-[#6E1418]">${icon} ${label}</div><div class="text-xs font-black text-slate-400">${n} حجز</div></div>
+                    ${n ? `${row('إجمالي القيمة', fmtEGP(t))}
+                    ${row('المحصّل', fmtEGP(p), 'text-emerald-700')}
+                    ${row('المتبقي', fmtEGP(rem), rem > 0 ? 'text-red-600' : 'text-emerald-700')}
+                    ${row('متوسط قيمة الحجز', fmtEGP(t / n))}
+                    ${g > 0 ? row('متوسط عدد الأفراد', Math.round(g / n)) : ''}` : '<div class="text-xs font-bold text-slate-400 py-3 text-center">لا توجد حجوزات</div>'}
+                </div>`;
+            };
+            const typesHtml = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                ${typeCard('فرح / خطوبة', '💍', recs.filter(r => r.type === 'wedding'))}
+                ${typeCard('مناسبات خاصة', '🎉', recs.filter(r => r.type === 'other'))}
+            </div>`;
+
+            // 2) المتبقي على العملاء
+            const owing = recs.filter(r => r.remaining > 0).sort((a, b) => a.date.localeCompare(b.date));
+            const LIMIT = 30;
+            const owingHtml = owing.length ? owing.slice(0, LIMIT).map(r => {
+                const days = diffDaysDateStr(todayStr, r.date);
+                const badge = days < 0
+                    ? '<span class="px-1.5 py-0.5 rounded-md bg-red-50 text-red-600 text-[10px] font-black">فات موعده</span>'
+                    : (days <= 14 ? '<span class="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[10px] font-black">قريب</span>' : '');
+                const dLabel = new Date(r.date + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+                return `<button onclick="openBookingFromFinance('${r.date}', '${r.id}')" class="w-full text-right flex items-center gap-3 px-3 py-2.5 bg-white border border-slate-200 rounded-xl hover:border-[#A88A45] transition-colors">
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm font-black text-slate-800 truncate">${r.type === 'wedding' ? '💍 ' : ''}${escapeHtml(r.name)}</div>
+                        <div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mt-0.5"><span>${dLabel}</span>${badge}</div>
+                    </div>
+                    <div class="shrink-0 text-left">
+                        <div class="text-sm font-black text-red-600">${fmtEGP(r.remaining)}</div>
+                        <div class="text-[10px] font-bold text-slate-400">من ${fmtEGP(r.total)}</div>
+                    </div>
+                </button>`;
+            }).join('') + (owing.length > LIMIT ? `<div class="text-center text-[11px] font-bold text-slate-400 pt-1">و ${owing.length - LIMIT} حجز آخر</div>` : '')
+                : `<div class="flex flex-col items-center gap-1 py-6 text-slate-400"><i data-lucide="circle-check" class="w-7 h-7 text-emerald-500/70"></i><div class="text-xs font-bold">لا يوجد متبقي على أي عميل في هذه الفترة</div></div>`;
+
+            // 4) الرسم الشهري (يتجاهل فلتر الشهر: آخر 12 شهر، أو شهور السنة المختارة)
+            const pad2 = n => String(n).padStart(2, '0');
+            let keys = [];
+            if (/^\d{4}$/.test(financePeriod)) {
+                for (let m = 1; m <= 12; m++) keys.push(`${financePeriod}-${pad2(m)}`);
+            } else {
+                const nowKey = todayStr.slice(0, 7);
+                const lastKey = all.reduce((mx, r) => r.date.slice(0, 7) > mx ? r.date.slice(0, 7) : mx, nowKey);
+                const [ly, lm] = lastKey.split('-').map(Number);
+                for (let i = 11; i >= 0; i--) { const d = new Date(ly, lm - 1 - i, 1); keys.push(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`); }
+            }
+            const series = keys.map(k => {
+                const list = all.filter(r => r.date.startsWith(k));
+                return { k, total: sum(list, 'total'), paid: Math.min(sum(list, 'paid'), sum(list, 'total')) };
+            });
+            const maxV = Math.max(1, ...series.map(x => x.total));
+            const H = 140;
+            const barsHtml = series.map((x, i) => {
+                const [y, m] = x.k.split('-').map(Number);
+                const mName = new Date(y, m - 1, 1).toLocaleDateString('ar-EG', { month: 'short' });
+                const yy = new Date(y, m - 1, 1).toLocaleDateString('ar-EG', { year: '2-digit' });
+                const h = Math.round(x.total / maxV * H), hp = Math.round(x.paid / maxV * H);
+                const prev = i > 0 ? series[i - 1].total : 0;
+                let chg = '';
+                if (prev > 0 && x.total > 0) {
+                    const c = Math.round((x.total - prev) / prev * 100);
+                    chg = `<div class="text-[9px] font-black ${c >= 0 ? 'text-emerald-600' : 'text-red-500'}">${c >= 0 ? '▲' : '▼'}${Math.abs(c)}%</div>`;
+                } else { chg = '<div class="text-[9px]">&nbsp;</div>'; }
+                return `<div class="flex-1 min-w-[48px] flex flex-col items-center justify-end">
+                    <div class="text-[10px] font-black text-slate-500 mb-1">${x.total > 0 ? fmtCompact(x.total) : ''}</div>
+                    <div class="w-full max-w-[30px] flex flex-col justify-end rounded-t-md overflow-hidden" style="height:${H}px;">
+                        <div style="height:${Math.max(0, h - hp)}px;" class="bg-[#A88A45]/40"></div>
+                        <div style="height:${hp}px;" class="bg-[#6E1418]"></div>
+                    </div>
+                    <div class="text-[10px] font-bold text-slate-500 mt-1">${mName}</div>
+                    <div class="text-[9px] font-bold text-slate-400">${yy}</div>
+                    ${chg}
+                </div>`;
+            }).join('');
+            const chartHtml = `<div class="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-500 mb-3">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-[#6E1418] inline-block"></span>المحصّل</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-[#A88A45]/40 inline-block"></span>المتبقي</span>
+                    <span class="text-slate-400">(ارتفاع العمود = إجمالي القيمة، والنسبة = التغيّر عن الشهر السابق)</span>
+                </div>
+                <div class="overflow-x-auto"><div class="flex items-end gap-1.5" style="min-width:620px;">${barsHtml}</div></div>
+            </div>`;
+
+            const sec = (title, icon, inner) => `<div class="mt-4 sm:mt-5">
+                <div class="flex items-center gap-2 mb-2 px-1"><i data-lucide="${icon}" class="w-4 h-4 text-[#A88A45]"></i><h4 class="text-sm font-black text-[#6E1418]">${title}</h4></div>${inner}</div>`;
+            body.innerHTML = summaryHtml
+                + sec('الفرح / الخطوبة مقابل المناسبات الخاصة', 'layers', typesHtml)
+                + sec('القيمة الشهرية', 'bar-chart-3', chartHtml)
+                + sec(`المتبقي على العملاء (${owing.length})`, 'wallet', `<div class="flex flex-col gap-1.5">${owingHtml}</div>`);
+            refreshIcons('financeStatsModal');
+        }
+
         function toggleStatsModal() {
             const modal = document.getElementById('statsModal');
             if (!modal) return;
@@ -3702,13 +4094,12 @@ ${acknowledgmentHtml}
             const futureCount = state.bookings.filter(b => b.startDate >= todayStr).length;
 
             const accountLabel = isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر');
-            const avatarOn = avatarEnabled();
-            if (avatarOn) ensureAvatarListener();
 
             return `
-                <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl md:rounded-2xl px-3 py-1.5 md:px-4 md:py-2.5 shadow-sm">
-                    <span id="accountAvatar" ${avatarOn ? 'onclick="pickAccountAvatar()" role="button" title="تغيير صورة الحساب"' : ''} class="w-6 h-6 md:w-8 md:h-8 ${avatarOn ? 'rounded-full overflow-hidden cursor-pointer ring-1 ring-[#A88A45]/50' : 'rounded-lg'} bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0 transition-opacity">
-                        ${accountAvatarInner()}
+                <div class="flex md:block">
+                <div class="flex-1 min-w-0 flex items-center gap-2 bg-white border border-slate-200 rounded-xl md:rounded-2xl px-3 py-1.5 md:px-4 md:py-2.5 shadow-sm">
+                    <span class="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center shrink-0">
+                        <i data-lucide="user-circle" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>
                     </span>
                     <div class="min-w-0 flex-1">
                         <div class="text-[9px] md:text-[10px] font-bold text-slate-400 leading-tight">مسجّل الدخول بحساب</div>
@@ -3716,19 +4107,20 @@ ${acknowledgmentHtml}
                     </div>
                 </div>
 
-                <button onclick="toggleBookingsListModal()" class="w-full bg-white border border-slate-200 text-slate-700 p-2 md:p-4 rounded-xl md:rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-2 md:gap-3 font-bold text-sm md:text-lg group">
+                <button onclick="toggleBookingsListModal()" class="shrink-0 md:w-full bg-white border border-slate-200 text-slate-700 p-2 md:p-4 rounded-xl md:rounded-2xl shadow-sm hover:shadow-md hover:border-[#A88A45] hover:text-[#6E1418] transition-all flex items-center justify-center gap-2 md:gap-3 font-bold text-sm md:text-lg group">
                     <i data-lucide="list-video" class="w-4 h-4 md:w-6 md:h-6 text-slate-400 group-hover:text-[#A88A45] transition-colors"></i>
-                    <span>عرض جدول الحجوزات القادمة بالتفصيل</span>
-                    <i data-lucide="arrow-left" class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
+                    <span class="md:hidden">الحجوزات القادمة</span>
+                    <span class="hidden md:inline">عرض جدول الحجوزات القادمة بالتفصيل</span>
+                    <i data-lucide="arrow-left" class="hidden md:block w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 group-hover:-translate-x-2 transition-all"></i>
                 </button>
+                </div>
 
-                <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8 md:mt-6">
-                    <div class="flex flex-row flex-wrap items-center justify-between mb-1.5 md:mb-8 gap-1.5 md:gap-4">
-                        <div class="flex items-center gap-2 md:gap-3">
+                <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8">
+                    <div class="relative flex flex-row flex-wrap items-center justify-center mb-1.5 md:mb-8 gap-1.5 md:gap-4">
+                        <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2 md:gap-3">
                             <div class="w-7 h-7 md:w-10 md:h-10 bg-[#A88A45]/10 rounded-lg md:rounded-xl flex items-center justify-center text-[#A88A45]">
                                 <i data-lucide="calendar" class="w-4 h-4 md:w-5 md:h-5"></i>
                             </div>
-                            <h2 class="text-base md:text-2xl font-black text-[#6E1418] tracking-tight">التقويم الشهري</h2>
                         </div>
                         <div class="flex bg-slate-50 border border-slate-200 rounded-lg md:rounded-xl p-0.5 md:p-1.5 shadow-sm">
                             <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="-1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4 md:w-5 md:h-5"></i></button>
@@ -3739,6 +4131,7 @@ ${acknowledgmentHtml}
                         </div>
                     </div>
                     ${renderCalendar(true)}
+                    <div id="dayAgenda" class="day-agenda">${renderDayAgendaHtml()}</div>
                 </div>
             `;
         }
@@ -3802,13 +4195,18 @@ ${acknowledgmentHtml}
                     : '';
 
                 const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                const isPast = isPastDateStr(dateStr);
+                const heat = totalCount === 0 ? 0 : totalCount === 1 ? 1 : totalCount === 2 ? 2 : totalCount <= 4 ? 3 : 4;
+                const dotsHtml = dayBookings.slice(0, 8).map(b =>
+                    `<span class="day-dot" style="background:${HALL_DOT_COLORS[b.hallId] || '#94a3b8'};"></span>`
+                ).join('');
                 days.push(`
                     <div onclick="handleDayClick('${dateStr}')"
                          ondragover="handleDayDragOver(event)"
                          ondragleave="handleDayDragLeave(event)"
                          ondrop="handleDayDrop(event, '${dateStr}')"
                          data-date="${dateStr}"
-                         class="day-cell ${isToday ? 'today-active z-10' : ''} cursor-pointer group">
+                         class="day-cell ${isToday ? 'today-active z-10' : ''} ${heat ? 'heat-' + heat : ''} ${state.selectedDay === dateStr ? 'selected-day' : ''} ${isPast ? 'past-day' : ''} cursor-pointer group">
                         <div class="flex items-center justify-between mb-1" style="flex-shrink:0;">
                             <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
                             ${totalCount > 0 ? `<span class="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">${totalCount}</span>` : ''}
@@ -3817,6 +4215,7 @@ ${acknowledgmentHtml}
                             ${tagsHtml}
                             ${moreHtml}
                         </div>
+                        <div class="day-dots">${dotsHtml}</div>
                     </div>
                 `);
             }
@@ -3851,6 +4250,7 @@ ${acknowledgmentHtml}
 
         // ─── Calendar Day Click Handler ───────────────────────────────────
         function handleDayClick(dateStr) {
+            if (isMobileCalendar()) { selectCalendarDay(dateStr); return; }
             let dayBookings = state.bookings.filter(b => b.startDate === dateStr);
             if (state.view !== 'dashboard' && state.selectedHall) {
                 dayBookings = dayBookings.filter(b => b.hallId === state.selectedHall.id);
@@ -4073,125 +4473,6 @@ ${acknowledgmentHtml}
         function deleteStorageImageSilently(url) {
             if (!isStorageImageUrl(url)) return;
             storage.refFromURL(url).delete().catch(() => {});
-        }
-
-        // ─── صورة الحساب (Avatar) بجانب الإيميل ───────────────────────────
-        // الصورة تُرفع إلى Storage (avatars/<emailKey>.jpg) ويُحفظ رابطها في userPhotos/<emailKey>.
-        // الزائر والمستخدم الثابت (?user=) يبقون على الأيقونة الافتراضية ولا يمكنهم التغيير.
-        const AVATAR_SIZE = 256; // px — مربعة، وتُعرض دائرية بالـ CSS
-        const AVATAR_JPEG_QUALITY = 0.85;
-        let avatarListenerEmail = '';
-
-        function avatarEnabled() {
-            return !!(state.isLoggedIn && state.currentUserEmail && !isGuest() && !FIXED_USER_EMAIL);
-        }
-        // صور كل الحسابات (يحمّلها الأدمن فقط عند فتح نافذة المستخدمين): { emailKey: url }
-        let adminUserPhotos = {};
-        // المستخدم يغيّر صورته فقط، والأدمن يغيّر صورة أي حساب
-        function canEditAvatarFor(email) {
-            if (!avatarEnabled()) return false;
-            const target = String(email || state.currentUserEmail).toLowerCase();
-            return target === String(state.currentUserEmail).toLowerCase() || state.currentUserEmail === ADMIN_EMAIL;
-        }
-        function getCachedAvatar(email) {
-            try { return localStorage.getItem('hotel_avatar_' + emailKey(email)) || ''; } catch (e) { return ''; }
-        }
-        function setCachedAvatar(email, url) {
-            try {
-                if (url) localStorage.setItem('hotel_avatar_' + emailKey(email), url);
-                else localStorage.removeItem('hotel_avatar_' + emailKey(email));
-            } catch (e) {}
-        }
-        // محتوى الدائرة: الصورة، أو أول حرف من الإيميل، أو الأيقونة الافتراضية (زائر/مستخدم ثابت)
-        function accountAvatarInner() {
-            if (!avatarEnabled()) return '<i data-lucide="user-circle" class="w-3.5 h-3.5 md:w-4 md:h-4"></i>';
-            const url = getCachedAvatar(state.currentUserEmail);
-            if (url) return '<img src="' + escapeHtml(url) + '" alt="" class="w-full h-full object-cover">';
-            const letter = (state.currentUserEmail || '?').charAt(0).toUpperCase();
-            return '<span class="font-black text-xs md:text-sm leading-none">' + escapeHtml(letter) + '</span>';
-        }
-        function updateAccountAvatarDom() {
-            const el = document.getElementById('accountAvatar');
-            if (el) el.innerHTML = accountAvatarInner();
-        }
-        // مزامنة صورة الحساب بين الأجهزة (اشتراك واحد لكل مستخدم)
-        function ensureAvatarListener() {
-            if (!CLOUD_ENABLED || !avatarEnabled()) return;
-            const email = state.currentUserEmail;
-            if (avatarListenerEmail === email) return;
-            stopAvatarListener();
-            avatarListenerEmail = email;
-            db.ref('userPhotos/' + emailKey(email)).on('value', (snap) => {
-                if (state.currentUserEmail !== email) return;
-                const v = snap.val();
-                setCachedAvatar(email, v && v.url ? v.url : '');
-                updateAccountAvatarDom();
-            }, (err) => { console.warn('userPhotos listener cancelled:', err && err.code); });
-        }
-        function stopAvatarListener() {
-            if (!avatarListenerEmail) return;
-            try { db.ref('userPhotos/' + emailKey(avatarListenerEmail)).off('value'); } catch (e) {}
-            avatarListenerEmail = '';
-        }
-        // قصّ مربع من منتصف الصورة + تصغير + ضغط JPEG
-        function makeAvatarDataUrl(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onerror = () => reject(new Error('تعذّرت قراءة الملف'));
-                reader.onload = () => {
-                    const img = new Image();
-                    img.onerror = () => reject(new Error('تعذّرت قراءة الصورة'));
-                    img.onload = () => {
-                        const side = Math.min(img.width, img.height);
-                        const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
-                        const canvas = document.createElement('canvas');
-                        canvas.width = AVATAR_SIZE; canvas.height = AVATAR_SIZE;
-                        canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
-                        resolve(canvas.toDataURL('image/jpeg', AVATAR_JPEG_QUALITY));
-                    };
-                    img.src = reader.result;
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-        function pickAccountAvatar(targetEmail) {
-            if (!canEditAvatarFor(targetEmail)) return;
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = () => {
-                const f = input.files && input.files[0];
-                if (f) uploadAccountAvatar(f, targetEmail);
-            };
-            input.click();
-        }
-        async function uploadAccountAvatar(file, targetEmail) {
-            if (!canEditAvatarFor(targetEmail)) return;
-            if (!/^image\//.test(file.type || '')) { showToast('الملف المختار ليس صورة.', 'error'); return; }
-            const email = targetEmail || state.currentUserEmail;
-            const isSelf = String(email).toLowerCase() === String(state.currentUserEmail).toLowerCase();
-            const key = emailKey(email);
-            const setBusy = (on) => { const el = isSelf ? document.getElementById('accountAvatar') : null; if (el) el.style.opacity = on ? '0.5' : ''; };
-            setBusy(true);
-            try {
-                const blob = dataUrlToBlob(await makeAvatarDataUrl(file));
-                const snap = await storage.ref().child('avatars/' + key + '.jpg').put(blob, { contentType: 'image/jpeg' });
-                const baseUrl = await snap.ref.getDownloadURL();
-                const url = baseUrl + (baseUrl.indexOf('?') > -1 ? '&' : '?') + 'v=' + Date.now();
-                await db.ref('userPhotos/' + key).set({ url, updatedAt: new Date().toISOString() });
-                if (isSelf) { setCachedAvatar(email, url); updateAccountAvatarDom(); }
-                if (state.currentUserEmail === ADMIN_EMAIL) {
-                    adminUserPhotos[key] = url;
-                    const um = document.getElementById('usersModal');
-                    if (um && !um.classList.contains('hidden')) renderUsersTable();
-                }
-                showToast(isSelf ? 'تم تحديث صورة الحساب ✅' : 'تم تحديث صورة ' + email + ' ✅', 'success');
-            } catch (e) {
-                console.error('avatar upload failed:', e);
-                showToast('تعذّر رفع الصورة، حاول مرة أخرى.', 'error');
-            } finally {
-                setBusy(false);
-            }
         }
 
         function triggerImageFileInput() {
