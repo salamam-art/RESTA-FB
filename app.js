@@ -577,7 +577,7 @@
                         }
                         const _addedByName = (_addedByEmail.split('@')[0]) || 'مستخدم آخر';
                         addNotification(`حجز جديد من ${_addedByName}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'add', b.startDate);
-                        showToast(`حجز جديد من ${_addedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'success', b.startDate);
+                        showToast(`حجز جديد من ${_addedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'success', b.startDate, 'add');
                     }
                 });
                 state.bookings.filter(b => !b._isDirty).forEach(b => {
@@ -591,7 +591,7 @@
                             || _delLogsForCompany[0];
                         const _deletedByName = (((_delLogMatch && _delLogMatch.user) || '').split('@')[0]) || 'مستخدم آخر';
                         addNotification(`تم حذف حجز بواسطة ${_deletedByName}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'delete', b.startDate);
-                        showToast(`تم حذف حجز بواسطة ${_deletedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error');
+                        showToast(`تم حذف حجز بواسطة ${_deletedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error', undefined, 'delete');
                     }
                 });
 
@@ -698,16 +698,38 @@
                 type: type, // 'add' or 'delete'
                 time: new Date().toLocaleTimeString('ar-EG'),
                 date: new Date().toLocaleDateString('ar-EG'),
-                bookingDate: bookingDate || null
+                bookingDate: bookingDate || null,
+                read: false
             };
             state.notifications.unshift(notif);
             if(state.notifications.length > 50) state.notifications.pop();
             localStorage.setItem('hotel_notifications', JSON.stringify(state.notifications));
-            renderHeader(); // Refresh header to show badge
+            updateNotifBadge(true); // تحديث الرقم على الجرس + هزة خفيفة
+            if (isNotifPopoverOpen()) renderNotifPopover(true);
         }
 
-        function showToast(message, type, bookingDate) {
+        // بانرات الحجوزات المجمّعة (النوع -> عنصر البانر الظاهر حاليًا)
+        const _groupedToasts = {};
+
+        function setToastClickable(toast, hintText) {
+            toast.classList.add('cursor-pointer', 'hover:shadow-2xl', 'hover:scale-[1.01]', 'active:scale-[0.99]');
+            const hintEl = toast.querySelector('.toast-hint');
+            if (hintEl) hintEl.textContent = hintText;
+        }
+
+        // groupKey (اختياري): 'add' أو 'delete' — لدمج إشعارات الحجوزات المتتالية في بانر واحد
+        function showToast(message, type, bookingDate, groupKey) {
             const container = document.getElementById('toast-container');
+
+            // لو فيه بانر مجمّع من نفس النوع لسه ظاهر، حدّثه بدل ما نعمل بانر جديد
+            if (groupKey) {
+                const existing = _groupedToasts[groupKey];
+                if (existing && existing.isConnected && existing.dataset.dismissing !== '1') {
+                    updateGroupedToast(existing, bookingDate);
+                    return;
+                }
+            }
+
             const toast = document.createElement('div');
             
             const bgClass = type === 'error' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200';
@@ -719,17 +741,15 @@
             const clickableStyles = bookingDate
                 ? 'cursor-pointer hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99]'
                 : '';
-            const clickHint = bookingDate
-                ? `<span class="text-xs font-medium opacity-60 mt-0.5 block">اضغط لعرض التفاصيل</span>`
-                : '';
+            const clickHint = `<span class="toast-hint text-xs font-medium opacity-60 mt-0.5 block">${bookingDate ? 'اضغط لعرض التفاصيل' : ''}</span>`;
 
-            toast.className = `pointer-events-auto relative overflow-hidden p-4 pb-[18px] rounded-2xl border shadow-xl flex items-center gap-4 animate-slide-up transition-transform duration-200 ${bgClass} ${clickableStyles}`;
+            toast.className = `pointer-events-auto relative overflow-hidden p-4 pb-[18px] rounded-2xl border shadow-xl flex items-center gap-4 animate-slide-down transition-transform duration-200 ${bgClass} ${clickableStyles}`;
             toast.innerHTML = `
                 <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center shrink-0 toast-icon-pop">
                     <i data-lucide="${icon}" class="w-5 h-5"></i>
                 </div>
                 <div class="flex-1">
-                    <p class="text-sm font-bold ${textClass}">${escapeHtml(message)}</p>
+                    <p class="toast-msg text-sm font-bold ${textClass}">${escapeHtml(message)}</p>
                     ${clickHint}
                 </div>
                 <button type="button" class="toast-close-btn text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors shrink-0">
@@ -740,10 +760,32 @@
                 </div>
             `;
 
-            if (bookingDate) {
+            if (groupKey) {
+                toast._group = {
+                    key: groupKey,
+                    count: 1,
+                    dates: new Set(bookingDate ? [bookingDate] : []),
+                    allDated: !!bookingDate,
+                    firstDate: bookingDate || null
+                };
+                _groupedToasts[groupKey] = toast;
+            }
+
+            if (bookingDate || groupKey) {
                 toast.addEventListener('click', function() {
-                    dismissToast(toast);
-                    showDayDetails(bookingDate);
+                    const g = toast._group;
+                    if (g && g.count > 1) {
+                        dismissToast(toast);
+                        // نفس اليوم -> تفاصيل اليوم، أيام مختلفة -> قائمة الإشعارات
+                        if (g.allDated && g.dates.size === 1) showDayDetails([...g.dates][0]);
+                        else openNotifPopover();
+                        return;
+                    }
+                    const d = g ? g.firstDate : bookingDate;
+                    if (d) {
+                        dismissToast(toast);
+                        showDayDetails(d);
+                    }
                 });
             }
 
@@ -759,17 +801,173 @@
             toast._toastTimer = setTimeout(() => dismissToast(toast), 5000);
         }
 
+        // تحديث بانر مجمّع موجود: زيادة العدد + إعادة تشغيل العدّاد (5 ثوانٍ من آخر حجز)
+        function updateGroupedToast(toast, bookingDate) {
+            const g = toast._group;
+            g.count++;
+            if (bookingDate) g.dates.add(bookingDate); else g.allDated = false;
+
+            const msgEl = toast.querySelector('.toast-msg');
+            if (msgEl) msgEl.textContent = g.key === 'delete' ? `تم حذف ${g.count} حجوزات` : `${g.count} حجوزات جديدة`;
+
+            const sameDay = g.allDated && g.dates.size === 1;
+            setToastClickable(toast, sameDay ? 'اضغط لعرض التفاصيل' : 'اضغط لعرض الإشعارات');
+
+            // إعادة تشغيل شريط التقدم وحركة الأيقونة
+            const restart = (el) => { if (!el) return; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; };
+            restart(toast.querySelector('.toast-progress-bar'));
+            restart(toast.querySelector('.toast-icon-pop'));
+
+            if (toast._toastTimer) clearTimeout(toast._toastTimer);
+            toast._toastTimer = setTimeout(() => dismissToast(toast), 5000);
+        }
+
         // إخفاء التوست بحركة fade-out ناعمة بدل الاختفاء المفاجئ
         function dismissToast(toast) {
             if (!toast || toast.dataset.dismissing === '1') return;
             toast.dataset.dismissing = '1';
             if (toast._toastTimer) clearTimeout(toast._toastTimer);
-            toast.classList.remove('animate-slide-up');
+            if (toast._group && _groupedToasts[toast._group.key] === toast) delete _groupedToasts[toast._group.key];
+            toast.classList.remove('animate-slide-down');
             toast.classList.add('toast-fade-out');
             const remove = () => { if (toast && toast.parentElement) toast.remove(); };
             toast.addEventListener('animationend', remove, { once: true });
             setTimeout(remove, 400); // شبكة أمان في حال لم يُطلق animationend
         }
+
+        // --- شارة الجرس (عدد غير المقروء) ---
+        let _bellShakeUntil = 0;
+        function unreadNotifCount() { return state.notifications.filter(n => n.read === false).length; }
+        function notifBadgeHtml() {
+            const c = unreadNotifCount();
+            return c > 0 ? `<span class="notification-badge">${c > 9 ? '9+' : c}</span>` : '';
+        }
+        function bellShakeClass() { return Date.now() < _bellShakeUntil ? 'bell-shake' : ''; }
+        function updateNotifBadge(shake) {
+            if (shake) _bellShakeUntil = Date.now() + 700;
+            const btn = document.getElementById('notifBellBtn');
+            if (!btn) return;
+            const old = btn.querySelector('.notification-badge');
+            if (old) old.remove();
+            const html = notifBadgeHtml();
+            if (html) btn.insertAdjacentHTML('beforeend', html);
+            if (shake) {
+                const wrap = btn.querySelector('.bell-icon-wrap');
+                if (wrap) { wrap.classList.remove('bell-shake'); void wrap.offsetWidth; wrap.classList.add('bell-shake'); }
+            }
+        }
+
+        function markNotificationsRead(limit) {
+            let changed = false;
+            state.notifications.slice(0, limit || state.notifications.length).forEach(n => {
+                if (n.read === false) { n.read = true; changed = true; }
+            });
+            if (changed) {
+                localStorage.setItem('hotel_notifications', JSON.stringify(state.notifications));
+                updateNotifBadge();
+            }
+        }
+
+        // --- عنصر إشعار واحد (مشترك بين القائمة المنسدلة ونافذة "عرض الكل") ---
+        function notifItemHtml(n) {
+            const isClickable = !!n.bookingDate;
+            const isUnread = n.read === false;
+            const unreadClass = isUnread ? 'bg-amber-50/60' : '';
+            const clickableClass = isClickable ? 'cursor-pointer hover:bg-amber-50 active:bg-amber-100' : '';
+            const clickAttr = isClickable ? `onclick="closeNotifUi(); showDayDetails('${n.bookingDate}')"` : '';
+            const hint = isClickable ? `<span class="text-[10px] text-[#A88A45] font-bold mt-1 flex items-center gap-1"><i data-lucide="eye" class="w-3 h-3"></i> اضغط لعرض تفاصيل الحجز</span>` : '';
+            const newPill = isUnread ? `<span class="text-[10px] font-black text-white bg-[#6E1418] px-1.5 py-0.5 rounded-full">جديد</span>` : '';
+            return `
+                        <div class="p-4 border-b border-slate-100 hover:bg-white transition-colors ${unreadClass} ${clickableClass}" ${clickAttr}>
+                            <div class="flex items-start gap-4">
+                                <div class="mt-1 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${n.type === 'delete' ? 'bg-red-500 shadow-red-200' : 'bg-emerald-500 shadow-emerald-200'}"></div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-slate-700 font-bold leading-relaxed">${escapeHtml(n.text)}</p>
+                                    <p class="text-[11px] text-slate-400 mt-2 flex items-center gap-1 font-medium">
+                                        <i data-lucide="clock" class="w-3 h-3"></i> ${n.date} - ${n.time} ${newPill}
+                                    </p>
+                                    ${hint}
+                                </div>
+                                ${isClickable ? `<div class="shrink-0 w-7 h-7 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-[#A88A45]"><i data-lucide="chevron-left" class="w-4 h-4"></i></div>` : ''}
+                            </div>
+                        </div>
+                    `;
+        }
+
+        // --- القائمة المنسدلة تحت الجرس (آخر 5 إشعارات) ---
+        function isNotifPopoverOpen() {
+            const pop = document.getElementById('notifPopover');
+            return !!pop && !pop.classList.contains('hidden');
+        }
+        function positionNotifPopover() {
+            const pop = document.getElementById('notifPopover');
+            const btn = document.getElementById('notifBellBtn');
+            if (!pop || !btn) return;
+            const r = btn.getBoundingClientRect();
+            const w = pop.offsetWidth || 352;
+            const margin = 8;
+            let left = r.left + r.width / 2 - w / 2;
+            left = Math.max(margin, Math.min(left, window.innerWidth - w - margin));
+            pop.style.top = (r.bottom + 8) + 'px';
+            pop.style.left = left + 'px';
+        }
+        function renderNotifPopover(markVisibleRead) {
+            const list = document.getElementById('notifPopoverList');
+            const meta = document.getElementById('notifPopoverMeta');
+            const footer = document.getElementById('notifPopoverFooter');
+            if (!list) return;
+            const items = state.notifications.slice(0, 5);
+            const unread = unreadNotifCount();
+            if (items.length === 0) {
+                list.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-slate-400">
+                        <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                            <i data-lucide="bell-off" class="w-6 h-6 text-slate-300"></i>
+                        </div>
+                        <p class="text-sm font-bold">لا توجد إشعارات جديدة</p>
+                    </div>`;
+                if (footer) footer.classList.add('hidden');
+            } else {
+                list.innerHTML = items.map(notifItemHtml).join('');
+                if (footer) footer.classList.remove('hidden');
+            }
+            if (meta) meta.textContent = unread > 0 ? `${unread} جديد` : '';
+            if (typeof lucide !== "undefined") refreshIcons('notifPopover');
+            if (markVisibleRead) markNotificationsRead(5);
+        }
+        function openNotifPopover() {
+            if (isGuest()) return;
+            const pop = document.getElementById('notifPopover');
+            if (!pop) return;
+            pop.classList.remove('hidden');
+            renderNotifPopover(true);
+            positionNotifPopover();
+        }
+        function closeNotifPopover() {
+            const pop = document.getElementById('notifPopover');
+            if (pop) pop.classList.add('hidden');
+        }
+        function toggleNotifPopover() {
+            if (isGuest()) return;
+            if (isNotifPopoverOpen()) closeNotifPopover(); else openNotifPopover();
+        }
+        function closeNotifUi() {
+            closeNotifPopover();
+            const modal = document.getElementById('notificationsModal');
+            if (modal) modal.classList.add('hidden');
+        }
+        function openAllNotifications() {
+            closeNotifPopover();
+            const modal = document.getElementById('notificationsModal');
+            if (modal && modal.classList.contains('hidden')) toggleNotificationsModal();
+        }
+        document.addEventListener('click', function(e) {
+            if (!isNotifPopoverOpen()) return;
+            if (e.target.closest('#notifPopover') || e.target.closest('#notifBellBtn') || e.target.closest('#toast-container')) return;
+            closeNotifPopover();
+        });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeNotifPopover(); });
+        window.addEventListener('resize', function() { if (isNotifPopoverOpen()) positionNotifPopover(); });
 
         function toggleNotificationsModal() {
             if (isGuest()) return;
@@ -788,29 +986,12 @@
                         </div>
                     `;
                 } else {
-                    list.innerHTML = state.notifications.map(n => {
-                        const isClickable = !!n.bookingDate;
-                        const clickableClass = isClickable ? 'cursor-pointer hover:bg-amber-50 active:bg-amber-100' : '';
-                        const clickAttr = isClickable ? `onclick="document.getElementById('notificationsModal').classList.add('hidden'); showDayDetails('${n.bookingDate}')"` : '';
-                        const hint = isClickable ? `<span class="text-[10px] text-[#A88A45] font-bold mt-1 flex items-center gap-1"><i data-lucide="eye" class="w-3 h-3"></i> اضغط لعرض تفاصيل الحجز</span>` : '';
-                        return `
-                        <div class="p-4 border-b border-slate-100 hover:bg-white transition-colors ${clickableClass}" ${clickAttr}>
-                            <div class="flex items-start gap-4">
-                                <div class="mt-1 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${n.type === 'delete' ? 'bg-red-500 shadow-red-200' : 'bg-emerald-500 shadow-emerald-200'}"></div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-sm text-slate-700 font-bold leading-relaxed">${escapeHtml(n.text)}</p>
-                                    <p class="text-[11px] text-slate-400 mt-2 flex items-center gap-1 font-medium">
-                                        <i data-lucide="clock" class="w-3 h-3"></i> ${n.date} - ${n.time}
-                                    </p>
-                                    ${hint}
-                                </div>
-                                ${isClickable ? `<div class="shrink-0 w-7 h-7 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-[#A88A45]"><i data-lucide="chevron-left" class="w-4 h-4"></i></div>` : ''}
-                            </div>
-                        </div>
-                    `}).join('');
+                    list.innerHTML = state.notifications.map(notifItemHtml).join('');
                 }
                 if(typeof lucide!=="undefined") refreshIcons('notificationsModal');
                 modal.classList.remove('hidden');
+                closeNotifPopover();
+                markNotificationsRead();
             } else {
                 modal.classList.add('hidden');
             }
@@ -820,8 +1001,8 @@
             if(confirm("هل أنت متأكد من مسح سجل الإشعارات بالكامل؟")) {
                 state.notifications = [];
                 localStorage.setItem('hotel_notifications', JSON.stringify([]));
-                toggleNotificationsModal(); 
-                renderHeader();
+                closeNotifUi();
+                updateNotifBadge();
             }
         }
 
@@ -3595,9 +3776,9 @@ ${acknowledgmentHtml}
                                 </button>
                             </div>
 
-                            <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
-                                <i data-lucide="bell" class="w-5 h-5"></i>
-                                ${state.notifications.length > 0 ? '<span class="notification-dot animate-pulse"></span>' : ''}
+                            <button id="notifBellBtn" onclick="toggleNotifPopover()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
+                                <span class="bell-icon-wrap inline-flex ${bellShakeClass()}"><i data-lucide="bell" class="w-5 h-5"></i></span>
+                                ${notifBadgeHtml()}
                             </button>
                             ` : ''}
 
