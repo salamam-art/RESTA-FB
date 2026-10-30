@@ -241,7 +241,7 @@
         // عشان كده الدالة بترسل نفس الـ Payload المطلوب بالظبط إلى رابط Google Apps Script (مجاني)
         // الموجود كوده في ملف apps-script/Code.gs، وهو اللي بيكلّم FCM رسميًا ويبعت للـ Topic "bookings".
         // ← حط رابط الـ Web App هنا بعد نشره (ينتهي بـ /exec)
-        const PUSH_ENDPOINT = '';
+        const PUSH_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxWNmSoPQW1BGmSfbiCpYe7EsjOYmHYn2A9YJDuh089zEm6kaKuEAsh8RuaNabEVfd9JQ/exec';
 
         async function sendBookingPushNotification(title, body) {
             if (!PUSH_ENDPOINT) { console.warn('Push: PUSH_ENDPOINT غير مضبوط'); return false; }
