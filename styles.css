@@ -1004,4 +1004,23 @@ button.day-card:hover .day-card-chevron { transform: translateX(-5px); }
     .day-agenda { display: block; margin-top: 10px; padding: 10px 4px 2px; border-top: 1px solid #e2e8f0; }
     html.dark .day-agenda { border-top-color: var(--d-border); }
     .agenda-item.touch-drag-ghost { width: 170px !important; }
+    /* نفس حماية .booking-tag[draggable]: يمنع المتصفح من مقاطعة اللمسة الطويلة (تحديد نص / قائمة)
+       مع إبقاء التمرير الرأسي للصفحة شغال لحد ما يبدأ السحب فعليًا */
+    .agenda-item[draggable] {
+        touch-action: pan-y;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    .agenda-item.dragging { opacity: 0.35; }
 }
+
+/* أنيميشن التنقل بين الشهور بالسحب (موبايل) */
+@keyframes calOutRight { to { opacity: 0; transform: translateX(28px); } }
+@keyframes calOutLeft { to { opacity: 0; transform: translateX(-28px); } }
+@keyframes calInFromLeft { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@keyframes calInFromRight { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+.cal-out-right { animation: calOutRight .13s ease-in forwards; }
+.cal-out-left { animation: calOutLeft .13s ease-in forwards; }
+.cal-in-from-left { animation: calInFromLeft .2s ease-out; }
+.cal-in-from-right { animation: calInFromRight .2s ease-out; }

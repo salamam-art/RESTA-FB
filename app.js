@@ -1921,7 +1921,7 @@
         function cleanupTouchDrag() {
             if (touchGhostEl) { touchGhostEl.remove(); touchGhostEl = null; }
             restoreTouchDraggable();
-            document.querySelectorAll('.booking-tag.dragging').forEach(elx => elx.classList.remove('dragging'));
+            document.querySelectorAll('.booking-tag.dragging, .agenda-item.dragging').forEach(elx => elx.classList.remove('dragging'));
             if (touchCurrentDayCell) touchCurrentDayCell.classList.remove('drag-over');
             touchCurrentDayCell = null;
             document.querySelectorAll('[data-month-nav].drag-over').forEach(b => b.classList.remove('drag-over'));
@@ -3461,10 +3461,32 @@ ${acknowledgmentHtml}
 
         // سحب أفقي على الكاليندر (موبايل) للتنقل بين الشهور — السحب لليمين = الشهر التالي (نفس اتجاه سهم الشمال)
         (function initCalendarSwipe() {
-            let sx = 0, sy = 0, tracking = false;
+            let sx = 0, sy = 0, tracking = false, animating = false;
+
+            // أنيميشن: الشهر الحالي يخرج، وبعده الجديد يدخل من الاتجاه المعاكس
+            function swipeToMonth(next) {
+                const w = document.querySelector('.calendar-scroll-wrapper');
+                if (!w || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    changeMonth(next ? 1 : -1);
+                    return;
+                }
+                animating = true;
+                w.classList.add(next ? 'cal-out-right' : 'cal-out-left');
+                setTimeout(function () {
+                    changeMonth(next ? 1 : -1);
+                    const nw = document.querySelector('.calendar-scroll-wrapper');
+                    if (nw) {
+                        const cls = next ? 'cal-in-from-left' : 'cal-in-from-right';
+                        nw.classList.add(cls);
+                        nw.addEventListener('animationend', function () { nw.classList.remove(cls); }, { once: true });
+                    }
+                    animating = false;
+                }, 130);
+            }
+
             document.addEventListener('touchstart', function (e) {
                 tracking = false;
-                if (!isMobileCalendar() || e.touches.length !== 1) return;
+                if (animating || !isMobileCalendar() || e.touches.length !== 1) return;
                 if (!e.target.closest || !e.target.closest('.calendar-scroll-wrapper')) return;
                 sx = e.touches[0].clientX;
                 sy = e.touches[0].clientY;
@@ -3477,7 +3499,7 @@ ${acknowledgmentHtml}
                 const t = e.changedTouches[0];
                 if (!t) return;
                 const dx = t.clientX - sx, dy = t.clientY - sy;
-                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) changeMonth(dx > 0 ? 1 : -1);
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) swipeToMonth(dx > 0);
             }, { passive: true });
         })();
 
