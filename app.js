@@ -235,6 +235,106 @@
             return now;
         }
 
+        // ─── إشعارات Push (FCM Topic: bookings) ──────────────────────────────
+        // ملاحظة مهمة: واجهة FCM القديمة (fcm.googleapis.com/fcm/send + Server Key) تم إيقافها نهائيًا
+        // من جوجل (يونيو 2024)، وكمان وضع مفتاح الإرسال داخل كود الموقع يكشفه لأي حد.
+        // عشان كده الدالة بترسل نفس الـ Payload المطلوب بالظبط إلى رابط Google Apps Script (مجاني)
+        // الموجود كوده في ملف apps-script/Code.gs، وهو اللي بيكلّم FCM رسميًا ويبعت للـ Topic "bookings".
+        // ← حط رابط الـ Web App هنا بعد نشره (ينتهي بـ /exec)
+        const PUSH_ENDPOINT = '';
+
+        async function sendBookingPushNotification(title, body) {
+            if (!PUSH_ENDPOINT) { console.warn('Push: PUSH_ENDPOINT غير مضبوط'); return false; }
+            try {
+                const user = auth.currentUser;
+                if (!user || user.isAnonymous) return false; // الزائر للقراءة فقط
+                const idToken = await user.getIdToken();
+                // text/plain عشان Apps Script ما بيدعمش طلب الـ preflight (CORS)
+                const res = await fetch(PUSH_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        idToken: idToken,
+                        to: '/topics/bookings',
+                        notification: { title: title, body: body, sound: 'default' },
+                        data: { action: 'open_bookings' }
+                    })
+                });
+                const out = await res.json();
+                if (!out.ok) throw new Error(out.error || 'push failed');
+                return true;
+            } catch (e) {
+                // فشل الإشعار لا يجب أن يعطّل الحفظ أو المزامنة
+                console.warn('Push notification failed:', e);
+                return false;
+            }
+        }
+
+        // ترتيب مفاتيح ثابت لمقارنة حجز محلي بنسخته على السيرفر (Firebase بيرجّع المفاتيح مرتبة)
+        function _pushStable(o) {
+            if (Array.isArray(o)) return o.map(_pushStable);
+            if (o && typeof o === 'object') {
+                const r = {};
+                Object.keys(o).sort().forEach(k => { if (k !== '_isDirty') r[k] = _pushStable(o[k]); });
+                return r;
+            }
+            return o;
+        }
+        function _pushSame(a, b) { return JSON.stringify(_pushStable(a)) === JSON.stringify(_pushStable(b)); }
+
+        // يبني ويرسل إشعارات (إضافة / تعديل / حذف) بعد نجاح الرفع. الحجز متعدد الأيام = إشعار واحد.
+        function notifyBookingChanges(serverBookings, dirtyBookings, pendingDels) {
+            try {
+                const serverById = new Map(serverBookings.map(b => [String(b.id), b]));
+                const who = ((state.currentUserEmail || '').split('@')[0]) || 'مستخدم';
+                const fmt = d => d ? String(d).split('-').reverse().join('/') : '';
+                const range = b => {
+                    const days = (b._days || [b]).map(x => x.startDate).filter(Boolean).sort();
+                    const e = (b.endDate && b.endDate !== b.startDate) ? b.endDate : days[days.length - 1];
+                    return days.length && days[days.length - 1] !== days[0] || (e && e !== days[0])
+                        ? `${fmt(days[0])} - ${fmt(e || days[days.length - 1])}` : fmt(days[0] || b.startDate);
+                };
+                const hallOf = b => (HALLS.find(h => h.id === b.hallId) || {}).name || b.hallName || '';
+                const groupKey = b => String(b.groupId || b.id).split('_d')[0];
+                const buildBody = (b, extra) => [b.companyName, hallOf(b), range(b)].filter(Boolean).join(' • ') + extra;
+
+                // إضافة / تعديل
+                const groups = new Map();
+                dirtyBookings.forEach(b => {
+                    const old = serverById.get(String(b.id));
+                    if (old && _pushSame(old, b)) return; // لم يتغيّر فعليًا
+                    const k = groupKey(b);
+                    if (!groups.has(k)) groups.set(k, { isNew: false, items: [] });
+                    const g = groups.get(k);
+                    if (!old) g.isNew = true;
+                    g.items.push(b);
+                });
+                groups.forEach(g => {
+                    const first = { ...g.items[0], _days: g.items };
+                    const title = g.isNew ? '📌 حجز جديد' : '✏️ تعديل حجز';
+                    sendBookingPushNotification(title, buildBody(first, ` (بواسطة ${who})`));
+                });
+
+                // حذف (نتجاهل الحذف الجماعي الكبير مثل أرشفة شهر كامل)
+                const delGroups = new Map();
+                pendingDels.forEach(id => {
+                    const old = serverById.get(String(id));
+                    if (!old) return;
+                    const k = groupKey(old);
+                    if (!delGroups.has(k)) delGroups.set(k, []);
+                    delGroups.get(k).push(old);
+                });
+                if (delGroups.size > 0 && delGroups.size <= 15) {
+                    delGroups.forEach(items => {
+                        const first = { ...items[0], _days: items };
+                        sendBookingPushNotification('🗑️ حذف حجز', buildBody(first, ` (بواسطة ${who})`));
+                    });
+                }
+            } catch (e) {
+                console.warn('notifyBookingChanges error:', e);
+            }
+        }
+
         // ─── تسجيل الحجوزات المحذوفة في عقدة منفصلة (بديل شيت الحذف المنفصل) ────
         function logDeletedBookingToCloud(booking, deleteType) {
             const hallName = (HALLS.find(h => h.id === booking.hallId) || {}).name || booking.hallName || '';
@@ -540,6 +640,9 @@
                         finalBookings,
                         mergeLogs(state.activityLogs, serverLogs)
                     );
+
+                    // الرفع نجح → أرسل إشعارات الإضافة/التعديل/الحذف لكل الهواتف (من غير ما ننتظرها)
+                    notifyBookingChanges(serverBookings, dirtyBookings, pendingDels);
 
                     // فحص ثالث بعد الكتابة — لو حصل تغيير أثناء الكتابة، لا تُحدّث state
                     if (state._opsVersion !== opsVersionAtStart) {
