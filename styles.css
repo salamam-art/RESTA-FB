@@ -1024,3 +1024,10 @@ button.day-card:hover .day-card-chevron { transform: translateX(-5px); }
 .cal-out-left { animation: calOutLeft .13s ease-in forwards; }
 .cal-in-from-left { animation: calInFromLeft .2s ease-out; }
 .cal-in-from-right { animation: calInFromRight .2s ease-out; }
+
+/* تلميح حافة الشاشة أثناء سحب حجز على الموبايل (الوقوف عندها يغيّر الشهر) */
+html.touch-edge-left::before, html.touch-edge-right::after {
+    content: ''; position: fixed; top: 0; bottom: 0; width: 44px; z-index: 9998; pointer-events: none;
+}
+html.touch-edge-left::before { left: 0; background: linear-gradient(to right, rgba(168, 138, 69, 0.5), transparent); }
+html.touch-edge-right::after { right: 0; background: linear-gradient(to left, rgba(168, 138, 69, 0.5), transparent); }

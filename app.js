@@ -1800,6 +1800,35 @@
         let touchGhostEl = null;
         let touchCurrentDayCell = null;
         let touchSourceEl = null;
+        let touchEdgeTimer = null, touchEdgeDelta = 0, touchLastX = 0, touchLastY = 0;
+
+        // أثناء سحب حجز: الوقوف عند حافة الشاشة يمين/شمال يقلّب الشهر (شمال = التالي، يمين = السابق، زي الأسهم)
+        function clearTouchEdge() {
+            if (touchEdgeTimer) { clearTimeout(touchEdgeTimer); touchEdgeTimer = null; }
+            touchEdgeDelta = 0;
+            document.documentElement.classList.remove('touch-edge-left', 'touch-edge-right');
+        }
+
+        function updateTouchEdgeZone(x) {
+            const EDGE = 44;
+            const delta = x <= EDGE ? 1 : (x >= window.innerWidth - EDGE ? -1 : 0);
+            if (delta === touchEdgeDelta) return;
+            clearTouchEdge();
+            if (!delta) return;
+            touchEdgeDelta = delta;
+            document.documentElement.classList.add(delta === 1 ? 'touch-edge-left' : 'touch-edge-right');
+            const tick = () => {
+                if (!touchDragActive || !touchEdgeDelta) return;
+                changeMonth(touchEdgeDelta);
+                // الكاليندر اتبنى من جديد: أعد تحديد اليوم اللي تحت الإصبع عشان الإفلات ميروحش لخلية قديمة
+                const el = document.elementFromPoint(touchLastX, touchLastY);
+                const cell = el ? el.closest('.day-cell[data-date]') : null;
+                touchCurrentDayCell = cell;
+                if (cell) cell.classList.add('drag-over');
+                touchEdgeTimer = setTimeout(tick, 900);
+            };
+            touchEdgeTimer = setTimeout(tick, 600);
+        }
 
         const TOUCH_LONG_PRESS_MS = 1000;
         const TOUCH_MOVE_TOLERANCE = 10;
@@ -1886,6 +1915,9 @@
             e.preventDefault();
             positionTouchGhost(touch.clientX, touch.clientY);
             dragPointerY = touch.clientY;
+            touchLastX = touch.clientX;
+            touchLastY = touch.clientY;
+            updateTouchEdgeZone(touch.clientX);
             startDragAutoScroll();
 
             const elUnder = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -1919,6 +1951,7 @@
         }
 
         function cleanupTouchDrag() {
+            clearTouchEdge();
             if (touchGhostEl) { touchGhostEl.remove(); touchGhostEl = null; }
             restoreTouchDraggable();
             document.querySelectorAll('.booking-tag.dragging, .agenda-item.dragging').forEach(elx => elx.classList.remove('dragging'));
