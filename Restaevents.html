@@ -171,6 +171,21 @@
                     <p class="text-sm">قائمة بجميع المستخدمين المفعّلين بالنظام. كلمات المرور مشفّرة عند Firebase ولا تظهر لأحد. بصفتك مدير (Admin)، يمكنك إرسال رابط إعادة تعيين كلمة المرور أو إيقاف الحسابات.</p>
                 </div>
 
+                <!-- المتصلون الآن (أدمن فقط) -->
+                <div id="onlineNowSection" class="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-6">
+                    <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                        <div class="flex items-center gap-2 text-emerald-800 font-black text-base">
+                            <span class="relative flex h-2.5 w-2.5">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            </span>
+                            المتصلون الآن
+                        </div>
+                        <span id="onlineNowCount" class="text-xs font-bold text-emerald-700">—</span>
+                    </div>
+                    <div id="onlineNowList" class="flex flex-wrap gap-2"></div>
+                </div>
+
                 <!-- Add New User Form - Admin Only -->
                 <div id="addUserFormSection" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6">
                     <div class="flex items-center gap-2 text-slate-700 font-black text-base mb-4 border-b border-slate-200 pb-3">

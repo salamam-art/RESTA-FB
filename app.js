@@ -695,10 +695,108 @@
                 }
                 syncToCloud(true);
             });
+            startPresence();      // تسجيل أني متصل الآن
+            startOnlineWatch();   // الأدمن فقط: متابعة قائمة المتصلين
         }
 
         function teardownRealtimeSync() {
             db.ref('meta/updatedAt').off('value');
+            db.ref('presence').off('value');
+        }
+
+        // ─── المتصلون الآن (Presence) ───────────────────────────────────
+        // كل جلسة مفتوحة (موظف أو زائر) بتكتب عقدة صغيرة في presence/<مفتاح عشوائي>،
+        // وبتتشال تلقائيًا من Firebase بمجرد قطع الاتصال (onDisconnect) أو خروج المستخدم
+        // أو لما التطبيق يروح للخلفية. الأدمن بس هو اللي بيقرأ القائمة.
+        let _presenceKey = null;
+        let _presenceConnHandler = null;
+        let _presenceVisHandler = null;
+        let _onlineSessions = [];
+
+        function _presenceRef() { return _presenceKey ? db.ref('presence/' + _presenceKey) : null; }
+
+        function _publishPresence() {
+            const ref = _presenceRef();
+            const u = auth.currentUser;
+            if (!ref || !u) return;
+            ref.onDisconnect().remove()
+                .then(() => ref.set({
+                    uid: u.uid,
+                    email: isGuest() ? '' : state.currentUserEmail,
+                    guest: isGuest(),
+                    since: firebase.database.ServerValue.TIMESTAMP
+                }))
+                .catch(err => console.warn('presence failed:', err && err.code));
+        }
+
+        function startPresence() {
+            if (!CLOUD_ENABLED || !state.isLoggedIn) return;
+            if (!_presenceKey) _presenceKey = db.ref('presence').push().key;
+            const connRef = db.ref('.info/connected');
+            if (_presenceConnHandler) connRef.off('value', _presenceConnHandler);
+            _presenceConnHandler = (snap) => {
+                if (snap.val() === true && document.visibilityState !== 'hidden') _publishPresence();
+            };
+            connRef.on('value', _presenceConnHandler);
+            if (!_presenceVisHandler) {
+                _presenceVisHandler = () => {
+                    if (!state.isLoggedIn || !_presenceKey) return;
+                    if (document.visibilityState === 'hidden') {
+                        const ref = _presenceRef();
+                        if (ref) ref.remove().catch(() => {});
+                    } else {
+                        _publishPresence();
+                    }
+                };
+                document.addEventListener('visibilitychange', _presenceVisHandler);
+            }
+        }
+
+        function stopPresence() {
+            const ref = _presenceRef();
+            if (_presenceConnHandler) {
+                db.ref('.info/connected').off('value', _presenceConnHandler);
+                _presenceConnHandler = null;
+            }
+            if (ref) ref.remove().catch(() => {});
+            _presenceKey = null;
+        }
+
+        function startOnlineWatch() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            db.ref('presence').off('value');
+            db.ref('presence').on('value', (snap) => {
+                const val = snap.val() || {};
+                _onlineSessions = Object.keys(val).map(k => val[k]).filter(Boolean);
+                renderOnlineNow();
+            }, (err) => { console.warn('presence listener cancelled:', err && err.code); });
+        }
+
+        // الموظف يتعدّ مرة واحدة حتى لو فاتح من أكتر من جهاز، والزوار يتعدّوا بعدد جلساتهم
+        function getOnlineSummary() {
+            const emails = new Set();
+            let guests = 0;
+            _onlineSessions.forEach(s => {
+                if (s.guest) guests++;
+                else if (s.email) emails.add(String(s.email).toLowerCase());
+            });
+            return { users: Array.from(emails).sort(), guests: guests, total: emails.size + guests };
+        }
+
+        function renderOnlineNow() {
+            const sum = getOnlineSummary();
+            const badge = document.getElementById('onlineCountBadge');
+            if (badge) badge.textContent = sum.total;
+            const cnt = document.getElementById('onlineNowCount');
+            if (cnt) cnt.textContent = `${sum.total} متصل — ${sum.users.length} موظف · ${sum.guests} زائر`;
+            const box = document.getElementById('onlineNowList');
+            if (box) {
+                const chip = 'inline-flex items-center gap-2 bg-white border border-emerald-200 text-emerald-900 text-sm font-bold rounded-full px-3 py-1';
+                const dot = '<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>';
+                box.innerHTML = sum.users.map(e =>
+                    `<span class="${chip}" style="direction:ltr">${dot}${escapeHtml(e)}${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}</span>`
+                ).join('') + (sum.guests ? `<span class="${chip}">${dot}زائر × ${sum.guests}</span>` : '');
+            }
         }
 
         function saveLocal() {
@@ -991,6 +1089,7 @@
         function logout(force) {
             if (FIXED_USER_EMAIL && !force) return; // المستخدم الثابت لا يخرج
             if (CLOUD_ENABLED) teardownRealtimeSync();
+            stopPresence();
             stopAvatarListener();
             const prevEmail = state.currentUserEmail;
             state.currentUserEmail = '';
@@ -3786,8 +3885,9 @@ ${acknowledgmentHtml}
                             ` : ''}
 
                             ${state.currentUserEmail === ADMIN_EMAIL ? `
-                                <button onclick="toggleUsersModal()" class="p-2 sm:p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shrink-0" title="إدارة المستخدمين">
+                                <button onclick="toggleUsersModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all shrink-0" title="إدارة المستخدمين / المتصلون الآن">
                                     <i data-lucide="users" class="w-5 h-5"></i>
+                                    <span id="onlineCountBadge" class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center leading-none">${getOnlineSummary().total}</span>
                                 </button>
                             ` : ''}
 
