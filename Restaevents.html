@@ -201,7 +201,11 @@
                     <div id="sessionLogsBox" class="hidden mt-4">
                         <p class="text-xs text-slate-500 mb-2">آخر 200 اتصال. كل اتصال بيتسجّل لوحده، فانقطاع الشبكة ثم رجوعها بيظهر كسطر جديد.</p>
                         <div class="table-responsive rounded-xl border border-slate-200 bg-white max-h-80 overflow-y-auto">
-                            <table class="users-table">
+                            <style>
+                                #sessionLogsTable th, #sessionLogsTable td { padding: 0.5rem 0.45rem; font-size: 0.75rem; white-space: nowrap; }
+                                #sessionLogsTable td:first-child { white-space: normal; word-break: break-all; min-width: 7.5rem; }
+                            </style>
+                            <table id="sessionLogsTable" class="users-table mt-0">
                                 <thead class="bg-slate-50 border-b border-slate-200">
                                     <tr><th>المستخدم</th><th>التاريخ</th><th>من</th><th>إلى</th><th>المدة</th></tr>
                                 </thead>
