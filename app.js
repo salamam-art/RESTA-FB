@@ -706,10 +706,11 @@
 
         // ─── المتصلون الآن (Presence) ───────────────────────────────────
         // كل جلسة مفتوحة (موظف أو زائر) بتكتب عقدة صغيرة في presence/<مفتاح عشوائي>،
-        // وبتتشال تلقائيًا من Firebase بمجرد قطع الاتصال (onDisconnect) أو خروج المستخدم
-        // أو لما التطبيق يروح للخلفية. الأدمن بس هو اللي بيقرأ القائمة.
+        // وبتتشال تلقائيًا من Firebase بمجرد قطع الاتصال (onDisconnect) أو خروج المستخدم.
+        // الأدمن بس هو اللي بيقرأ القائمة. كل اتصال كمان بيتسجّل في sessionLogs (دخول/خروج).
         let _presenceKey = null;
         let _presenceConnHandler = null;
+        let _sessionLogKey = null;
         let _onlineSessions = [];
 
         function _presenceRef() { return _presenceKey ? db.ref('presence/' + _presenceKey) : null; }
@@ -718,21 +719,25 @@
             const ref = _presenceRef();
             const u = auth.currentUser;
             if (!ref || !u) return;
+            const TS = firebase.database.ServerValue.TIMESTAMP;
+            const email = isGuest() ? '' : state.currentUserEmail;
+            // سجل جديد لكل اتصال: وقت الدخول الآن، ووقت الخروج يتكتب تلقائيًا عند قطع الاتصال
+            const logKey = db.ref('sessionLogs').push().key;
+            const logRef = db.ref('sessionLogs/' + logKey);
+            _sessionLogKey = logKey;
             ref.onDisconnect().remove()
-                .then(() => ref.set({
-                    uid: u.uid,
-                    email: isGuest() ? '' : state.currentUserEmail,
-                    guest: isGuest(),
-                    since: firebase.database.ServerValue.TIMESTAMP
-                }))
+                .then(() => ref.set({ uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
                 .catch(err => console.warn('presence failed:', err && err.code));
+            logRef.onDisconnect().update({ logoutAt: TS })
+                .then(() => logRef.set({ uid: u.uid, email: email, guest: isGuest(), loginAt: TS }))
+                .catch(err => console.warn('sessionLog failed:', err && err.code));
         }
 
         function startPresence() {
             if (!CLOUD_ENABLED || !state.isLoggedIn) return;
+            if (_presenceConnHandler) return; // شغّال بالفعل — نمنع تسجيل دخول مكرر لنفس الجلسة
             if (!_presenceKey) _presenceKey = db.ref('presence').push().key;
             const connRef = db.ref('.info/connected');
-            if (_presenceConnHandler) connRef.off('value', _presenceConnHandler);
             _presenceConnHandler = (snap) => {
                 if (snap.val() === true) _publishPresence();
             };
@@ -746,7 +751,70 @@
                 _presenceConnHandler = null;
             }
             if (ref) ref.remove().catch(() => {});
+            if (_sessionLogKey) {
+                // خروج يدوي: نسجّل وقت الخروج الآن ونلغي تسجيل الخروج التلقائي عند قطع الاتصال
+                const logRef = db.ref('sessionLogs/' + _sessionLogKey);
+                logRef.onDisconnect().cancel().catch(() => {});
+                logRef.update({ logoutAt: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+                _sessionLogKey = null;
+            }
             _presenceKey = null;
+        }
+
+        // ─── سجل الدخول (للأدمن): من / إلى / التاريخ لكل مستخدم ───────────
+        function _fmtLogDate(ms) { return new Date(ms).toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' }); }
+        function _fmtLogTime(ms) { return new Date(ms).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }); }
+        function _fmtLogDuration(a, b) {
+            const m = Math.max(0, Math.round((b - a) / 60000));
+            if (m < 1) return 'أقل من دقيقة';
+            const h = Math.floor(m / 60), r = m % 60;
+            return h ? `${h} س ${r} د` : `${r} د`;
+        }
+
+        async function loadSessionLogs() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const body = document.getElementById('sessionLogsBody');
+            if (!body) return;
+            body.innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-4">جاري التحميل...</td></tr>';
+            try {
+                const snap = await db.ref('sessionLogs').orderByKey().limitToLast(200).once('value');
+                const val = snap.val() || {};
+                const liveIds = new Set(_onlineSessions.map(x => x.logId).filter(Boolean));
+                const rows = Object.keys(val).map(k => Object.assign({ id: k }, val[k])).filter(r => r.loginAt)
+                    .sort((a, b) => b.loginAt - a.loginAt);
+                if (!rows.length) {
+                    body.innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-4">لا توجد سجلات بعد</td></tr>';
+                    return;
+                }
+                body.innerHTML = rows.map(r => {
+                    const who = r.guest ? 'زائر' : escapeHtml(r.email || '—');
+                    let to, dur;
+                    if (r.logoutAt) {
+                        const sameDay = _fmtLogDate(r.logoutAt) === _fmtLogDate(r.loginAt);
+                        to = sameDay ? _fmtLogTime(r.logoutAt) : `${_fmtLogDate(r.logoutAt)} ${_fmtLogTime(r.logoutAt)}`;
+                        dur = _fmtLogDuration(r.loginAt, r.logoutAt);
+                    } else if (liveIds.has(r.id)) {
+                        to = '<span class="text-emerald-600 font-black">متصل الآن</span>'; dur = '—';
+                    } else { to = '—'; dur = '—'; }
+                    return `<tr class="hover:bg-slate-50">
+                        <td class="font-bold text-slate-800" style="direction:ltr">${who}</td>
+                        <td class="text-sm text-slate-600">${_fmtLogDate(r.loginAt)}</td>
+                        <td class="text-sm text-slate-600">${_fmtLogTime(r.loginAt)}</td>
+                        <td class="text-sm text-slate-600">${to}</td>
+                        <td class="text-sm text-slate-500">${dur}</td>
+                    </tr>`;
+                }).join('');
+            } catch (err) {
+                body.innerHTML = '<tr><td colspan="5" class="text-center text-red-500 py-4">تعذر تحميل السجل: ' + escapeHtml(err.code || err.message) + '</td></tr>';
+            }
+        }
+
+        function toggleSessionLogs() {
+            const box = document.getElementById('sessionLogsBox');
+            if (!box) return;
+            const opening = box.classList.contains('hidden');
+            box.classList.toggle('hidden', !opening);
+            if (opening) loadSessionLogs();
         }
 
         function startOnlineWatch() {

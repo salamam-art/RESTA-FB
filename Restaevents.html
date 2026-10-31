@@ -186,6 +186,31 @@
                     <div id="onlineNowList" class="flex flex-wrap gap-2"></div>
                 </div>
 
+                <!-- سجل الدخول (أدمن فقط) -->
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <div class="flex items-center gap-2 text-slate-700 font-black text-base">
+                            <i data-lucide="history" class="w-5 h-5 text-[#A88A45]"></i>
+                            سجل الدخول
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="loadSessionLogs()" class="text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg px-3 py-1.5">تحديث</button>
+                            <button onclick="toggleSessionLogs()" class="text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 rounded-lg px-3 py-1.5">عرض / إخفاء</button>
+                        </div>
+                    </div>
+                    <div id="sessionLogsBox" class="hidden mt-4">
+                        <p class="text-xs text-slate-500 mb-2">آخر 200 اتصال. كل اتصال بيتسجّل لوحده، فانقطاع الشبكة ثم رجوعها بيظهر كسطر جديد.</p>
+                        <div class="table-responsive rounded-xl border border-slate-200 bg-white max-h-80 overflow-y-auto">
+                            <table class="users-table">
+                                <thead class="bg-slate-50 border-b border-slate-200">
+                                    <tr><th>المستخدم</th><th>التاريخ</th><th>من</th><th>إلى</th><th>المدة</th></tr>
+                                </thead>
+                                <tbody id="sessionLogsBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Add New User Form - Admin Only -->
                 <div id="addUserFormSection" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6">
                     <div class="flex items-center gap-2 text-slate-700 font-black text-base mb-4 border-b border-slate-200 pb-3">
