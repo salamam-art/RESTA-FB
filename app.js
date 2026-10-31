@@ -710,7 +710,6 @@
         // أو لما التطبيق يروح للخلفية. الأدمن بس هو اللي بيقرأ القائمة.
         let _presenceKey = null;
         let _presenceConnHandler = null;
-        let _presenceVisHandler = null;
         let _onlineSessions = [];
 
         function _presenceRef() { return _presenceKey ? db.ref('presence/' + _presenceKey) : null; }
@@ -735,21 +734,9 @@
             const connRef = db.ref('.info/connected');
             if (_presenceConnHandler) connRef.off('value', _presenceConnHandler);
             _presenceConnHandler = (snap) => {
-                if (snap.val() === true && document.visibilityState !== 'hidden') _publishPresence();
+                if (snap.val() === true) _publishPresence();
             };
             connRef.on('value', _presenceConnHandler);
-            if (!_presenceVisHandler) {
-                _presenceVisHandler = () => {
-                    if (!state.isLoggedIn || !_presenceKey) return;
-                    if (document.visibilityState === 'hidden') {
-                        const ref = _presenceRef();
-                        if (ref) ref.remove().catch(() => {});
-                    } else {
-                        _publishPresence();
-                    }
-                };
-                document.addEventListener('visibilitychange', _presenceVisHandler);
-            }
         }
 
         function stopPresence() {
