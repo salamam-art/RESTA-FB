@@ -495,6 +495,22 @@
             if(!isError) setTimeout(() => status.style.display = 'none', 3000);
         }
 
+        // توقيع ثابت للحجوزات (بترتيب مفاتيح وحجوزات ثابت وبدون _isDirty) — لمعرفة هل فيه تغيير فعلي يستدعي إعادة رسم الشاشة
+        function _bookingsSignature(list) {
+            const norm = (v) => {
+                if (Array.isArray(v)) return v.map(norm);
+                if (v && typeof v === 'object') {
+                    const o = {};
+                    Object.keys(v).sort().forEach(k => { if (k !== '_isDirty') o[k] = norm(v[k]); });
+                    return o;
+                }
+                return v;
+            };
+            return JSON.stringify(
+                list.map(norm).sort((x, y) => String(x.id) < String(y.id) ? -1 : String(x.id) > String(y.id) ? 1 : 0)
+            );
+        }
+
         async function syncToCloud(isSilent = false) {
             if (!CLOUD_ENABLED) return;
 
@@ -605,6 +621,7 @@
                 });
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
+                const _bookingsUnchanged = _bookingsSignature(state.bookings) === _bookingsSignature(finalBookings);
                 state.bookings          = finalBookings;   
                 state.pendingDeletions  = [];
                 state.activityLogs      = finalLogs;
@@ -612,7 +629,7 @@
                 localStorage.setItem('hotel_deleted_ids', JSON.stringify([]));
                 saveLocalStateOnly();
 
-                if (!(state.view === 'hall_detail' && state.activeTab === 'form')) {
+                if (!_bookingsUnchanged && !(state.view === 'hall_detail' && state.activeTab === 'form')) {
                     render();
                     const modal = document.getElementById('detailsModal');
                     if (!modal.classList.contains('hidden')) {
