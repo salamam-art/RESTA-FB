@@ -728,8 +728,10 @@
             ref.onDisconnect().remove()
                 .then(() => ref.set({ uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
                 .catch(err => console.warn('presence failed:', err && err.code));
-            logRef.onDisconnect().update({ logoutAt: TS })
-                .then(() => logRef.set({ uid: u.uid, email: email, guest: isGuest(), loginAt: TS }))
+            // الترتيب مهم: نكتب السجل الكامل الأول، وبعدها نسجّل تحديث وقت الخروج عند قطع الاتصال
+            // (قواعد التحقق بترفض تحديث logoutAt لوحده على عقدة لسه مش موجودة)
+            logRef.set({ uid: u.uid, email: email, guest: isGuest(), loginAt: TS })
+                .then(() => logRef.onDisconnect().update({ logoutAt: TS }))
                 .catch(err => console.warn('sessionLog failed:', err && err.code));
         }
 
