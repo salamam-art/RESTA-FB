@@ -226,12 +226,20 @@
         // من فايربيز لأن set() بيستبدل العقدة بالكامل، فمفيش نسخ قديمة ممكن تفضل عالقة.
         async function pushCloudSnapshot(finalBookings, finalLogs) {
             const now = new Date().toISOString();
-            await Promise.all([
-                db.ref('bookings').set(finalBookings),
-                db.ref('logs').set(finalLogs),
-                db.ref('meta/updatedAt').set(now)
-            ]);
-            _lastKnownUpdatedAt = now; // تسجيل فوري لتفادي إعادة مزامنة ذاتية عند وصول حدث المستمع اللحظي
+            const prevKnown = _lastKnownUpdatedAt;
+            // لازم قبل الكتابة: فايربيز بيطلق الـ listener محلياً أثناء set() قبل ما await يخلص،
+            // فلو اتسجّلت بعدها الصدى كان بيتعامل كتحديث خارجي ويعمل مزامنة وريفرش زيادة
+            _lastKnownUpdatedAt = now;
+            try {
+                await Promise.all([
+                    db.ref('bookings').set(finalBookings),
+                    db.ref('logs').set(finalLogs),
+                    db.ref('meta/updatedAt').set(now)
+                ]);
+            } catch (e) {
+                _lastKnownUpdatedAt = prevKnown;
+                throw e;
+            }
             return now;
         }
 
