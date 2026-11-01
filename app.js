@@ -7659,3 +7659,24 @@ ${acknowledgmentHtml}
             if (history.state && history.state.restaModal) { depth = history.state.restaModal; reconcile(); }
             sync();
         })();
+
+// ─── فتح الحجز عند الضغط على الإشعار (بيناديها تطبيق الأندرويد) ───
+window.openFromNotification = function (date, bookingId) {
+    if (!date) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+        tries++;
+        const ready = typeof state !== 'undefined' && state.currentUserEmail
+            && Array.isArray(state.bookings) && state.bookings.length > 0
+            && typeof showDayDetails === 'function';
+        if (ready) {
+            clearInterval(timer);
+            try {
+                const exists = bookingId && state.bookings.some(b => String(b.id) === String(bookingId));
+                showDayDetails(date, exists ? bookingId : null);
+            } catch (e) {}
+        } else if (tries > 60) {
+            clearInterval(timer); // نستسلم بعد 30 ثانية
+        }
+    }, 500);
+};
