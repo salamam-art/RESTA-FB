@@ -696,7 +696,8 @@
                 syncToCloud(true);
             });
             startPresence();      // تسجيل أني متصل الآن
-            startOnlineWatch();   // الأدمن فقط: متابعة قائمة المتصلين
+            startOnlineWatch();   // متابعة قائمة المتصلين (كل الموظفين)
+            startChat();          // الشات (الموظفين فقط)
         }
 
         function teardownRealtimeSync() {
@@ -811,6 +812,286 @@
             }
         }
 
+        // ─── الشات بين موظفين (1 لـ 1) ─────────────────────────────────
+        // chats/<cid>/<msgId> = {from, text, ts} — cid = مفتاحا الإيميلين مرتّبين ومفصولين بـ ~
+        // userChats/<me>/<peer> = آخر رسالة (لقائمة المحادثات والتنبيه)، chatRead/<me>/<peer> = آخر وقت قراءة
+        // (var بدل let عشان renderHeader يقدر يقرأ العدّاد في أي وقت من غير مشاكل ترتيب التحميل)
+        var _chatMe = null;
+        var _chatSummaries = {};
+        var _chatReadAt = {};
+        var _chatDirectory = [];
+        var _chatInitDone = false;
+        var _chatPeer = null;
+        var _chatQuery = null;
+        var _chatAddedHandler = null;
+        var _chatLastRenderedDay = '';
+        var _chatReadTimer = null;
+
+        function _chatId(a, b) { const x = emailKey(a), y = emailKey(b); return x < y ? x + '~' + y : y + '~' + x; }
+        function _chatKeyToEmail(k) { return String(k || '').replace(/,/g, '.'); }
+        function _chatModalOpen() { const m = document.getElementById('chatModal'); return !!m && !m.classList.contains('hidden'); }
+
+        function _chatOnlineEmails() {
+            const set = new Set();
+            _onlineSessions.forEach(x => { if (!x.guest && x.email) set.add(String(x.email).toLowerCase()); });
+            return set;
+        }
+
+        function _chatIsUnread(peerKey) {
+            const x = _chatSummaries[peerKey];
+            if (!x || x.from === _chatMe) return false;
+            if (_chatPeer && emailKey(_chatPeer) === peerKey && _chatModalOpen()) return false;
+            return (x.ts || 0) > (_chatReadAt[peerKey] || 0);
+        }
+        function getChatUnreadCount() { return Object.keys(_chatSummaries || {}).filter(_chatIsUnread).length; }
+        function updateChatBadge() {
+            const b = document.getElementById('chatCountBadge');
+            if (!b) return;
+            const n = getChatUnreadCount();
+            b.textContent = n;
+            b.classList.toggle('hidden', n === 0);
+        }
+
+        function startChat() {
+            if (!CLOUD_ENABLED || !state.isLoggedIn || isGuest()) return;
+            stopChat();
+            _chatMe = emailKey(state.currentUserEmail);
+            _chatInitDone = false;
+            db.ref('userChats/' + _chatMe).on('value', (snap) => {
+                const next = snap.val() || {};
+                if (_chatInitDone) {
+                    Object.keys(next).forEach(k => {
+                        const n = next[k], o = _chatSummaries[k];
+                        const viewing = _chatPeer && emailKey(_chatPeer) === k && _chatModalOpen() && document.visibilityState === 'visible';
+                        if (n && n.from !== _chatMe && (!o || (n.ts || 0) > (o.ts || 0)) && !viewing) {
+                            showToast('💬 رسالة جديدة من ' + _chatKeyToEmail(k), 'success');
+                        }
+                    });
+                }
+                _chatSummaries = next;
+                _chatInitDone = true;
+                updateChatBadge();
+                renderChatList();
+            }, err => console.warn('userChats listener failed:', err && err.code));
+            db.ref('chatRead/' + _chatMe).on('value', (snap) => {
+                _chatReadAt = snap.val() || {};
+                updateChatBadge();
+                renderChatList();
+            }, err => console.warn('chatRead listener failed:', err && err.code));
+            loadChatDirectory();
+        }
+
+        function stopChat() {
+            if (_chatMe) {
+                db.ref('userChats/' + _chatMe).off('value');
+                db.ref('chatRead/' + _chatMe).off('value');
+            }
+            _detachChatConversation();
+            clearTimeout(_chatReadTimer);
+            _chatMe = null; _chatSummaries = {}; _chatReadAt = {}; _chatPeer = null; _chatInitDone = false;
+        }
+
+        function _detachChatConversation() {
+            if (_chatQuery && _chatAddedHandler) _chatQuery.off('child_added', _chatAddedHandler);
+            _chatQuery = null; _chatAddedHandler = null;
+        }
+
+        // قائمة الزملاء: كل المستخدمين المفعّلين + الأدمن (لو القواعد ما سمحتش بقراءتها، بنكتفي بالمتصلين والمحادثات الموجودة)
+        async function loadChatDirectory() {
+            const emails = new Set([ADMIN_EMAIL]);
+            try {
+                const snap = await db.ref('allowedUsers').once('value');
+                const val = snap.val() || {};
+                Object.keys(val).forEach(k => emails.add(String((val[k] && val[k].email) || _chatKeyToEmail(k)).toLowerCase()));
+            } catch (err) { console.warn('chat directory failed:', err && err.code); }
+            emails.delete(String(state.currentUserEmail || '').toLowerCase());
+            _chatDirectory = Array.from(emails);
+            renderChatList();
+        }
+
+        function _updateChatSubtitle() {
+            const el = document.getElementById('chatSubtitle');
+            if (!el) return;
+            const online = _chatOnlineEmails();
+            if (_chatPeer) { el.textContent = online.has(_chatPeer) ? '🟢 متصل الآن' : 'غير متصل'; return; }
+            const me = String(state.currentUserEmail || '').toLowerCase();
+            let n = 0;
+            online.forEach(e => { if (e !== me) n++; });
+            el.textContent = n ? n + ' زميل متصل الآن' : 'لا يوجد زملاء متصلون الآن';
+        }
+
+        function renderChatList() {
+            if (!_chatModalOpen()) return;
+            _updateChatSubtitle();
+            if (_chatPeer) return;
+            const pane = document.getElementById('chatListPane');
+            if (!pane) return;
+            const me = String(state.currentUserEmail || '').toLowerCase();
+            const online = _chatOnlineEmails();
+            const all = new Set(_chatDirectory);
+            online.forEach(e => all.add(e));
+            Object.keys(_chatSummaries).forEach(k => all.add(_chatKeyToEmail(k)));
+            all.delete(me);
+            const rows = Array.from(all).map(email => {
+                const k = emailKey(email);
+                return { email: email, s: _chatSummaries[k] || null, online: online.has(email), unread: _chatIsUnread(k) };
+            });
+            const rank = r => r.unread ? 0 : r.online ? 1 : r.s ? 2 : 3;
+            rows.sort((a, b) => rank(a) - rank(b) || ((b.s && b.s.ts) || 0) - ((a.s && a.s.ts) || 0) || a.email.localeCompare(b.email));
+            if (!rows.length) {
+                pane.innerHTML = '<div class="p-8 text-center text-sm text-slate-400">لا يوجد زملاء لبدء محادثة معهم</div>';
+                return;
+            }
+            const today = _fmtLogDate(Date.now());
+            pane.innerHTML = rows.map(r => {
+                const preview = r.s && r.s.text ? (r.s.from === _chatMe ? 'أنت: ' : '') + r.s.text : (r.online ? 'متصل الآن' : '');
+                const when = r.s && r.s.ts ? (_fmtLogDate(r.s.ts) === today ? _fmtLogTime(r.s.ts) : _fmtLogDate(r.s.ts)) : '';
+                return `<button type="button" data-email="${escapeHtml(r.email)}" onclick="openChatWith(this.dataset.email)" class="w-full flex items-center gap-3 px-4 py-3 text-right border-b border-slate-100 hover:bg-white transition-colors">
+                    <span class="relative shrink-0">
+                        <span class="w-10 h-10 rounded-full bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center font-black uppercase">${escapeHtml(r.email.charAt(0))}</span>
+                        ${r.online ? '<span class="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>' : ''}
+                    </span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block font-bold text-sm text-slate-800 truncate" style="direction:ltr;text-align:right">${escapeHtml(r.email)}</span>
+                        <span class="block text-xs ${r.unread ? 'text-slate-800 font-bold' : 'text-slate-500'} truncate">${escapeHtml(preview)}</span>
+                    </span>
+                    <span class="flex flex-col items-end gap-1 shrink-0">
+                        <span class="text-[10px] text-slate-400">${escapeHtml(when)}</span>
+                        ${r.unread ? '<span class="w-2.5 h-2.5 rounded-full" style="background:#6E1418"></span>' : ''}
+                    </span>
+                </button>`;
+            }).join('');
+        }
+
+        function toggleChatModal() {
+            if (isGuest()) return;
+            const modal = document.getElementById('chatModal');
+            if (!modal) return;
+            if (!_chatMe) { showToast('الشات غير متاح الآن — تأكد من الاتصال بالإنترنت', 'error'); return; }
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                closeChatConversation();
+                if (typeof lucide !== 'undefined') refreshIcons('chatModal');
+            } else {
+                modal.classList.add('hidden');
+                _detachChatConversation();
+                _chatPeer = null;
+                clearTimeout(_chatReadTimer);
+                updateChatBadge();
+            }
+        }
+
+        function closeChatConversation() {
+            _detachChatConversation();
+            _chatPeer = null;
+            clearTimeout(_chatReadTimer);
+            const lp = document.getElementById('chatListPane'), cp = document.getElementById('chatConvPane'), bb = document.getElementById('chatBackBtn'), t = document.getElementById('chatTitle');
+            if (lp) lp.classList.remove('hidden');
+            if (cp) cp.classList.add('hidden');
+            if (bb) bb.classList.add('hidden');
+            if (t) { t.textContent = 'المحادثات'; t.style.direction = ''; }
+            updateChatBadge();
+            renderChatList();
+        }
+
+        function openChatWith(email) {
+            if (!_chatMe) return;
+            _chatPeer = String(email).toLowerCase();
+            _detachChatConversation();
+            _chatLastRenderedDay = '';
+            const lp = document.getElementById('chatListPane'), cp = document.getElementById('chatConvPane'), bb = document.getElementById('chatBackBtn'), t = document.getElementById('chatTitle');
+            if (lp) lp.classList.add('hidden');
+            if (cp) cp.classList.remove('hidden');
+            if (bb) bb.classList.remove('hidden');
+            if (t) { t.textContent = _chatPeer; t.style.direction = 'ltr'; }
+            _updateChatSubtitle();
+            const box = document.getElementById('chatMessages');
+            if (box) box.innerHTML = '';
+            const cid = _chatId(state.currentUserEmail, _chatPeer);
+            _chatQuery = db.ref('chats/' + cid).orderByKey().limitToLast(100);
+            _chatAddedHandler = (snap) => {
+                const m = snap.val();
+                if (!m) return;
+                _appendChatMessage(m);
+                if (m.from !== _chatMe) _markChatRead();
+            };
+            _chatQuery.on('child_added', _chatAddedHandler, (err) => {
+                console.warn('chat listener failed:', err && err.code);
+                showToast('تعذّر تحميل المحادثة', 'error');
+            });
+            _markChatRead();
+            updateChatBadge();
+            const inp = document.getElementById('chatInput');
+            if (inp && !window.matchMedia('(pointer: coarse)').matches) setTimeout(() => inp.focus(), 50);
+        }
+
+        function _appendChatMessage(m) {
+            const box = document.getElementById('chatMessages');
+            if (!box) return;
+            const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+            const ts = typeof m.ts === 'number' ? m.ts : Date.now();
+            const day = _fmtLogDate(ts);
+            if (day !== _chatLastRenderedDay) {
+                _chatLastRenderedDay = day;
+                const sep = document.createElement('div');
+                sep.className = 'text-center text-[11px] text-slate-400 py-1';
+                sep.textContent = day;
+                box.appendChild(sep);
+            }
+            const mine = m.from === _chatMe;
+            const row = document.createElement('div');
+            row.className = 'flex ' + (mine ? 'justify-start' : 'justify-end');
+            const bubble = document.createElement('div');
+            bubble.className = 'max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ' + (mine ? 'text-white' : 'bg-slate-100 text-slate-800');
+            if (mine) bubble.style.backgroundColor = '#6E1418';
+            const txt = document.createElement('div');
+            txt.style.whiteSpace = 'pre-wrap';
+            txt.style.wordBreak = 'break-word';
+            txt.textContent = String(m.text || '');
+            const time = document.createElement('div');
+            time.className = 'text-[10px] mt-1 ' + (mine ? 'text-white/70' : 'text-slate-400');
+            time.textContent = _fmtLogTime(ts);
+            bubble.appendChild(txt);
+            bubble.appendChild(time);
+            row.appendChild(bubble);
+            box.appendChild(row);
+            if (mine || nearBottom) box.scrollTop = box.scrollHeight;
+        }
+
+        function _markChatRead() {
+            if (!_chatMe || !_chatPeer) return;
+            clearTimeout(_chatReadTimer);
+            _chatReadTimer = setTimeout(() => {
+                if (!_chatMe || !_chatPeer || !_chatModalOpen()) return;
+                db.ref('chatRead/' + _chatMe + '/' + emailKey(_chatPeer)).set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
+            }, 400);
+        }
+
+        async function sendChatMessage() {
+            if (!_chatMe || !_chatPeer) return;
+            const input = document.getElementById('chatInput');
+            if (!input) return;
+            const text = input.value.trim().slice(0, 500);
+            if (!text) return;
+            const me = _chatMe, peer = emailKey(_chatPeer);
+            const cid = _chatId(state.currentUserEmail, _chatPeer);
+            const mid = db.ref('chats/' + cid).push().key;
+            const TS = firebase.database.ServerValue.TIMESTAMP;
+            const meta = { from: me, text: text.slice(0, 80), ts: TS };
+            const updates = {};
+            updates['chats/' + cid + '/' + mid] = { from: me, text: text, ts: TS };
+            updates['userChats/' + me + '/' + peer] = meta;
+            updates['userChats/' + peer + '/' + me] = meta;
+            input.value = '';
+            try {
+                await db.ref().update(updates);
+            } catch (err) {
+                console.warn('chat send failed:', err && err.code);
+                input.value = text;
+                showToast('تعذّر إرسال الرسالة', 'error');
+            }
+        }
+
         function toggleSessionLogs() {
             const box = document.getElementById('sessionLogsBox');
             if (!box) return;
@@ -820,7 +1101,7 @@
         }
 
         function startOnlineWatch() {
-            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            if (!state.isLoggedIn || isGuest()) return;
             db.ref('presence').off('value');
             db.ref('presence').on('value', (snap) => {
                 const val = snap.val() || {};
@@ -854,6 +1135,7 @@
                     `<span class="${chip}" style="direction:ltr">${dot}${escapeHtml(e)}${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}</span>`
                 ).join('') + (sum.guests ? `<span class="${chip}">${dot}زائر × ${sum.guests}</span>` : '');
             }
+            renderChatList();
         }
 
         function saveLocal() {
@@ -1147,6 +1429,7 @@
             if (FIXED_USER_EMAIL && !force) return; // المستخدم الثابت لا يخرج
             if (CLOUD_ENABLED) teardownRealtimeSync();
             stopPresence();
+            stopChat();
             stopAvatarListener();
             const prevEmail = state.currentUserEmail;
             state.currentUserEmail = '';
@@ -3780,6 +4063,11 @@ ${acknowledgmentHtml}
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
                                 ${state.notifications.length > 0 ? '<span class="notification-dot animate-pulse"></span>' : ''}
+                            </button>
+
+                            <button onclick="toggleChatModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="المحادثات">
+                                <i data-lucide="message-circle" class="w-5 h-5"></i>
+                                <span id="chatCountBadge" class="${getChatUnreadCount() > 0 ? '' : 'hidden '}absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">${getChatUnreadCount()}</span>
                             </button>
                             ` : ''}
 
