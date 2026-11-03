@@ -7683,21 +7683,34 @@ ${acknowledgmentHtml}
 
 // ─── فتح الحجز عند الضغط على الإشعار (بيناديها تطبيق الأندرويد) ───
 window.openFromNotification = function (date, bookingId) {
-    if (!date) return;
-    let tries = 0;
+    if (!date && !bookingId) return;
+    // لو اتنادت أكتر من مرة (فتح التطبيق + onNewIntent مثلًا) نلغي المحاولة القديمة ونكمل بالأحدث
+    if (window.__notifOpenTimer) { clearInterval(window.__notifOpenTimer); window.__notifOpenTimer = null; }
+    const POLL_MS = 300;
+    const MAX_READY_TRIES = 400;   // ~120 ثانية للانتظار لحد ما التطبيق يجهز (تسجيل دخول/بصمة)
+    const MAX_FIND_TRIES = 34;     // ~10 ثواني إضافية لانتظار وصول الحجز نفسه من السيرفر
+    let readyTries = 0, findTries = 0;
+    const idStr = bookingId ? String(bookingId) : '';
     const timer = setInterval(() => {
-        tries++;
         const ready = typeof state !== 'undefined' && state.currentUserEmail
             && Array.isArray(state.bookings) && state.bookings.length > 0
-            && typeof showDayDetails === 'function';
-        if (ready) {
-            clearInterval(timer);
-            try {
-                const exists = bookingId && state.bookings.some(b => String(b.id) === String(bookingId));
-                showDayDetails(date, exists ? bookingId : null);
-            } catch (e) {}
-        } else if (tries > 60) {
-            clearInterval(timer); // نستسلم بعد 30 ثانية
+            && typeof renderDayDetails === 'function';
+        if (!ready) {
+            if (++readyTries > MAX_READY_TRIES) { clearInterval(timer); window.__notifOpenTimer = null; }
+            return;
         }
-    }, 500);
+        try {
+            const booking = idStr ? state.bookings.find(b => String(b.id) === idStr) : null;
+            if (idStr && !booking && ++findTries <= MAX_FIND_TRIES) return; // الحجز لسه ماوصلش من المزامنة — نستنى
+            clearInterval(timer); window.__notifOpenTimer = null;
+            if (booking) {
+                // نفتح الحجز نفسه على تاريخه الفعلي (حتى لو تاريخ الإشعار قديم بعد تعديل)
+                renderDayDetails(booking.startDate, { bookingId: booking.id, fresh: true });
+            } else if (date) {
+                // مفيش معرّف حجز (أو الحجز اتحذف): نفتح قائمة اليوم دايمًا ومش حجز عشوائي
+                renderDayDetails(date, { bookingId: null, fresh: true, forceList: true });
+            }
+        } catch (e) { clearInterval(timer); window.__notifOpenTimer = null; }
+    }, POLL_MS);
+    window.__notifOpenTimer = timer;
 };
