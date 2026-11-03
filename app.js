@@ -4061,7 +4061,7 @@ ${acknowledgmentHtml}
 
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
-                                ${state.notifications.length > 0 ? '<span class="notification-dot animate-pulse"></span>' : ''}
+                                ${state.notifications.length > 0 ? '<span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
                             </button>
 
                             <button onclick="toggleChatModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="المحادثات">
@@ -4071,7 +4071,7 @@ ${acknowledgmentHtml}
                             ` : `
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
-                                ${state.notifications.length > 0 ? '<span class="notification-dot animate-pulse"></span>' : ''}
+                                ${state.notifications.length > 0 ? '<span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
                             </button>
                             `}
 
