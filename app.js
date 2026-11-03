@@ -1167,6 +1167,22 @@
             if(state.notifications.length > 50) state.notifications.pop();
             localStorage.setItem('hotel_notifications', JSON.stringify(state.notifications));
             renderHeader(); // Refresh header to show badge
+            try { updateNotifBadge(); } catch (e) {}
+        }
+
+        // تحديث رقم الجرس فورًا بدون إعادة رسم الصفحة (عرض فقط)
+        function updateNotifBadge() {
+            const n = state.notifications.length;
+            document.querySelectorAll('button[title="الإشعارات"]').forEach(btn => {
+                let badge = btn.querySelector('.notif-count-badge');
+                if (n <= 0) { if (badge) badge.remove(); return; }
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none';
+                    btn.appendChild(badge);
+                }
+                badge.textContent = n;
+            });
         }
 
         function showToast(message, type, bookingDate) {
@@ -1284,6 +1300,7 @@
                 localStorage.setItem('hotel_notifications', JSON.stringify([]));
                 toggleNotificationsModal(); 
                 renderHeader();
+                document.querySelectorAll('.notif-count-badge').forEach(el => el.remove());
             }
         }
 
@@ -4061,7 +4078,7 @@ ${acknowledgmentHtml}
 
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
-                                ${state.notifications.length > 0 ? '<span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
+                                ${state.notifications.length > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
                             </button>
 
                             <button onclick="toggleChatModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="المحادثات">
@@ -4071,7 +4088,7 @@ ${acknowledgmentHtml}
                             ` : `
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
-                                ${state.notifications.length > 0 ? '<span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
+                                ${state.notifications.length > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
                             </button>
                             `}
 
