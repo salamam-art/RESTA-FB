@@ -4845,7 +4845,7 @@ ${acknowledgmentHtml}
                 const hiddenCount = totalCount - visibleBookings.length;
 
                 const tagsHtml = visibleBookings.map(b => {
-                    const hall = HALLS.find(h => h.id === b.hallId);
+                    const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف', color: 'bg-gray-100 text-gray-500', border: 'border-gray-200' };
                     const isMyBooking = b.createdBy === state.currentUserEmail;
                     const canDrag = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || isMyBooking);
                     return `
