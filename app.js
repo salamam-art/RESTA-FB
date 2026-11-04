@@ -3020,7 +3020,7 @@
             cleanupAttachmentDropdowns();
 
             const renderFullCard = (b) => {
-                const hall = HALLS.find(h => h.id === b.hallId);
+                const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف', color: 'bg-gray-100 text-gray-500', border: 'border-gray-200' };
                 const isOwner = b.createdBy === state.currentUserEmail;
                 const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
                 const canControl = isAdmin || (isOwner && !isPastDateStr(b.startDate));
