@@ -1167,14 +1167,23 @@
             if (opening) loadSessionLogs();
         }
 
+        let _onlineWatchRetries = 0;
         function startOnlineWatch() {
             if (!state.isLoggedIn || isGuest()) return;
             db.ref('presence').off('value');
             db.ref('presence').on('value', (snap) => {
+                _onlineWatchRetries = 0;
                 const val = snap.val() || {};
                 _onlineSessions = Object.keys(val).map(k => val[k]).filter(Boolean);
                 renderOnlineNow();
-            }, (err) => { console.warn('presence listener cancelled:', err && err.code); });
+            }, (err) => {
+                console.warn('presence listener cancelled:', err && err.code);
+                // لو المستمع اتلغى (انتهاء توكن / تغيير قواعد / انقطاع) نعيد تشغيله بدل ما يفضل العداد على 0
+                if (_onlineWatchRetries < 5) {
+                    _onlineWatchRetries++;
+                    setTimeout(startOnlineWatch, 3000 * _onlineWatchRetries);
+                }
+            });
         }
 
         // الموظف يتعدّ مرة واحدة حتى لو فاتح من أكتر من جهاز، والزوار يتعدّوا بعدد جلساتهم
