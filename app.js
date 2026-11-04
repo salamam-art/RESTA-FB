@@ -479,11 +479,16 @@
             if (!CLOUD_ENABLED) return;
             teardownHallsListener();
             db.ref('hallsSettings').on('value', (snap) => {
-                const list = fbValToArray(snap.val());
-                applyHalls(list.length ? list : DEFAULT_HALLS);
-                try { if (state.isLoggedIn && document.getElementById('app').style.display !== 'none') render(); } catch (e) { console.warn(e); }
-                const m = document.getElementById('hallsManageModal');
-                if (m && !m.classList.contains('hidden') && typeof renderHallsManageBody === 'function' && !_hallsDirty) { _hallsDraft = HALLS.map(h => ({ ...h })); renderHallsManageBody(); }
+                try {
+                    const list = fbValToArray(snap.val());
+                    const before = JSON.stringify(HALLS.map(h => [h.id, h.name, h.colorKey]));
+                    applyHalls(list.length ? list : DEFAULT_HALLS);
+                    const changed = before !== JSON.stringify(HALLS.map(h => [h.id, h.name, h.colorKey]));
+                    // نعيد الرسم فقط لو القاعات اتغيرت فعلاً (عشان ما نلمسش أي حاجة تانية في التطبيق)
+                    if (changed && state.isLoggedIn && document.getElementById('app').style.display !== 'none') render();
+                    const m = document.getElementById('hallsManageModal');
+                    if (changed && m && !m.classList.contains('hidden') && !_hallsDirty) { _hallsDraft = HALLS.map(h => ({ id: h.id, name: h.name, icon: h.icon, colorKey: h.colorKey })); renderHallsManageBody(); }
+                } catch (e) { console.warn('halls update failed:', e); }
             }, (err) => { console.warn('hallsSettings listener cancelled:', err && err.code); });
         }
         function teardownHallsListener() {
