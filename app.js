@@ -4663,7 +4663,7 @@ ${acknowledgmentHtml}
             const todayCount = state.bookings.filter(b => b.startDate === todayStr).length;
             const futureCount = state.bookings.filter(b => b.startDate >= todayStr).length;
 
-            const accountLabel = isGuest() ? 'زائر' : (state.currentUserEmail || 'زائر');
+            const accountLabel = isGuest() ? (getGuestName() ? 'زائر: ' + getGuestName() : 'زائر') : (state.currentUserEmail || 'زائر');
             const avatarOn = avatarEnabled();
             if (avatarOn) ensureAvatarListener();
 
