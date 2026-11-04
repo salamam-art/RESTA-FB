@@ -1040,3 +1040,12 @@ html.touch-edge-right::after { right: 0; background: linear-gradient(to left, rg
 @keyframes agendaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .agenda-anim { animation: agendaIn .22s ease-out; }
 @media (prefers-reduced-motion: reduce) { .agenda-anim { animation: none; } }
+
+/* إصلاح نبضة الهيدر عند السحب للشهر التالي (موبايل):
+   حركة translateX(-28px) في اتجاه RTL كانت بتعمل overflow أفقي مؤقت للصفحة
+   فالـ viewport يتوسّع لحظيًا والهيدر يتحرك. نقص (clip) أي overflow أفقي جوه الـ main
+   بدون ما نكسر sticky للهيدر (الهيدر أخ لـ main مش جواه). */
+main { overflow-x: hidden; }
+@supports (overflow: clip) {
+    main { overflow-x: clip; }
+}
