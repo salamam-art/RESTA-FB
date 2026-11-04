@@ -1492,7 +1492,7 @@
             try { localStorage.setItem(GUEST_NAME_KEY, _cleanGuestName(n)); } catch (e) {}
         }
         // نافذة بسيطة لطلب الاسم (من غير prompt() لأنه مش مدعوم في كل تطبيقات WebView). بترجع الاسم أو null لو اتلغت
-        function askGuestName(prefill) {
+        function askGuestName(prefill, required) {
             return new Promise(resolve => {
                 const old = document.getElementById('guestNameOverlay');
                 if (old) old.remove();
@@ -1508,7 +1508,7 @@
                         <p id="guestNameErr" class="hidden text-xs font-bold text-red-500 mt-2">من فضلك اكتب اسمك</p>
                         <div class="flex gap-2 mt-5">
                             <button type="submit" class="flex-1 bg-[#6E1418] text-white font-bold py-3 rounded-xl">دخول</button>
-                            <button type="button" id="guestNameCancel" class="px-5 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>
+                            ${required ? '' : '<button type="button" id="guestNameCancel" class="px-5 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>'}
                         </div>
                     </form>`;
                 document.body.appendChild(wrap);
@@ -1520,7 +1520,8 @@
                     if (!v) { wrap.querySelector('#guestNameErr').classList.remove('hidden'); input.focus(); return; }
                     done(v);
                 });
-                wrap.querySelector('#guestNameCancel').addEventListener('click', () => done(null));
+                const _cancelBtn = wrap.querySelector('#guestNameCancel');
+                if (_cancelBtn) _cancelBtn.addEventListener('click', () => done(null));
                 setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 50);
             });
         }
@@ -1845,6 +1846,16 @@
         }
 
         function unlockApp() {
+            // زائر جلسته قديمة (قبل ميزة الاسم): نسأله عن اسمه مرة واحدة قبل فتح التطبيق
+            if (state.currentUserEmail === GUEST_EMAIL && !getGuestName()) {
+                if (document.getElementById('guestNameOverlay')) return;
+                askGuestName('', true).then(n => { setGuestName(n); _unlockAppCore(); });
+                return;
+            }
+            _unlockAppCore();
+        }
+
+        function _unlockAppCore() {
             hideBiometricLockScreen();
             document.getElementById('loginModal').style.display = 'none';
             document.getElementById('app').style.display = 'block';
