@@ -586,8 +586,12 @@
                 const newIds    = new Set(finalBookings.map(b => String(b.id)));
                 const pendingDelSet = new Set(pendingDels.map(String));
 
+                // لو ظهر عدد كبير من الحجوزات الجديدة في مزامنة واحدة (غالبًا استعادة شهر من الأرشيف) نعرض رسالة واحدة بدل رسالة لكل حجز
+                const _addedNow = finalBookings.filter(b => !prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id)));
+                const _bulkAdded = _addedNow.length >= 4;
                 finalBookings.forEach(b => {
                     if (!prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id))) {
+                        if (_bulkAdded) return;
                         let _addedByEmail = b.createdBy || '';
                         if (!_addedByEmail) {
                             // لو الحجز لأي سبب من غير createdBy، ندور على أقرب سجل "إضافة/تعديل" مطابق بنفس رقم الحجز أو التاريخ
@@ -604,8 +608,17 @@
                         showToast(`حجز جديد من ${_addedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'success', b.startDate);
                     }
                 });
+                if (_bulkAdded) {
+                    const _bulkAddMsg = `تمت إضافة ${_addedNow.length} حجز إلى القائمة (استعادة من الأرشيف أو إضافة جماعية)`;
+                    addNotification(_bulkAddMsg, 'add');
+                    showToast(_bulkAddMsg, 'success');
+                }
+                // لو اختفى عدد كبير من الحجوزات في مزامنة واحدة (غالبًا أرشفة شهر) نعرض رسالة واحدة بدل رسالة لكل حجز
+                const _removedNow = state.bookings.filter(b => !b._isDirty && !newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id)));
+                const _bulkRemoved = _removedNow.length >= 4;
                 state.bookings.filter(b => !b._isDirty).forEach(b => {
                     if (!newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id))) {
+                        if (_bulkRemoved) return;
                         const _delLogsForCompany = serverLogs
                             .filter(l => l.type === 'حذف' && l.company === b.companyName)
                             .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
@@ -616,9 +629,15 @@
                         const _deletedByName = (((_delLogMatch && _delLogMatch.user) || '').split('@')[0]) || 'مستخدم آخر';
                         const _byPart = isGuest() ? '' : ` بواسطة ${_deletedByName}`; // الزائر لا يقرأ السجلات فلا يمكن معرفة الاسم
                         addNotification(`تم حذف حجز${_byPart}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'delete', b.startDate);
-                        showToast(`تم حذف حجز${_byPart} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error');
+                        showToast(`تم حذف حجز${_byPart} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error', null, { center: true });
                     }
                 });
+
+                if (_bulkRemoved) {
+                    const _bulkMsg = `تمت إزالة ${_removedNow.length} حجز من القائمة (أرشفة أو حذف جماعي)`;
+                    addNotification(_bulkMsg, 'delete');
+                    showToast(_bulkMsg, 'success');
+                }
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
                 const _bookingsUnchanged = _bookingsSignature(state.bookings) === _bookingsSignature(finalBookings);
@@ -1195,8 +1214,22 @@
             });
         }
 
-        function showToast(message, type, bookingDate) {
-            const container = document.getElementById('toast-container');
+        // حاوية رسائل الحذف في نص الشاشة (بتتعمل أول مرة تتطلب) — بدون كلاسات fixed/inset-0 عشان زر الرجوع ما يتعاملش معاها كشاشة
+        function _getCenterToastContainer() {
+            let c = document.getElementById('toast-center-container');
+            if (!c) {
+                c = document.createElement('div');
+                c.id = 'toast-center-container';
+                c.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;pointer-events:none');
+                document.body.appendChild(c);
+            }
+            return c;
+        }
+
+        // opts.center = true: الرسالة تظهر في نص الشاشة وتفضل لحد ما المستخدم يقفلها بزر ✕ (بتُستخدم لرسائل حذف الحجز بس)
+        function showToast(message, type, bookingDate, opts) {
+            const center = !!(opts && opts.center);
+            const container = center ? _getCenterToastContainer() : document.getElementById('toast-container');
             const toast = document.createElement('div');
             
             const bgClass = type === 'error' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200';
@@ -1241,11 +1274,22 @@
                 dismissToast(toast);
             });
             
+            if (center) {
+                // نص الرسالة كامل (من غير قص) وبحجم أوضح، وبدون شريط التقدم لأنها مش بتختفي لوحدها
+                toast.style.maxWidth = '22rem';
+                toast.style.width = '100%';
+                const _p = toast.querySelector('p');
+                if (_p) { _p.classList.remove('truncate'); _p.classList.add('whitespace-normal'); _p.style.fontSize = '0.85rem'; }
+                const _bar = toast.querySelector('.toast-progress-bar');
+                if (_bar && _bar.parentElement) _bar.parentElement.remove();
+                // حد أقصى 4 رسائل ظاهرة مع بعض
+                while (container.children.length >= 4) container.firstElementChild.remove();
+            }
             container.appendChild(toast);
-            if(typeof lucide!=="undefined") refreshIcons('toast-container'); // Ensure icons render
+            if(typeof lucide!=="undefined") refreshIcons(center ? 'toast-center-container' : 'toast-container'); // Ensure icons render
             
             // إخفاء تلقائي بعد 5 ثوانٍ (شريط التقدم أعلاه يتزامن مع نفس المدة)
-            toast._toastTimer = setTimeout(() => dismissToast(toast), 5000);
+            if (!center) toast._toastTimer = setTimeout(() => dismissToast(toast), 5000);
         }
 
         // إخفاء التوست بحركة fade-out ناعمة بدل الاختفاء المفاجئ
@@ -7745,28 +7789,63 @@ window.openFromNotification = function (date, bookingId) {
     const POLL_MS = 300;
     const MAX_READY_TRIES = 400;   // ~120 ثانية للانتظار لحد ما التطبيق يجهز (تسجيل دخول/بصمة)
     const MAX_FIND_TRIES = 34;     // ~10 ثواني إضافية لانتظار وصول الحجز نفسه من السيرفر
-    let readyTries = 0, findTries = 0;
+    let readyTries = 0, findTries = 0, serverChecked = false, finished = false;
     const idStr = bookingId ? String(bookingId) : '';
+    const stop = () => { finished = true; clearInterval(timer); window.__notifOpenTimer = null; };
+    const fmtDate = d => d ? String(d).split('-').reverse().join('/') : '';
+
+    // الحجز اتحذف: رسالة قصيرة بس (من غير ما نفتح أي شاشة)
+    const announceDeleted = () => {
+        let msg = 'تم حذف هذا الحجز' + (date ? ' (بتاريخ ' + fmtDate(date) + ')' : '');
+        try {
+            // لو في إشعار حذف واحد بس على نفس التاريخ نستخدم نصه (فيه اسم الحجز)
+            const dels = (state.notifications || []).filter(n => n.type === 'delete' && date && n.bookingDate === date);
+            if (dels.length === 1 && dels[0].text) {
+                // لو اتسجل من لحظات يبقى التوست بتاعه لسه ظاهر من المزامنة — ما نكررش
+                if (Date.now() - Number(dels[0].id) < 8000) return;
+                msg = dels[0].text;
+            }
+        } catch (e) {}
+        showToast(msg, 'error', null, { center: true });
+    };
+
+    // الحجز مش موجود عندنا محليًا: نسأل السيرفر مرة واحدة (قراءة فقط) هل لسه موجود ولا اتحذف
+    const checkServer = () => {
+        serverChecked = true;
+        try {
+            db.ref('bookings').once('value').then(snap => {
+                if (finished) return;
+                const onServer = fbValToArray(snap.val()).some(b => b && String(b.id) === idStr);
+                if (!onServer) { stop(); announceDeleted(); }
+                // لو موجود على السيرفر نكمل نستنى وصوله بالمزامنة العادية ونفتحه
+            }).catch(() => {});
+        } catch (e) {}
+    };
+
     const timer = setInterval(() => {
+        if (finished) return;
         const ready = typeof state !== 'undefined' && state.currentUserEmail
             && Array.isArray(state.bookings) && state.bookings.length > 0
             && typeof renderDayDetails === 'function';
         if (!ready) {
-            if (++readyTries > MAX_READY_TRIES) { clearInterval(timer); window.__notifOpenTimer = null; }
+            if (++readyTries > MAX_READY_TRIES) stop();
             return;
         }
         try {
             const booking = idStr ? state.bookings.find(b => String(b.id) === idStr) : null;
-            if (idStr && !booking && ++findTries <= MAX_FIND_TRIES) return; // الحجز لسه ماوصلش من المزامنة — نستنى
-            clearInterval(timer); window.__notifOpenTimer = null;
+            if (idStr && !booking) {
+                if (!serverChecked) checkServer();
+                if (++findTries <= MAX_FIND_TRIES) return; // لسه ماوصلش من المزامنة — نستنى
+            }
+            stop();
             if (booking) {
                 // نفتح الحجز نفسه على تاريخه الفعلي (حتى لو تاريخ الإشعار قديم بعد تعديل)
                 renderDayDetails(booking.startDate, { bookingId: booking.id, fresh: true });
             } else if (date) {
-                // مفيش معرّف حجز (أو الحجز اتحذف): نفتح قائمة اليوم دايمًا ومش حجز عشوائي
+                // مفيش معرّف حجز (أو السيرفر مردّش): نفتح قائمة اليوم دايمًا ومش حجز عشوائي
                 renderDayDetails(date, { bookingId: null, fresh: true, forceList: true });
             }
-        } catch (e) { clearInterval(timer); window.__notifOpenTimer = null; }
+        } catch (e) { stop(); }
     }, POLL_MS);
     window.__notifOpenTimer = timer;
 };
