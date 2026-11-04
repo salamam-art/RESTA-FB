@@ -2090,6 +2090,7 @@
             const modal = document.getElementById('bookingsListModal');
             if (modal.classList.contains('hidden')) {
                 const tbody = document.getElementById('allBookingsTableBody');
+                const cardsBox = document.getElementById('allBookingsCards');
                 const today = new Date().toISOString().split('T')[0];
                 const sortedBookings = [...state.bookings]
                     .filter(b => b.startDate >= today)
@@ -2097,7 +2098,26 @@
 
                 if (sortedBookings.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-16 text-slate-400 font-bold bg-white"><div class="flex flex-col items-center justify-center"><i data-lucide="calendar-x" class="w-12 h-12 mb-3 text-slate-300"></i>لا توجد حجوزات قادمة مسجلة في النظام</div></td></tr>';
+                    if (cardsBox) cardsBox.innerHTML = '<div class="text-center py-16 text-slate-400 font-bold flex flex-col items-center justify-center"><i data-lucide="calendar-x" class="w-12 h-12 mb-3 text-slate-300"></i>لا توجد حجوزات قادمة مسجلة في النظام</div>';
                 } else {
+                    if (cardsBox) cardsBox.innerHTML = sortedBookings.map(b => {
+                        const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
+                        const fmt = d => d ? String(d).split('-').reverse().join('/') : '';
+                        return `
+                            <div onclick="showDayDetails('${b.startDate}')" class="cursor-pointer bg-white border border-slate-200 rounded-2xl p-3 shadow-sm active:scale-[0.99] transition-all border-r-4 border-r-[#A88A45]">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="font-black text-[#6E1418] text-sm leading-snug min-w-0 break-words">${escapeHtml(b.companyName)}</div>
+                                    <span class="text-[11px] px-2.5 py-1 rounded-lg font-bold shrink-0 ${hall.color}">${hall.name}</span>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2 text-xs text-slate-600 font-mono" dir="ltr">
+                                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
+                                    <span>${fmt(b.startDate)}</span>
+                                    <i data-lucide="arrow-right" class="w-3 h-3 text-slate-300"></i>
+                                    <span>${fmt(b.endDate)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
                     tbody.innerHTML = sortedBookings.map(b => {
                         const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
                         return `
@@ -4221,12 +4241,6 @@ ${acknowledgmentHtml}
                                         </span>
                                         تصدير (Excel)
                                     </button>
-                                    <button onclick="printUpcomingBookings(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="printer" class="w-4 h-4 text-violet-600"></i>
-                                        </span>
-                                        طباعة الحجوزات القادمة
-                                    </button>
                                     ${!isGuest() ? `
                                     <button onclick="toggleDeletedBookingsModal(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
@@ -4282,9 +4296,6 @@ ${acknowledgmentHtml}
 
                             <button onclick="exportToExcel()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
                                 <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
-                            </button>
-                            <button onclick="printUpcomingBookings()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all shrink-0" title="طباعة الحجوزات القادمة">
-                                <i data-lucide="printer" class="w-5 h-5"></i>
                             </button>
                             ${!isGuest() ? `
                             <button onclick="toggleDeletedBookingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0" title="الحجوزات المحذوفة">
@@ -6629,6 +6640,8 @@ ${acknowledgmentHtml}
                         <span>جاري تحميل الحجوزات المحذوفة...</span>
                     </div>
                 </td></tr>`;
+            const _cardsLoading = document.getElementById('deletedBookingsCards');
+            if (_cardsLoading) _cardsLoading.innerHTML = '<div class="text-center py-12 text-slate-400 font-bold flex flex-col items-center gap-3"><i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i><span>جاري تحميل الحجوزات المحذوفة...</span></div>';
             if (typeof lucide !== "undefined") refreshIcons();
 
             let records = [];
@@ -6683,19 +6696,102 @@ ${acknowledgmentHtml}
             if (badge) badge.textContent = records.length + ' حجز محذوف';
             const isAdminUser = state.currentUserEmail === ADMIN_EMAIL;
 
+            // موبايل (أقل من 640px): كروت بدل الجدول — نرسم في حاوية واحدة بس عشان ما يتكررش الـ checkbox
+            const isMobileView = window.matchMedia('(max-width: 639px)').matches;
+            const cardsBox = document.getElementById('deletedBookingsCards');
+            const tableWrap = document.getElementById('deletedBookingsTableWrapper');
+            if (tableWrap) tableWrap.style.overflowX = isMobileView ? 'hidden' : 'scroll';
+            if (isMobileView) tbody.innerHTML = ''; else if (cardsBox) cardsBox.innerHTML = '';
+
             if (!records || records.length === 0) {
-                tbody.innerHTML = `
-                    <tr><td colspan="9" class="text-center py-16 text-slate-400 font-bold">
+                const emptyInner = `
                         <div class="flex flex-col items-center gap-3">
                             <i data-lucide="inbox" class="w-12 h-12 text-slate-300"></i>
                             <span>لا توجد حجوزات محذوفة حتى الآن</span>
-                        </div>
-                    </td></tr>`;
+                        </div>`;
+                if (isMobileView && cardsBox) {
+                    cardsBox.innerHTML = `<div class="text-center py-16 text-slate-400 font-bold">${emptyInner}</div>`;
+                } else {
+                    tbody.innerHTML = `
+                    <tr><td colspan="9" class="text-center py-16 text-slate-400 font-bold">${emptyInner}</td></tr>`;
+                }
                 if (typeof lucide !== "undefined") refreshIcons();
+                const _sa0 = document.getElementById('deletedBookingsSelectAllM');
+                if (_sa0) _sa0.checked = false;
+                updateDeletedBookingsSelectAllState();
                 return;
             }
 
             const fmtDate = d => d ? String(d).split('-').reverse().join('/') : '—';
+
+            if (isMobileView && cardsBox) {
+                const cardsHtml = records.map(r => {
+                    let tsDate = '—', tsTime = '';
+                    if (r.deletedAt) {
+                        try {
+                            const d = new Date(r.deletedAt);
+                            tsDate = d.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                            tsTime = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+                        } catch (e) { /* تجاهل */ }
+                    }
+                    const dateRange = r.startDate
+                        ? (r.endDate && r.endDate !== r.startDate ? `${fmtDate(r.startDate)} → ${fmtDate(r.endDate)}` : fmtDate(r.startDate))
+                        : '—';
+                    const typeColor = r.deleteType === 'الحجز بالكامل'
+                        ? 'bg-red-100 text-red-700 border border-red-200'
+                        : 'bg-orange-100 text-orange-700 border border-orange-200';
+                    return `
+                        <div class="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+                            <div class="flex items-center gap-2">
+                                ${isAdminUser ? `<input type="checkbox" class="deletedBookingRowCheckbox shrink-0" data-key="${r.key}" onchange="updateDeletedBookingsSelectAllState()">` : ''}
+                                <span class="inline-flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg ${typeColor} whitespace-nowrap">
+                                    <i data-lucide="trash-2" class="w-3 h-3 shrink-0"></i>
+                                    ${escapeHtml(r.deleteType || '—')}
+                                </span>
+                                <span class="flex-1"></span>
+                                ${isAdminUser ? `
+                                <button onclick="deleteDeletedBookingRecord('${r.key}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="حذف هذا السجل نهائياً">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>` : ''}
+                            </div>
+                            <div class="mt-2 font-black text-[#6E1418] text-sm leading-snug break-words">${escapeHtml(r.company || '—')}</div>
+                            <div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                                <div>
+                                    <div class="text-[10px] font-bold text-slate-400">القاعة</div>
+                                    <div class="font-bold text-slate-700">${escapeHtml(r.hallName || '—')}</div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] font-bold text-slate-400">الهاتف</div>
+                                    <div class="font-bold text-slate-700" style="direction:ltr; text-align:right;">${escapeHtml(r.phone || '—')}</div>
+                                </div>
+                                <div class="col-span-2">
+                                    <div class="text-[10px] font-bold text-slate-400">تاريخ الحجز</div>
+                                    <div class="font-bold text-slate-700">${dateRange}</div>
+                                </div>
+                            </div>
+                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                    <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 font-black text-[10px] border border-slate-200">
+                                        ${r.deletedBy ? escapeHtml(r.deletedBy.charAt(0).toUpperCase()) : '?'}
+                                    </div>
+                                    <span class="text-[11px] font-bold text-slate-600 truncate" style="direction:ltr;">${escapeHtml(r.deletedBy || '—')}</span>
+                                </div>
+                                <div class="text-[11px] font-bold text-slate-500 shrink-0">${tsDate} <span class="font-mono text-slate-400">${tsTime}</span></div>
+                            </div>
+                        </div>`;
+                }).join('');
+                const selectAllRow = isAdminUser ? `
+                        <label class="flex items-center gap-2 text-xs font-bold text-slate-500 px-1 pb-1 cursor-pointer">
+                            <input type="checkbox" id="deletedBookingsSelectAllM" onchange="toggleSelectAllDeletedBookings(this)">
+                            تحديد الكل
+                        </label>` : '';
+                cardsBox.innerHTML = selectAllRow + cardsHtml;
+                if (typeof lucide !== "undefined") refreshIcons();
+                const _saM = document.getElementById('deletedBookingsSelectAllM');
+                if (_saM) _saM.checked = false;
+                updateDeletedBookingsSelectAllState();
+                return;
+            }
 
             tbody.innerHTML = records.map((r, i) => {
                 let tsDate = '—', tsTime = '';
@@ -6774,9 +6870,10 @@ ${acknowledgmentHtml}
         function updateDeletedBookingsSelectAllState() {
             const rowBoxes = document.querySelectorAll('.deletedBookingRowCheckbox');
             const selectAllBox = document.getElementById('deletedBookingsSelectAll');
-            if (selectAllBox) {
-                selectAllBox.checked = rowBoxes.length > 0 && Array.from(rowBoxes).every(cb => cb.checked);
-            }
+            const _allChecked = rowBoxes.length > 0 && Array.from(rowBoxes).every(cb => cb.checked);
+            if (selectAllBox) selectAllBox.checked = _allChecked;
+            const selectAllBoxM = document.getElementById('deletedBookingsSelectAllM');
+            if (selectAllBoxM) selectAllBoxM.checked = _allChecked;
             const checkedCount = document.querySelectorAll('.deletedBookingRowCheckbox:checked').length;
             const countEl = document.getElementById('deletedBookingsSelectedCount');
             if (countEl) countEl.textContent = checkedCount;
@@ -6787,6 +6884,15 @@ ${acknowledgmentHtml}
                 bulkBtn.classList.toggle('cursor-not-allowed', checkedCount === 0);
             }
         }
+
+        (function () {
+            const mq = window.matchMedia('(max-width: 639px)');
+            const onChange = () => {
+                const m = document.getElementById('deletedBookingsModal');
+                if (m && !m.classList.contains('hidden') && window._allDeletedBookings) filterDeletedBookings();
+            };
+            if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
+        })();
 
         function filterDeletedBookings() {
             const q = (document.getElementById('deletedBookingsSearchInput').value || '').trim().toLowerCase();
