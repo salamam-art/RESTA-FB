@@ -1,0 +1,132 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "allowedUsers": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && auth.token.email == 'salama.m@gmail.com'",
+      "$key": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && $key == auth.token.email.toLowerCase().replace('.', ',')"
+      }
+    },
+
+    "bookings": {
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider == 'anonymous' || auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())"
+    },
+
+    "meta": {
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider == 'anonymous' || auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())"
+    },
+
+    "weddingSettings": {
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider == 'anonymous' || auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && auth.token.email == 'salama.m@gmail.com'"
+    },
+
+    "hallsSettings": {
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider == 'anonymous' || auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && auth.token.email == 'salama.m@gmail.com'"
+    },
+
+    "logs": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())"
+    },
+
+    "deletedBookings": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())"
+    },
+
+    "archive": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())"
+    },
+
+    "userPhotos": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && auth.token.email == 'salama.m@gmail.com'",
+      "$key": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && $key == auth.token.email.toLowerCase().replace('.', ',') && root.child('allowedUsers').child($key).exists()",
+        ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || ($key == auth.token.email.toLowerCase().replace('.', ',') && root.child('allowedUsers').child($key).exists()))",
+        ".validate": "newData.hasChildren(['url', 'updatedAt']) && newData.child('url').isString() && newData.child('url').val().length < 1000 && newData.child('url').val().beginsWith('https://firebasestorage.googleapis.com/') && newData.child('updatedAt').isString()",
+        "url": {},
+        "updatedAt": {},
+        "$other": { ".validate": false }
+      }
+    },
+
+    "archiveIndex": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())"
+    },
+
+    "presence": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists())",
+      "$sid": {
+        ".write": "auth != null && (auth.token.firebase.sign_in_provider == 'anonymous' || auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && (!data.exists() || data.child('uid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['uid', 'guest']) && newData.child('uid').val() === auth.uid && newData.child('guest').isBoolean()",
+        "uid": {},
+        "email": {},
+        "guest": {},
+        "since": {},
+        "logId": {},
+        "name": { ".validate": "newData.isString() && newData.val().length <= 30" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "sessionLogs": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && auth.token.email == 'salama.m@gmail.com'",
+      "$lid": {
+        ".write": "auth != null && (auth.token.firebase.sign_in_provider == 'anonymous' || auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && (!data.exists() || data.child('uid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['uid', 'guest', 'loginAt']) && newData.child('uid').val() === auth.uid && newData.child('guest').isBoolean()",
+        "uid": {},
+        "email": {},
+        "guest": {},
+        "loginAt": {},
+        "logoutAt": {},
+        "name": { ".validate": "newData.isString() && newData.val().length <= 30" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "chats": {
+      "$cid": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && ($cid.beginsWith(auth.token.email.toLowerCase().replace('.', ',') + '~') || $cid.endsWith('~' + auth.token.email.toLowerCase().replace('.', ',')))",
+        "$mid": {
+          ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && ($cid.beginsWith(auth.token.email.toLowerCase().replace('.', ',') + '~') || $cid.endsWith('~' + auth.token.email.toLowerCase().replace('.', ','))) && !data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['from', 'text', 'ts']) && newData.child('from').val() === auth.token.email.toLowerCase().replace('.', ',') && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 500 && newData.child('ts').isNumber()",
+          "from": {},
+          "text": {},
+          "ts": {},
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
+    "userChats": {
+      "$k": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && $k == auth.token.email.toLowerCase().replace('.', ',')",
+        "$o": {
+          ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && ($k == auth.token.email.toLowerCase().replace('.', ',') || $o == auth.token.email.toLowerCase().replace('.', ','))",
+          ".validate": "newData.hasChildren(['from', 'ts']) && newData.child('from').val() === auth.token.email.toLowerCase().replace('.', ',') && newData.child('ts').isNumber() && (!newData.child('text').exists() || (newData.child('text').isString() && newData.child('text').val().length <= 80))",
+          "from": {},
+          "text": {},
+          "ts": {},
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
+    "chatRead": {
+      "$k": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && $k == auth.token.email.toLowerCase().replace('.', ',')",
+        ".write": "auth != null && auth.token.firebase.sign_in_provider == 'password' && (auth.token.email == 'salama.m@gmail.com' || root.child('allowedUsers').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && $k == auth.token.email.toLowerCase().replace('.', ',')",
+        "$o": { ".validate": "newData.isNumber()" }
+      }
+    }
+  }
+}

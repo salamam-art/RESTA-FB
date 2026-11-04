@@ -283,13 +283,35 @@
         const COLOR_RED = '#6E1418';
         const COLOR_GOLD = '#A88A45';
 
-        const HALLS = [
-            { id: 'yacht', name: 'قاعة اليخت', icon: 'ship', color: 'bg-blue-50 text-blue-700', border: 'border-blue-400' },
-            { id: 'italian', name: 'القاعة الإيطالية', icon: 'armchair', color: 'bg-red-50 text-red-700', border: 'border-red-400' },
-            { id: 'greenhouse', name: 'الجرين هاوس', icon: 'flower-2', color: 'bg-green-50 text-green-700', border: 'border-green-400' },
-            { id: 'bar', name: 'البار', icon: 'glass-water', color: 'bg-purple-50 text-purple-700', border: 'border-purple-400' },
-            { id: 'pool', name: 'حمام السباحة', icon: 'waves', color: 'bg-cyan-50 text-cyan-700', border: 'border-cyan-400' },
+        const HALL_COLOR_PRESETS = {
+            blue:   { color: 'bg-blue-50 text-blue-700',     border: 'border-blue-400',   dot: '#3b82f6', label: 'أزرق' },
+            red:    { color: 'bg-red-50 text-red-700',       border: 'border-red-400',    dot: '#ef4444', label: 'أحمر' },
+            green:  { color: 'bg-green-50 text-green-700',   border: 'border-green-400',  dot: '#22c55e', label: 'أخضر' },
+            purple: { color: 'bg-purple-50 text-purple-700', border: 'border-purple-400', dot: '#a855f7', label: 'بنفسجي' },
+            cyan:   { color: 'bg-cyan-50 text-cyan-700',     border: 'border-cyan-400',   dot: '#06b6d4', label: 'سماوي' },
+            amber:  { color: 'bg-amber-50 text-amber-700',   border: 'border-amber-400',  dot: '#f59e0b', label: 'كهرماني' },
+            pink:   { color: 'bg-pink-50 text-pink-700',     border: 'border-pink-400',   dot: '#ec4899', label: 'وردي' },
+            indigo: { color: 'bg-indigo-50 text-indigo-700', border: 'border-indigo-400', dot: '#6366f1', label: 'نيلي' },
+            teal:   { color: 'bg-teal-50 text-teal-700',     border: 'border-teal-400',   dot: '#14b8a6', label: 'تركواز' },
+            orange: { color: 'bg-orange-50 text-orange-700', border: 'border-orange-400', dot: '#f97316', label: 'برتقالي' },
+        };
+        const DEFAULT_HALLS = [
+            { id: 'yacht', name: 'قاعة اليخت', icon: 'ship', colorKey: 'blue' },
+            { id: 'italian', name: 'القاعة الإيطالية', icon: 'armchair', colorKey: 'red' },
+            { id: 'greenhouse', name: 'الجرين هاوس', icon: 'flower-2', colorKey: 'green' },
+            { id: 'bar', name: 'البار', icon: 'glass-water', colorKey: 'purple' },
+            { id: 'pool', name: 'حمام السباحة', icon: 'waves', colorKey: 'cyan' },
         ];
+        function normalizeHall(h) {
+            const key = (h && HALL_COLOR_PRESETS[h.colorKey]) ? h.colorKey : 'blue';
+            const p = HALL_COLOR_PRESETS[key];
+            return { id: String(h.id), name: String(h.name || ''), icon: h.icon || 'building-2', colorKey: key,
+                     color: p.color, border: p.border, dot: p.dot };
+        }
+        // مصفوفة واحدة تُعدَّل في مكانها حتى تبقى كل المراجع الحالية صالحة
+        const HALLS = DEFAULT_HALLS.map(normalizeHall);
+        function applyHalls(list) { HALLS.length = 0; list.filter(h => h && h.id).map(normalizeHall).forEach(h => HALLS.push(h)); }
+        function hallDotColor(id) { const h = HALLS.find(x => x.id === id); return h ? h.dot : '#94a3b8'; }
 
         // ===== وضع المستخدم الثابت (مثال: Restaevents.html?user=marwa) =====
         // دخول تلقائي بدون شاشة تسجيل دخول، وبدون زر خروج أو بصمة أو خروج تلقائي.
@@ -451,8 +473,22 @@
         }
         // القراءة تحتاج جلسة Firebase صالحة (زائر أو موظف)، فنشغّل/نوقف الاشتراك مع حالة الدخول
         auth.onAuthStateChanged((u) => {
-            if (u) setupWeddingSettingsListener(); else teardownWeddingSettingsListener();
+            if (u) { setupWeddingSettingsListener(); setupHallsListener(); } else { teardownWeddingSettingsListener(); teardownHallsListener(); }
         });
+        function setupHallsListener() {
+            if (!CLOUD_ENABLED) return;
+            teardownHallsListener();
+            db.ref('hallsSettings').on('value', (snap) => {
+                const list = fbValToArray(snap.val());
+                applyHalls(list.length ? list : DEFAULT_HALLS);
+                try { if (state.isLoggedIn && document.getElementById('app').style.display !== 'none') render(); } catch (e) { console.warn(e); }
+                const m = document.getElementById('hallsManageModal');
+                if (m && !m.classList.contains('hidden') && typeof renderHallsManageBody === 'function' && !_hallsDirty) { _hallsDraft = HALLS.map(h => ({ ...h })); renderHallsManageBody(); }
+            }, (err) => { console.warn('hallsSettings listener cancelled:', err && err.code); });
+        }
+        function teardownHallsListener() {
+            try { db.ref('hallsSettings').off('value'); } catch (e) {}
+        }
         function setupWeddingSettingsListener() {
             if (!CLOUD_ENABLED) return;
             teardownWeddingSettingsListener();
@@ -1492,7 +1528,7 @@
             try { localStorage.setItem(GUEST_NAME_KEY, _cleanGuestName(n)); } catch (e) {}
         }
         // نافذة بسيطة لطلب الاسم (من غير prompt() لأنه مش مدعوم في كل تطبيقات WebView). بترجع الاسم أو null لو اتلغت
-        function askGuestName(prefill, required) {
+        function askGuestName(prefill) {
             return new Promise(resolve => {
                 const old = document.getElementById('guestNameOverlay');
                 if (old) old.remove();
@@ -1508,7 +1544,7 @@
                         <p id="guestNameErr" class="hidden text-xs font-bold text-red-500 mt-2">من فضلك اكتب اسمك</p>
                         <div class="flex gap-2 mt-5">
                             <button type="submit" class="flex-1 bg-[#6E1418] text-white font-bold py-3 rounded-xl">دخول</button>
-                            ${required ? '' : '<button type="button" id="guestNameCancel" class="px-5 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>'}
+                            <button type="button" id="guestNameCancel" class="px-5 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>
                         </div>
                     </form>`;
                 document.body.appendChild(wrap);
@@ -1520,8 +1556,7 @@
                     if (!v) { wrap.querySelector('#guestNameErr').classList.remove('hidden'); input.focus(); return; }
                     done(v);
                 });
-                const _cancelBtn = wrap.querySelector('#guestNameCancel');
-                if (_cancelBtn) _cancelBtn.addEventListener('click', () => done(null));
+                wrap.querySelector('#guestNameCancel').addEventListener('click', () => done(null));
                 setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 50);
             });
         }
@@ -1846,16 +1881,6 @@
         }
 
         function unlockApp() {
-            // زائر جلسته قديمة (قبل ميزة الاسم): نسأله عن اسمه مرة واحدة قبل فتح التطبيق
-            if (state.currentUserEmail === GUEST_EMAIL && !getGuestName()) {
-                if (document.getElementById('guestNameOverlay')) return;
-                askGuestName('', true).then(n => { setGuestName(n); _unlockAppCore(); });
-                return;
-            }
-            _unlockAppCore();
-        }
-
-        function _unlockAppCore() {
             hideBiometricLockScreen();
             document.getElementById('loginModal').style.display = 'none';
             document.getElementById('app').style.display = 'block';
@@ -2090,7 +2115,6 @@
             const modal = document.getElementById('bookingsListModal');
             if (modal.classList.contains('hidden')) {
                 const tbody = document.getElementById('allBookingsTableBody');
-                const cardsBox = document.getElementById('allBookingsCards');
                 const today = new Date().toISOString().split('T')[0];
                 const sortedBookings = [...state.bookings]
                     .filter(b => b.startDate >= today)
@@ -2098,26 +2122,7 @@
 
                 if (sortedBookings.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-16 text-slate-400 font-bold bg-white"><div class="flex flex-col items-center justify-center"><i data-lucide="calendar-x" class="w-12 h-12 mb-3 text-slate-300"></i>لا توجد حجوزات قادمة مسجلة في النظام</div></td></tr>';
-                    if (cardsBox) cardsBox.innerHTML = '<div class="text-center py-16 text-slate-400 font-bold flex flex-col items-center justify-center"><i data-lucide="calendar-x" class="w-12 h-12 mb-3 text-slate-300"></i>لا توجد حجوزات قادمة مسجلة في النظام</div>';
                 } else {
-                    if (cardsBox) cardsBox.innerHTML = sortedBookings.map(b => {
-                        const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
-                        const fmt = d => d ? String(d).split('-').reverse().join('/') : '';
-                        return `
-                            <div onclick="showDayDetails('${b.startDate}')" class="cursor-pointer bg-white border border-slate-200 rounded-2xl p-3 shadow-sm active:scale-[0.99] transition-all border-r-4 border-r-[#A88A45]">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="font-black text-[#6E1418] text-sm leading-snug min-w-0 break-words">${escapeHtml(b.companyName)}</div>
-                                    <span class="text-[11px] px-2.5 py-1 rounded-lg font-bold shrink-0 ${hall.color}">${hall.name}</span>
-                                </div>
-                                <div class="mt-2 flex items-center gap-2 text-xs text-slate-600 font-mono" dir="ltr">
-                                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
-                                    <span>${fmt(b.startDate)}</span>
-                                    <i data-lucide="arrow-right" class="w-3 h-3 text-slate-300"></i>
-                                    <span>${fmt(b.endDate)}</span>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
                     tbody.innerHTML = sortedBookings.map(b => {
                         const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
                         return `
@@ -4056,7 +4061,6 @@ ${acknowledgmentHtml}
         }
 
         // ─── Calendar mobile: نقط + قائمة اليوم + سحب بين الشهور ─────────
-        const HALL_DOT_COLORS = { yacht: '#3b82f6', italian: '#ef4444', greenhouse: '#22c55e', bar: '#a855f7', pool: '#06b6d4' };
 
         function isMobileCalendar() {
             return window.matchMedia('(max-width: 767px)').matches;
@@ -4086,7 +4090,7 @@ ${acknowledgmentHtml}
                 const time = b.startTime ? (b.startTime + (b.endTime ? ' – ' + b.endTime : '')) : 'طوال اليوم';
                 return `
                     <div onclick="showDayDetails('${dateStr}', '${b.id}')"
-                         style="border-right:4px solid ${HALL_DOT_COLORS[b.hallId] || '#94a3b8'};"
+                         style="border-right:4px solid ${hallDotColor(b.hallId)};"
                          class="agenda-item flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm active:bg-slate-50"
                          draggable="${canDrag}"
                          ondragstart="${canDrag ? `handleBookingDragStart(event, '${b.id}')` : ''}"
@@ -4241,6 +4245,12 @@ ${acknowledgmentHtml}
                                         </span>
                                         تصدير (Excel)
                                     </button>
+                                    <button onclick="printUpcomingBookings(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="printer" class="w-4 h-4 text-violet-600"></i>
+                                        </span>
+                                        طباعة الحجوزات القادمة
+                                    </button>
                                     ${!isGuest() ? `
                                     <button onclick="toggleDeletedBookingsModal(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
@@ -4264,6 +4274,12 @@ ${acknowledgmentHtml}
                                     </button>
                                     ` : ''}
                                     ${state.currentUserEmail === ADMIN_EMAIL ? `
+                                    <button onclick="toggleHallsManageModal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="building-2" class="w-4 h-4 text-[#6E1418]"></i>
+                                        </span>
+                                        إدارة القاعات
+                                    </button>
                                     <button onclick="toggleWeddingSettingsModal(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
                                             <i data-lucide="settings-2" class="w-4 h-4 text-[#6E1418]"></i>
@@ -4297,6 +4313,9 @@ ${acknowledgmentHtml}
                             <button onclick="exportToExcel()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
                                 <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
                             </button>
+                            <button onclick="printUpcomingBookings()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all shrink-0" title="طباعة الحجوزات القادمة">
+                                <i data-lucide="printer" class="w-5 h-5"></i>
+                            </button>
                             ${!isGuest() ? `
                             <button onclick="toggleDeletedBookingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0" title="الحجوزات المحذوفة">
                                 <i data-lucide="trash-2" class="w-5 h-5"></i>
@@ -4308,6 +4327,9 @@ ${acknowledgmentHtml}
                             ${state.currentUserEmail === ADMIN_EMAIL ? `
                             <button onclick="toggleQuickCalcModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="حاسبة باقة فرح سريعة">
                                 <i data-lucide="gem" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="toggleHallsManageModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="إدارة القاعات">
+                                <i data-lucide="building-2" class="w-5 h-5"></i>
                             </button>
                             <button onclick="toggleWeddingSettingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="إعدادات باقات الأفراح">
                                 <i data-lucide="settings-2" class="w-5 h-5"></i>
@@ -4836,7 +4858,7 @@ ${acknowledgmentHtml}
                 const isPast = isPastDateStr(dateStr);
                 const heat = totalCount === 0 ? 0 : totalCount === 1 ? 1 : totalCount === 2 ? 2 : totalCount <= 4 ? 3 : 4;
                 const dotsHtml = dayBookings.slice(0, 8).map(b =>
-                    `<span class="day-dot" style="background:${HALL_DOT_COLORS[b.hallId] || '#94a3b8'};"></span>`
+                    `<span class="day-dot" style="background:${hallDotColor(b.hallId)};"></span>`
                 ).join('');
                 days.push(`
                     <div onclick="handleDayClick('${dateStr}')"
@@ -6248,6 +6270,102 @@ ${acknowledgmentHtml}
             showToast('تم نقل بيانات الحاسبة — أكمل بيانات القاعة والعميل والتاريخ', 'success');
         }
 
+        // ═══════════════════ إدارة القاعات (أدمن فقط) ═══════════════════
+
+        let _hallsDraft = [];
+        let _hallsDirty = false;
+
+        function ensureHallsModal() {
+            let m = document.getElementById('hallsManageModal');
+            if (m) return m;
+            m = document.createElement('div');
+            m.id = 'hallsManageModal';
+            m.className = 'hidden fixed inset-0 z-[70] flex items-center justify-center p-4 modal-backdrop animate-fade-in';
+            m.innerHTML = `
+                <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+                    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+                        <h3 class="text-lg font-black text-[#6E1418] flex items-center gap-2"><i data-lucide="building-2" class="w-5 h-5"></i> إدارة القاعات</h3>
+                        <button onclick="toggleHallsManageModal()" class="p-2 text-slate-400 hover:text-slate-700 rounded-xl"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                    <div id="hallsManageBody" class="p-5 overflow-y-auto space-y-3"></div>
+                    <div class="p-4 border-t border-slate-100 flex gap-2">
+                        <button onclick="addHallDraft()" class="flex-1 py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50">+ إضافة قاعة</button>
+                        <button onclick="saveHallsFromModal()" class="flex-1 py-2.5 rounded-xl bg-[#6E1418] text-white font-black text-sm hover:opacity-90">حفظ</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(m);
+            return m;
+        }
+
+        function toggleHallsManageModal() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const m = ensureHallsModal();
+            if (m.classList.contains('hidden')) {
+                _hallsDraft = HALLS.map(h => ({ id: h.id, name: h.name, icon: h.icon, colorKey: h.colorKey }));
+                _hallsDirty = false;
+                renderHallsManageBody();
+                m.classList.remove('hidden');
+            } else {
+                m.classList.add('hidden');
+            }
+        }
+
+        function renderHallsManageBody() {
+            const body = document.getElementById('hallsManageBody');
+            if (!body) return;
+            body.innerHTML = _hallsDraft.map((h, i) => `
+                <div class="flex items-center gap-2 p-3 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span class="w-3 h-8 rounded-full shrink-0" style="background:${(HALL_COLOR_PRESETS[h.colorKey] || HALL_COLOR_PRESETS.blue).dot}"></span>
+                    <input type="text" value="${escapeHtml(h.name)}" placeholder="اسم القاعة" oninput="_hallsDraft[${i}].name = this.value; _hallsDirty = true"
+                        class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold">
+                    <select onchange="_hallsDraft[${i}].colorKey = this.value; _hallsDirty = true; renderHallsManageBody()"
+                        class="px-2 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">
+                        ${Object.entries(HALL_COLOR_PRESETS).map(([k, p]) => `<option value="${k}" ${k === h.colorKey ? 'selected' : ''}>${p.label}</option>`).join('')}
+                    </select>
+                    <button onclick="removeHallDraft(${i})" class="p-2 text-red-500 hover:bg-red-50 rounded-xl shrink-0" title="حذف"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>`).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function addHallDraft() {
+            const used = new Set(_hallsDraft.map(h => h.colorKey));
+            const keys = Object.keys(HALL_COLOR_PRESETS);
+            const colorKey = keys.find(k => !used.has(k)) || 'blue';
+            _hallsDraft.push({ id: 'hall_' + Date.now().toString(36), name: '', icon: 'building-2', colorKey });
+            _hallsDirty = true;
+            renderHallsManageBody();
+        }
+
+        function removeHallDraft(i) {
+            const h = _hallsDraft[i];
+            if (!h) return;
+            if (_hallsDraft.length <= 1) { showToast('لا يمكن حذف آخر قاعة', 'error'); return; }
+            const used = state.bookings.filter(b => b && b.hallId === h.id && !b.deleted).length;
+            if (used > 0) { showToast(`لا يمكن حذف "${h.name}" — لديها ${used} حجز. يمكنك تغيير اسمها بدلاً من ذلك`, 'error'); return; }
+            if (!confirm(`حذف القاعة "${h.name || 'بدون اسم'}"؟`)) return;
+            _hallsDraft.splice(i, 1);
+            _hallsDirty = true;
+            renderHallsManageBody();
+        }
+
+        async function saveHallsFromModal() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const clean = _hallsDraft.map(h => ({ id: h.id, name: (h.name || '').trim(), icon: h.icon || 'building-2', colorKey: h.colorKey }));
+            if (!clean.length) { showToast('يجب وجود قاعة واحدة على الأقل', 'error'); return; }
+            if (clean.some(h => !h.name)) { showToast('اكتب اسماً لكل قاعة', 'error'); return; }
+            try {
+                if (CLOUD_ENABLED) await db.ref('hallsSettings').set(clean);
+                applyHalls(clean);
+                _hallsDirty = false;
+                document.getElementById('hallsManageModal').classList.add('hidden');
+                render();
+                showToast('تم حفظ القاعات', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('تعذر الحفظ — تحقق من الصلاحيات والاتصال', 'error');
+            }
+        }
+
         // ═══════════════════ إعدادات باقات الأفراح (أدمن فقط) ═══════════════════
 
         function toggleWeddingSettingsModal() {
@@ -6640,8 +6758,6 @@ ${acknowledgmentHtml}
                         <span>جاري تحميل الحجوزات المحذوفة...</span>
                     </div>
                 </td></tr>`;
-            const _cardsLoading = document.getElementById('deletedBookingsCards');
-            if (_cardsLoading) _cardsLoading.innerHTML = '<div class="text-center py-12 text-slate-400 font-bold flex flex-col items-center gap-3"><i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i><span>جاري تحميل الحجوزات المحذوفة...</span></div>';
             if (typeof lucide !== "undefined") refreshIcons();
 
             let records = [];
@@ -6696,102 +6812,19 @@ ${acknowledgmentHtml}
             if (badge) badge.textContent = records.length + ' حجز محذوف';
             const isAdminUser = state.currentUserEmail === ADMIN_EMAIL;
 
-            // موبايل (أقل من 640px): كروت بدل الجدول — نرسم في حاوية واحدة بس عشان ما يتكررش الـ checkbox
-            const isMobileView = window.matchMedia('(max-width: 639px)').matches;
-            const cardsBox = document.getElementById('deletedBookingsCards');
-            const tableWrap = document.getElementById('deletedBookingsTableWrapper');
-            if (tableWrap) tableWrap.style.overflowX = isMobileView ? 'hidden' : 'scroll';
-            if (isMobileView) tbody.innerHTML = ''; else if (cardsBox) cardsBox.innerHTML = '';
-
             if (!records || records.length === 0) {
-                const emptyInner = `
+                tbody.innerHTML = `
+                    <tr><td colspan="9" class="text-center py-16 text-slate-400 font-bold">
                         <div class="flex flex-col items-center gap-3">
                             <i data-lucide="inbox" class="w-12 h-12 text-slate-300"></i>
                             <span>لا توجد حجوزات محذوفة حتى الآن</span>
-                        </div>`;
-                if (isMobileView && cardsBox) {
-                    cardsBox.innerHTML = `<div class="text-center py-16 text-slate-400 font-bold">${emptyInner}</div>`;
-                } else {
-                    tbody.innerHTML = `
-                    <tr><td colspan="9" class="text-center py-16 text-slate-400 font-bold">${emptyInner}</td></tr>`;
-                }
+                        </div>
+                    </td></tr>`;
                 if (typeof lucide !== "undefined") refreshIcons();
-                const _sa0 = document.getElementById('deletedBookingsSelectAllM');
-                if (_sa0) _sa0.checked = false;
-                updateDeletedBookingsSelectAllState();
                 return;
             }
 
             const fmtDate = d => d ? String(d).split('-').reverse().join('/') : '—';
-
-            if (isMobileView && cardsBox) {
-                const cardsHtml = records.map(r => {
-                    let tsDate = '—', tsTime = '';
-                    if (r.deletedAt) {
-                        try {
-                            const d = new Date(r.deletedAt);
-                            tsDate = d.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                            tsTime = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-                        } catch (e) { /* تجاهل */ }
-                    }
-                    const dateRange = r.startDate
-                        ? (r.endDate && r.endDate !== r.startDate ? `${fmtDate(r.startDate)} → ${fmtDate(r.endDate)}` : fmtDate(r.startDate))
-                        : '—';
-                    const typeColor = r.deleteType === 'الحجز بالكامل'
-                        ? 'bg-red-100 text-red-700 border border-red-200'
-                        : 'bg-orange-100 text-orange-700 border border-orange-200';
-                    return `
-                        <div class="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
-                            <div class="flex items-center gap-2">
-                                ${isAdminUser ? `<input type="checkbox" class="deletedBookingRowCheckbox shrink-0" data-key="${r.key}" onchange="updateDeletedBookingsSelectAllState()">` : ''}
-                                <span class="inline-flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg ${typeColor} whitespace-nowrap">
-                                    <i data-lucide="trash-2" class="w-3 h-3 shrink-0"></i>
-                                    ${escapeHtml(r.deleteType || '—')}
-                                </span>
-                                <span class="flex-1"></span>
-                                ${isAdminUser ? `
-                                <button onclick="deleteDeletedBookingRecord('${r.key}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="حذف هذا السجل نهائياً">
-                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                </button>` : ''}
-                            </div>
-                            <div class="mt-2 font-black text-[#6E1418] text-sm leading-snug break-words">${escapeHtml(r.company || '—')}</div>
-                            <div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                                <div>
-                                    <div class="text-[10px] font-bold text-slate-400">القاعة</div>
-                                    <div class="font-bold text-slate-700">${escapeHtml(r.hallName || '—')}</div>
-                                </div>
-                                <div>
-                                    <div class="text-[10px] font-bold text-slate-400">الهاتف</div>
-                                    <div class="font-bold text-slate-700" style="direction:ltr; text-align:right;">${escapeHtml(r.phone || '—')}</div>
-                                </div>
-                                <div class="col-span-2">
-                                    <div class="text-[10px] font-bold text-slate-400">تاريخ الحجز</div>
-                                    <div class="font-bold text-slate-700">${dateRange}</div>
-                                </div>
-                            </div>
-                            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-1.5 min-w-0">
-                                    <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 font-black text-[10px] border border-slate-200">
-                                        ${r.deletedBy ? escapeHtml(r.deletedBy.charAt(0).toUpperCase()) : '?'}
-                                    </div>
-                                    <span class="text-[11px] font-bold text-slate-600 truncate" style="direction:ltr;">${escapeHtml(r.deletedBy || '—')}</span>
-                                </div>
-                                <div class="text-[11px] font-bold text-slate-500 shrink-0">${tsDate} <span class="font-mono text-slate-400">${tsTime}</span></div>
-                            </div>
-                        </div>`;
-                }).join('');
-                const selectAllRow = isAdminUser ? `
-                        <label class="flex items-center gap-2 text-xs font-bold text-slate-500 px-1 pb-1 cursor-pointer">
-                            <input type="checkbox" id="deletedBookingsSelectAllM" onchange="toggleSelectAllDeletedBookings(this)">
-                            تحديد الكل
-                        </label>` : '';
-                cardsBox.innerHTML = selectAllRow + cardsHtml;
-                if (typeof lucide !== "undefined") refreshIcons();
-                const _saM = document.getElementById('deletedBookingsSelectAllM');
-                if (_saM) _saM.checked = false;
-                updateDeletedBookingsSelectAllState();
-                return;
-            }
 
             tbody.innerHTML = records.map((r, i) => {
                 let tsDate = '—', tsTime = '';
@@ -6870,10 +6903,9 @@ ${acknowledgmentHtml}
         function updateDeletedBookingsSelectAllState() {
             const rowBoxes = document.querySelectorAll('.deletedBookingRowCheckbox');
             const selectAllBox = document.getElementById('deletedBookingsSelectAll');
-            const _allChecked = rowBoxes.length > 0 && Array.from(rowBoxes).every(cb => cb.checked);
-            if (selectAllBox) selectAllBox.checked = _allChecked;
-            const selectAllBoxM = document.getElementById('deletedBookingsSelectAllM');
-            if (selectAllBoxM) selectAllBoxM.checked = _allChecked;
+            if (selectAllBox) {
+                selectAllBox.checked = rowBoxes.length > 0 && Array.from(rowBoxes).every(cb => cb.checked);
+            }
             const checkedCount = document.querySelectorAll('.deletedBookingRowCheckbox:checked').length;
             const countEl = document.getElementById('deletedBookingsSelectedCount');
             if (countEl) countEl.textContent = checkedCount;
@@ -6884,15 +6916,6 @@ ${acknowledgmentHtml}
                 bulkBtn.classList.toggle('cursor-not-allowed', checkedCount === 0);
             }
         }
-
-        (function () {
-            const mq = window.matchMedia('(max-width: 639px)');
-            const onChange = () => {
-                const m = document.getElementById('deletedBookingsModal');
-                if (m && !m.classList.contains('hidden') && window._allDeletedBookings) filterDeletedBookings();
-            };
-            if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
-        })();
 
         function filterDeletedBookings() {
             const q = (document.getElementById('deletedBookingsSearchInput').value || '').trim().toLowerCase();
