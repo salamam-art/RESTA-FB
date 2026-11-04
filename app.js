@@ -774,6 +774,32 @@
         let _sessionLogKey = null;
         let _onlineSessions = [];
 
+        // ─── Heartbeat: lastActive بيتحدّث بس لما المستخدم يتفاعل فعلًا ───
+        // لو الصفحة اتجمدت أو التاب مفتوح من غير استخدام، الحقل بيقف والأدمن يشوفه "خامل".
+        const PRESENCE_IDLE_MS = 3 * 60 * 1000;   // أكتر من كده بدون نشاط = خامل
+        const PRESENCE_BEAT_MS = 60 * 1000;       // فاصل الـ heartbeat
+        let _presenceLastActivity = Date.now();
+        let _presenceBeatTimer = null;
+        let _serverOffset = 0;
+        let _serverOffsetBound = false;
+
+        ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(function (evt) {
+            document.addEventListener(evt, function () { _presenceLastActivity = Date.now(); }, { passive: true });
+        });
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                _presenceLastActivity = Date.now();
+                _presenceBeat(true);
+            }
+        });
+
+        function _presenceBeat(force) {
+            const ref = _presenceRef();
+            if (!ref || !auth.currentUser) return;
+            if (!force && (Date.now() - _presenceLastActivity) > PRESENCE_IDLE_MS) return; // خامل: ما نكتبش
+            ref.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
+        }
+
         function _presenceRef() { return _presenceKey ? db.ref('presence/' + _presenceKey) : null; }
 
         function _publishPresence() {
@@ -793,6 +819,7 @@
                 : r.set(base);
             ref.onDisconnect().remove()
                 .then(() => _setOptName(ref, { uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
+                .then(() => _presenceBeat(true))
                 .catch(err => console.warn('presence failed:', err && err.code));
             // الترتيب مهم: نكتب السجل الكامل الأول، وبعدها نسجّل تحديث وقت الخروج عند قطع الاتصال
             // (قواعد التحقق بترفض تحديث logoutAt لوحده على عقدة لسه مش موجودة)
@@ -810,6 +837,11 @@
                 if (snap.val() === true) _publishPresence();
             };
             connRef.on('value', _presenceConnHandler);
+            if (!_serverOffsetBound) {
+                _serverOffsetBound = true;
+                db.ref('.info/serverTimeOffset').on('value', (snap) => { _serverOffset = snap.val() || 0; });
+            }
+            if (!_presenceBeatTimer) _presenceBeatTimer = setInterval(() => _presenceBeat(false), PRESENCE_BEAT_MS);
         }
 
         function stopPresence() {
@@ -818,6 +850,7 @@
                 db.ref('.info/connected').off('value', _presenceConnHandler);
                 _presenceConnHandler = null;
             }
+            if (_presenceBeatTimer) { clearInterval(_presenceBeatTimer); _presenceBeatTimer = null; }
             if (ref) ref.remove().catch(() => {});
             if (_sessionLogKey) {
                 // خروج يدوي: نسجّل وقت الخروج الآن ونلغي تسجيل الخروج التلقائي عند قطع الاتصال
@@ -1187,35 +1220,59 @@
         }
 
         // الموظف يتعدّ مرة واحدة حتى لو فاتح من أكتر من جهاز، والزوار يتعدّوا بعدد جلساتهم
-        function getOnlineSummary() {
-            const emails = new Set();
-            let guests = 0;
-            const guestNames = [];
-            _onlineSessions.forEach(s => {
-                if (s.guest) { guests++; if (s.name) guestNames.push(String(s.name)); }
-                else if (s.email) emails.add(String(s.email).toLowerCase());
-            });
-            return { users: Array.from(emails).sort(), guests: guests, guestNames: guestNames, total: emails.size + guests };
+        // الجلسة الخاملة (lastActive أقدم من PRESENCE_IDLE_MS) بتظهر منفصلة ومش بتدخل في العدد
+        function _isIdleSession(s) {
+            if (!s) return false;
+            // جلسة نسخة قديمة (تاب مفتوح من قبل التحديث) مفيهاش lastActive: نقيس من وقت الدخول
+            const ts = s.lastActive || s.since;
+            if (!ts) return false;
+            return (Date.now() + _serverOffset - ts) > PRESENCE_IDLE_MS;
         }
 
-        function renderOnlineNow() {
+        function getOnlineSummary() {
+            const active = new Set(), anyUser = new Set();
+            let guests = 0, idleGuests = 0;
+            const guestNames = [];
+            _onlineSessions.forEach(s => {
+                const idle = _isIdleSession(s);
+                if (s.guest) {
+                    if (idle) idleGuests++;
+                    else { guests++; if (s.name) guestNames.push(String(s.name)); }
+                } else if (s.email) {
+                    const k = String(s.email).toLowerCase();
+                    anyUser.add(k);
+                    if (!idle) active.add(k);
+                }
+            });
+            const idleUsers = Array.from(anyUser).filter(k => !active.has(k)).sort();
+            return { users: Array.from(active).sort(), idleUsers: idleUsers, guests: guests, guestNames: guestNames, idleGuests: idleGuests, total: active.size + guests };
+        }
+
+        function renderOnlineNow(skipChat) {
             const sum = getOnlineSummary();
             const badge = document.getElementById('onlineCountBadge');
             if (badge) badge.textContent = sum.total;
             const cnt = document.getElementById('onlineNowCount');
-            if (cnt) cnt.textContent = `${sum.total} متصل — ${sum.users.length} موظف · ${sum.guests} زائر`;
+            const idleN = sum.idleUsers.length + sum.idleGuests;
+            if (cnt) cnt.textContent = `${sum.total} متصل — ${sum.users.length} موظف · ${sum.guests} زائر` + (idleN ? ` · ${idleN} خامل` : '');
             const box = document.getElementById('onlineNowList');
             if (box) {
                 const chip = 'inline-flex items-center gap-2 bg-white border border-emerald-200 text-emerald-900 text-sm font-bold rounded-full px-3 py-1';
                 const dot = '<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>';
+                const idleDot = '<span class="w-2 h-2 rounded-full shrink-0" style="background:#94a3b8"></span>';
                 box.innerHTML = sum.users.map(e =>
                     `<span class="${chip}" style="direction:ltr">${dot}${escapeHtml(e)}${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}</span>`
                 ).join('')
                 + sum.guestNames.map(n => `<span class="${chip}">${dot}زائر: ${escapeHtml(n)}</span>`).join('')
-                + ((sum.guests - sum.guestNames.length) > 0 ? `<span class="${chip}">${dot}زائر × ${sum.guests - sum.guestNames.length}</span>` : '');
+                + ((sum.guests - sum.guestNames.length) > 0 ? `<span class="${chip}">${dot}زائر × ${sum.guests - sum.guestNames.length}</span>` : '')
+                + sum.idleUsers.map(e => `<span class="${chip}" style="direction:ltr;opacity:.55">${idleDot}${escapeHtml(e)} <span class="font-black">(خامل)</span></span>`).join('')
+                + (sum.idleGuests ? `<span class="${chip}" style="opacity:.55">${idleDot}زائر خامل × ${sum.idleGuests}</span>` : '');
             }
-            renderChatList();
+            if (!skipChat) renderChatList();
         }
+
+        // إعادة حساب "خامل" كل 30 ثانية (بدون إعادة رسم الشات)
+        setInterval(function () { if (_onlineSessions.length) renderOnlineNow(true); }, 30000);
 
         function saveLocal() {
             // ارفع العداد أولاً — يُبطل أي دورة مزامنة جارية كانت بدأت قبل هذه العملية
