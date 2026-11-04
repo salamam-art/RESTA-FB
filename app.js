@@ -726,12 +726,17 @@
             const logKey = db.ref('sessionLogs').push().key;
             const logRef = db.ref('sessionLogs/' + logKey);
             _sessionLogKey = logKey;
+            const gname = isGuest() ? getGuestName() : '';
+            // لو القواعد رفضت حقل الاسم الإضافي نرجع للشكل القديم بدونه عشان التسجيل ما يتعطلش
+            const _setOptName = (r, base) => gname
+                ? r.set(Object.assign({}, base, { name: gname })).catch(() => r.set(base))
+                : r.set(base);
             ref.onDisconnect().remove()
-                .then(() => ref.set({ uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
+                .then(() => _setOptName(ref, { uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
                 .catch(err => console.warn('presence failed:', err && err.code));
             // الترتيب مهم: نكتب السجل الكامل الأول، وبعدها نسجّل تحديث وقت الخروج عند قطع الاتصال
             // (قواعد التحقق بترفض تحديث logoutAt لوحده على عقدة لسه مش موجودة)
-            logRef.set({ uid: u.uid, email: email, guest: isGuest(), loginAt: TS })
+            _setOptName(logRef, { uid: u.uid, email: email, guest: isGuest(), loginAt: TS })
                 .then(() => logRef.onDisconnect().update({ logoutAt: TS }))
                 .catch(err => console.warn('sessionLog failed:', err && err.code));
         }
@@ -790,7 +795,9 @@
                     return;
                 }
                 body.innerHTML = rows.map(r => {
-                    const who = r.guest ? 'زائر' : escapeHtml(r.email || '—');
+                    const who = r.guest
+                        ? (r.name ? `<span style="direction:rtl;unicode-bidi:plaintext">زائر: ${escapeHtml(r.name)}</span>` : 'زائر')
+                        : escapeHtml(r.email || '—');
                     let to, dur;
                     if (r.logoutAt) {
                         const sameDay = _fmtLogDate(r.logoutAt) === _fmtLogDate(r.loginAt);
@@ -1114,11 +1121,12 @@
         function getOnlineSummary() {
             const emails = new Set();
             let guests = 0;
+            const guestNames = [];
             _onlineSessions.forEach(s => {
-                if (s.guest) guests++;
+                if (s.guest) { guests++; if (s.name) guestNames.push(String(s.name)); }
                 else if (s.email) emails.add(String(s.email).toLowerCase());
             });
-            return { users: Array.from(emails).sort(), guests: guests, total: emails.size + guests };
+            return { users: Array.from(emails).sort(), guests: guests, guestNames: guestNames, total: emails.size + guests };
         }
 
         function renderOnlineNow() {
@@ -1133,7 +1141,9 @@
                 const dot = '<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>';
                 box.innerHTML = sum.users.map(e =>
                     `<span class="${chip}" style="direction:ltr">${dot}${escapeHtml(e)}${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}</span>`
-                ).join('') + (sum.guests ? `<span class="${chip}">${dot}زائر × ${sum.guests}</span>` : '');
+                ).join('')
+                + sum.guestNames.map(n => `<span class="${chip}">${dot}زائر: ${escapeHtml(n)}</span>`).join('')
+                + ((sum.guests - sum.guestNames.length) > 0 ? `<span class="${chip}">${dot}زائر × ${sum.guests - sum.guestNames.length}</span>` : '');
             }
             renderChatList();
         }
@@ -1428,8 +1438,54 @@
         }
 
         // الزائر = جلسة Firebase مجهولة (Anonymous) — قواعد الأمان تسمح لها بالقراءة فقط
+        // ─── اسم الزائر: بيتسأل عليه عند الدخول كزائر ويتحفظ على الجهاز عشان ما يكتبوش كل مرة ───
+        const GUEST_NAME_KEY = 'hotel_guest_name';
+        function _cleanGuestName(n) { return String(n || '').replace(/\s+/g, ' ').trim().slice(0, 30); }
+        function getGuestName() {
+            try { return _cleanGuestName(localStorage.getItem(GUEST_NAME_KEY)); } catch (e) { return ''; }
+        }
+        function setGuestName(n) {
+            try { localStorage.setItem(GUEST_NAME_KEY, _cleanGuestName(n)); } catch (e) {}
+        }
+        // نافذة بسيطة لطلب الاسم (من غير prompt() لأنه مش مدعوم في كل تطبيقات WebView). بترجع الاسم أو null لو اتلغت
+        function askGuestName(prefill) {
+            return new Promise(resolve => {
+                const old = document.getElementById('guestNameOverlay');
+                if (old) old.remove();
+                const wrap = document.createElement('div');
+                wrap.id = 'guestNameOverlay';
+                wrap.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.6)');
+                wrap.innerHTML = `
+                    <form class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl" style="direction:rtl" autocomplete="off">
+                        <h3 class="text-lg font-black text-slate-800 mb-1">أهلاً بك 👋</h3>
+                        <p class="text-sm text-slate-500 mb-4 font-bold">اكتب اسمك للدخول كزائر</p>
+                        <input id="guestNameInput" type="text" maxlength="30" value="${escapeHtml(prefill || '')}" placeholder="الاسم"
+                            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-bold outline-none focus:border-[#A88A45]">
+                        <p id="guestNameErr" class="hidden text-xs font-bold text-red-500 mt-2">من فضلك اكتب اسمك</p>
+                        <div class="flex gap-2 mt-5">
+                            <button type="submit" class="flex-1 bg-[#6E1418] text-white font-bold py-3 rounded-xl">دخول</button>
+                            <button type="button" id="guestNameCancel" class="px-5 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>
+                        </div>
+                    </form>`;
+                document.body.appendChild(wrap);
+                const input = wrap.querySelector('#guestNameInput');
+                const done = v => { wrap.remove(); resolve(v); };
+                wrap.querySelector('form').addEventListener('submit', e => {
+                    e.preventDefault();
+                    const v = _cleanGuestName(input.value);
+                    if (!v) { wrap.querySelector('#guestNameErr').classList.remove('hidden'); input.focus(); return; }
+                    done(v);
+                });
+                wrap.querySelector('#guestNameCancel').addEventListener('click', () => done(null));
+                setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 50);
+            });
+        }
+
         async function loginAsGuest() {
             try {
+                const gname = await askGuestName(getGuestName());
+                if (!gname) return; // اتلغى — يفضل في شاشة الدخول
+                setGuestName(gname);
                 const cur = auth.currentUser;
                 if (!cur || !cur.isAnonymous) await auth.signInAnonymously();
                 performLogin(GUEST_EMAIL);
