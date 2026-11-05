@@ -458,6 +458,18 @@
                 updateLoginScreenBiometricButton();
                 return;
             }
+            // جلسة زائر مستعادة بدون اسم محفوظ → نرجّعه لشاشة الدخول ليكتب اسمه (الزائر لازم يكون له اسم)
+            if (localEmail === GUEST_EMAIL && !getGuestName()) {
+                state.currentUserEmail = '';
+                state.isLoggedIn = false;
+                localStorage.removeItem('hotel_app_email');
+                hideBiometricLockScreen();
+                document.getElementById('app').style.display = 'none';
+                document.getElementById('loginModal').style.display = 'flex';
+                prefillFixedUserEmail();
+                updateLoginScreenBiometricButton();
+                return;
+            }
             attemptAutoUnlock();
         }
 
@@ -1717,7 +1729,10 @@
         });
 
         window.addEventListener('DOMContentLoaded', function() {
-            recordActivityTimestamp();
+            // نفحص الخمول أولاً (لو التطبيق اتفتح بعد أكتر من المدة المسموحة → خروج) قبل ما نسجّل نشاط جديد،
+            // وإلا فتح التطبيق بعد قتل الـ WebView كان بيصفّر مؤقت الخمول ويمنع الخروج التلقائي.
+            // (checkAutoLogout بتسجّل النشاط بنفسها لو مفيش خمول)
+            checkAutoLogout();
         });
 
         setInterval(checkAutoLogout, 60 * 1000);
