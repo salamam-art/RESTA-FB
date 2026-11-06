@@ -1049,3 +1049,11 @@ main { overflow-x: hidden; }
 @supports (overflow: clip) {
     main { overflow-x: clip; }
 }
+
+/* ===================== سجل الدخول (أدمن): جدول على الشاشات الكبيرة، كروت منفصلة على الموبايل (≤767px) ===================== */
+#sessionLogsCards { display: none; }
+@media (max-width: 767px) {
+    #sessionLogsModal .session-logs-table-wrap { display: none; }
+    #sessionLogsCards { display: block; }
+}
+/* ===================== End Session Logs ===================== */

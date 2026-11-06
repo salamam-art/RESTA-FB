@@ -930,8 +930,10 @@
         async function loadSessionLogs() {
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
             const body = document.getElementById('sessionLogsBody');
+            const cards = document.getElementById('sessionLogsCards');
             if (!body) return;
             body.innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-4">جاري التحميل...</td></tr>';
+            if (cards) cards.innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">جاري التحميل...</div>';
             try {
                 const snap = await db.ref('sessionLogs').orderByKey().limitToLast(200).once('value');
                 const val = snap.val() || {};
@@ -940,30 +942,48 @@
                     .sort((a, b) => b.loginAt - a.loginAt);
                 if (!rows.length) {
                     body.innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-4">لا توجد سجلات بعد</td></tr>';
+                    if (cards) cards.innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">لا توجد سجلات بعد</div>';
                     return;
                 }
-                body.innerHTML = rows.map(r => {
+                const built = rows.map(r => {
                     const who = r.guest
                         ? (r.name ? `<span style="direction:rtl;unicode-bidi:plaintext">زائر: ${escapeHtml(r.name)}</span>` : 'زائر')
                         : escapeHtml(r.email || '—');
-                    let to, dur;
+                    let to, dur, isLive = false;
                     if (r.logoutAt) {
                         const sameDay = _fmtLogDate(r.logoutAt) === _fmtLogDate(r.loginAt);
                         to = sameDay ? _fmtLogTime(r.logoutAt) : `${_fmtLogDate(r.logoutAt)} ${_fmtLogTime(r.logoutAt)}`;
                         dur = _fmtLogDuration(r.loginAt, r.logoutAt);
                     } else if (liveIds.has(r.id)) {
-                        to = '<span class="text-emerald-600 font-black">متصل الآن</span>'; dur = '—';
+                        to = '<span class="text-emerald-600 font-black">متصل الآن</span>'; dur = '—'; isLive = true;
                     } else { to = '—'; dur = '—'; }
-                    return `<tr class="hover:bg-slate-50">
+                    const tr = `<tr class="hover:bg-slate-50">
                         <td class="font-bold text-slate-800" style="direction:ltr">${who}</td>
                         <td class="text-sm text-slate-600">${_fmtLogDate(r.loginAt)}</td>
                         <td class="text-sm text-slate-600">${_fmtLogTime(r.loginAt)}</td>
                         <td class="text-sm text-slate-600">${to}</td>
                         <td class="text-sm text-slate-500">${dur}</td>
                     </tr>`;
-                }).join('');
+                    // نفس البيانات على شكل كارت منفصل (بيظهر على الموبايل بدل الجدول)
+                    const card = `<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="font-black text-slate-800 text-sm break-all" style="direction:ltr;text-align:right">${who}</div>
+                            ${isLive ? '<span class="shrink-0 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">متصل الآن</span>' : ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-x-3 gap-y-3 mt-3 text-xs">
+                            <div><span class="block text-slate-400 font-bold mb-0.5">التاريخ</span><span class="text-slate-700 font-bold">${_fmtLogDate(r.loginAt)}</span></div>
+                            <div><span class="block text-slate-400 font-bold mb-0.5">المدة</span><span class="text-slate-700 font-bold">${dur}</span></div>
+                            <div><span class="block text-slate-400 font-bold mb-0.5">من</span><span class="text-slate-700 font-bold">${_fmtLogTime(r.loginAt)}</span></div>
+                            <div><span class="block text-slate-400 font-bold mb-0.5">إلى</span><span class="text-slate-700 font-bold">${to}</span></div>
+                        </div>
+                    </div>`;
+                    return { tr: tr, card: card };
+                });
+                body.innerHTML = built.map(x => x.tr).join('');
+                if (cards) cards.innerHTML = built.map(x => x.card).join('');
             } catch (err) {
                 body.innerHTML = '<tr><td colspan="5" class="text-center text-red-500 py-4">تعذر تحميل السجل: ' + escapeHtml(err.code || err.message) + '</td></tr>';
+                if (cards) cards.innerHTML = '<div class="text-center text-red-500 py-4 text-sm">تعذر تحميل السجل: ' + escapeHtml(err.code || err.message) + '</div>';
             }
         }
 
@@ -1247,12 +1267,14 @@
             }
         }
 
-        function toggleSessionLogs() {
-            const box = document.getElementById('sessionLogsBox');
-            if (!box) return;
-            const opening = box.classList.contains('hidden');
-            box.classList.toggle('hidden', !opening);
-            if (opening) loadSessionLogs();
+        // سجل الدخول بيتفتح في شاشة منبثقة مستقلة (زر الرجوع في أندرويد بيقفلها تلقائيًا)
+        function openSessionLogsModal() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const m = document.getElementById('sessionLogsModal');
+            if (!m) return;
+            m.classList.remove('hidden');
+            refreshIcons('sessionLogsModal');
+            loadSessionLogs();
         }
 
         let _onlineWatchRetries = 0;
