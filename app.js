@@ -3261,7 +3261,10 @@
                                     const vp = getVendorPhones();
                                     const waIcon = '<svg viewBox="0 0 24 24" class="w-4 h-4 fill-current"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24"/></svg>';
                                     const row = (key) => `<div class="space-y-1.5">
-                                        <div class="text-xs font-black text-slate-700">${VENDOR_WA_LABELS[key]}</div>
+                                        <div class="flex items-center justify-between gap-2">
+                                            <div class="text-xs font-black text-slate-700">${VENDOR_WA_LABELS[key]}</div>
+                                            <a href="${buildVendorWhatsAppUrl(b.id, key, true) || '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation(); return prepareVendorWhatsApp(this, '${b.id}', '${key}', true)" class="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-white border border-green-200 hover:bg-green-50 active:bg-green-100 px-2.5 py-1 rounded-lg no-underline" title="اختيار شخص آخر من واتساب">${waIcon.replace('w-4 h-4', 'w-3.5 h-3.5')} شخص آخر</a>
+                                        </div>
                                         <div class="flex items-stretch gap-2">
                                             <input type="tel" dir="ltr" inputmode="tel" id="vendor-wa-${key}-${b.id}" data-vendor="${key}" value="${escapeHtml(vp[key])}" onchange="saveVendorPhone('${key}', this.value)" class="vendor-wa-input flex-1 min-w-0 text-base font-mono font-bold rounded-lg border border-slate-300 px-3 py-2 bg-white outline-none focus:border-[#A88A45]">
                                             <a href="${buildVendorWhatsAppUrl(b.id, key) || '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation(); return prepareVendorWhatsApp(this, '${b.id}', '${key}')" class="shrink-0 inline-flex items-center justify-center gap-1.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 active:bg-green-800 px-4 rounded-lg transition-colors no-underline">${waIcon} إرسال</a>
@@ -3467,13 +3470,14 @@
             // مزامنة نفس الحقل في باقي كروت الحجوزات المفتوحة
             document.querySelectorAll('.vendor-wa-input[data-vendor="' + key + '"]').forEach(inp => { if (inp.value !== cur[key]) inp.value = cur[key]; });
         }
-        function buildVendorWhatsAppUrl(bookingId, key) {
+        function buildVendorWhatsAppUrl(bookingId, key, pickContact) {
             if (state.currentUserEmail !== ADMIN_EMAIL) return '';
             const b = state.bookings.find(x => x.id === bookingId);
             if (!b) return '';
             const inp = document.getElementById('vendor-wa-' + key + '-' + bookingId);
             const phone = (inp ? inp.value : getVendorPhones()[key]) || '';
-            const link = getWhatsAppLink(phone);
+            // pickContact: من غير رقم — واتساب نفسه بيفتح قايمة اختيار الشخص والرسالة مكتوبة جاهزة
+            const link = pickContact ? 'https://wa.me/' : getWhatsAppLink(phone);
             if (!link) return '';
             const hallName = (HALLS.find(h => h.id === b.hallId) || {}).name || b.hallName || '-';
             const dateTxt  = b.startDate ? b.startDate.split('-').reverse().join('/') : '-';
@@ -3500,8 +3504,8 @@
             return link + '?text=' + encodeURIComponent(lines.join('\n'));
         }
         // يُستدعى عند الضغط على رابط "إرسال": يحدّث الرابط بأحدث رقم/نص ثم يترك المتصفح يفتحه (يعمل على الموبايل كرابط واتساب العميل)
-        function prepareVendorWhatsApp(a, bookingId, key) {
-            const url = buildVendorWhatsAppUrl(bookingId, key);
+        function prepareVendorWhatsApp(a, bookingId, key, pickContact) {
+            const url = buildVendorWhatsAppUrl(bookingId, key, pickContact);
             if (!url) { showToast('❌ رقم الواتساب غير صحيح', 'error'); return false; }
             a.href = url;
             return true;
