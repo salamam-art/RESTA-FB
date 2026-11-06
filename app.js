@@ -639,12 +639,8 @@
                 const newIds    = new Set(finalBookings.map(b => String(b.id)));
                 const pendingDelSet = new Set(pendingDels.map(String));
 
-                // لو ظهر عدد كبير من الحجوزات الجديدة في مزامنة واحدة (غالبًا استعادة شهر من الأرشيف) نعرض رسالة واحدة بدل رسالة لكل حجز
-                const _addedNow = finalBookings.filter(b => !prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id)));
-                const _bulkAdded = _addedNow.length >= 10;
                 finalBookings.forEach(b => {
                     if (!prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id))) {
-                        if (_bulkAdded) return;
                         let _addedByEmail = b.createdBy || '';
                         if (!_addedByEmail) {
                             // لو الحجز لأي سبب من غير createdBy، ندور على أقرب سجل "إضافة/تعديل" مطابق بنفس رقم الحجز أو التاريخ
@@ -661,17 +657,8 @@
                         showToast(`حجز جديد من ${_addedByName} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'success', b.startDate);
                     }
                 });
-                if (_bulkAdded) {
-                    const _bulkAddMsg = `تمت إضافة ${_addedNow.length} حجز إلى القائمة (استعادة من الأرشيف أو إضافة جماعية)`;
-                    addNotification(_bulkAddMsg, 'add');
-                    showToast(_bulkAddMsg, 'success');
-                }
-                // لو اختفى عدد كبير من الحجوزات في مزامنة واحدة (غالبًا أرشفة شهر) نعرض رسالة واحدة بدل رسالة لكل حجز
-                const _removedNow = state.bookings.filter(b => !b._isDirty && !newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id)));
-                const _bulkRemoved = _removedNow.length >= 10;
                 state.bookings.filter(b => !b._isDirty).forEach(b => {
                     if (!newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id))) {
-                        if (_bulkRemoved) return;
                         const _delLogsForCompany = serverLogs
                             .filter(l => l.type === 'حذف' && l.company === b.companyName)
                             .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
@@ -686,11 +673,6 @@
                     }
                 });
 
-                if (_bulkRemoved) {
-                    const _bulkMsg = `تمت إزالة ${_removedNow.length} حجز من القائمة (أرشفة أو حذف جماعي)`;
-                    addNotification(_bulkMsg, 'delete');
-                    showToast(_bulkMsg, 'success');
-                }
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
                 const _bookingsUnchanged = _bookingsSignature(state.bookings) === _bookingsSignature(finalBookings);
