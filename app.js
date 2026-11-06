@@ -641,7 +641,7 @@
 
                 // لو ظهر عدد كبير من الحجوزات الجديدة في مزامنة واحدة (غالبًا استعادة شهر من الأرشيف) نعرض رسالة واحدة بدل رسالة لكل حجز
                 const _addedNow = finalBookings.filter(b => !prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id)));
-                const _bulkAdded = _addedNow.length >= 4;
+                const _bulkAdded = _addedNow.length >= 10;
                 finalBookings.forEach(b => {
                     if (!prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id))) {
                         if (_bulkAdded) return;
@@ -668,7 +668,7 @@
                 }
                 // لو اختفى عدد كبير من الحجوزات في مزامنة واحدة (غالبًا أرشفة شهر) نعرض رسالة واحدة بدل رسالة لكل حجز
                 const _removedNow = state.bookings.filter(b => !b._isDirty && !newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id)));
-                const _bulkRemoved = _removedNow.length >= 4;
+                const _bulkRemoved = _removedNow.length >= 10;
                 state.bookings.filter(b => !b._isDirty).forEach(b => {
                     if (!newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id))) {
                         if (_bulkRemoved) return;
