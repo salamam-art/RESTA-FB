@@ -641,6 +641,7 @@
 
                 finalBookings.forEach(b => {
                     if (!prevIds.has(String(b.id)) && !dirtyBookings.find(d => String(d.id) === String(b.id))) {
+                        if (_isArchiveSuppressed(b)) return; // أرشفة/استعادة شهر كامل: إشعار واحد للشهر بدل إشعار لكل حجز
                         let _addedByEmail = b.createdBy || '';
                         if (!_addedByEmail) {
                             // لو الحجز لأي سبب من غير createdBy، ندور على أقرب سجل "إضافة/تعديل" مطابق بنفس رقم الحجز أو التاريخ
@@ -659,6 +660,7 @@
                 });
                 state.bookings.filter(b => !b._isDirty).forEach(b => {
                     if (!newIds.has(String(b.id)) && !pendingDelSet.has(String(b.id))) {
+                        if (_isArchiveSuppressed(b)) return; // أرشفة/استعادة شهر كامل: إشعار واحد للشهر بدل إشعار لكل حجز
                         const _delLogsForCompany = serverLogs
                             .filter(l => l.type === 'حذف' && l.company === b.companyName)
                             .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
@@ -733,6 +735,63 @@
         // وجود تحديث كل عدة ثوانٍ، نستمع مباشرة لتغيّر meta/updatedAt في Firebase،
         // فتتم المزامنة فوراً عند أي تغيير حقيقي فقط (من نفس المستخدم على جهاز آخر
         // أو من مستخدم آخر)، مع تجاهل الأصداء الناتجة عن كتابتنا نحن أنفسنا.
+        // ─── إشعار واحد لأرشفة/استعادة شهر كامل ─────────────────────────
+        // الأدمن بيكتب علامة صغيرة في meta/archiveEvent لما يأرشف أو يستعيد شهر، وكل جهاز بيسمعها
+        // ويطلّع إشعار واحد بدل إشعار لكل حجز، ويكتم إشعارات الحجوزات الفردية لنفس الشهر لمدة قصيرة.
+        const ARCHIVE_EVENT_MAX_AGE_MS = 24 * 60 * 60 * 1000; // أقدم من كده ما نعلنش عنه
+        const ARCHIVE_SUPPRESS_MS = 2 * 60 * 1000;           // مدة كتم إشعارات الحجوزات الفردية للشهر
+        const _archiveSuppress = {};                          // monthKey -> وقت انتهاء الكتم
+
+        function _isArchiveSuppressed(b) {
+            try {
+                const until = _archiveSuppress[monthKeyOf(b.startDate)];
+                return !!until && Date.now() < until;
+            } catch (e) { return false; }
+        }
+
+        // كتابة العلامة (من غير await: لو النت قاطع ما نعطّلش الأرشفة/الاستعادة، وترتيب الكتابة محفوظ)
+        function _writeArchiveEvent(type, monthKey, label, count) {
+            try {
+                db.ref('meta/archiveEvent').set({
+                    type: type,
+                    monthKey: monthKey,
+                    label: label || monthKeyLabel(monthKey),
+                    count: count || 0,
+                    by: state.currentUserEmail || '',
+                    at: firebase.database.ServerValue.TIMESTAMP
+                }).catch(() => {});
+            } catch (e) {}
+        }
+
+        function _onArchiveEvent(snap) {
+            const ev = snap.val();
+            if (!ev || !ev.monthKey || !ev.at) return;
+            if (ev.type !== 'archive' && ev.type !== 'restore') return;
+            // نفس العلامة ما تتعلنش مرتين على نفس الجهاز
+            const evId = ev.type + '|' + ev.monthKey + '|' + ev.at;
+            let last = null;
+            try { last = localStorage.getItem('hotel_last_archive_event'); } catch (e) {}
+            if (last === evId) return;
+            try { localStorage.setItem('hotel_last_archive_event', evId); } catch (e) {}
+            // علامة قديمة (أكتر من 24 ساعة) نتجاهلها، عشان جهاز جديد ما يعلنش عن أرشفة قديمة
+            const age = (Date.now() + _serverOffset) - Number(ev.at);
+            if (!(age >= -60000 && age <= ARCHIVE_EVENT_MAX_AGE_MS)) return;
+
+            _archiveSuppress[ev.monthKey] = Date.now() + ARCHIVE_SUPPRESS_MS;
+
+            const label = ev.label || monthKeyLabel(ev.monthKey);
+            const who = String(ev.by || '').split('@')[0];
+            const byPart = who ? ` بواسطة ${who}` : '';
+            const cntPart = ev.count ? ` (${ev.count} حجز)` : '';
+            const isArchive = ev.type === 'archive';
+            const text = isArchive
+                ? `تم أرشفة شهر ${label}${cntPart}${byPart}`
+                : `تمت استعادة حجوزات شهر ${label} من الأرشيف${cntPart}${byPart}`;
+            addNotification(text, isArchive ? 'delete' : 'add');
+            // اللي عمل العملية شايف رسالة النجاح بتاعته، فما نكرّرش الـ Toast على جهازه
+            if (ev.by !== state.currentUserEmail) showToast(text, 'success');
+        }
+
         function setupRealtimeSync() {
             if (!CLOUD_ENABLED) return;
             // نشيل أي اشتراك سابق أولاً (idempotent) — يمنع تراكم أكثر من listener
@@ -749,6 +808,7 @@
                 }
                 syncToCloud(true);
             });
+            db.ref('meta/archiveEvent').on('value', _onArchiveEvent, () => {});
             startPresence();      // تسجيل أني متصل الآن
             startOnlineWatch();   // متابعة قائمة المتصلين (كل الموظفين)
             startChat();          // الشات (الموظفين فقط)
@@ -756,6 +816,7 @@
 
         function teardownRealtimeSync() {
             db.ref('meta/updatedAt').off('value');
+            db.ref('meta/archiveEvent').off('value');
             db.ref('presence').off('value');
         }
 
@@ -7262,6 +7323,7 @@ ${acknowledgmentHtml}
                     db.ref('archive/' + monthKey).set(toArchive),
                     db.ref('archiveIndex/' + monthKey).set(meta)
                 ]);
+                _writeArchiveEvent('archive', monthKey, label, toArchive.length);
 
                 // إزالتها من القائمة النشطة محلياً. لازم تُسجَّل كـ"حذف معلّق" (نفس آلية
                 // حذف الحجوزات العادية) وإلا فمنطق المزامنة هيرجعها تاني من نسخة السحابة
@@ -7445,6 +7507,7 @@ ${acknowledgmentHtml}
                     db.ref('archive/' + monthKey).remove(),
                     db.ref('archiveIndex/' + monthKey).remove()
                 ]);
+                _writeArchiveEvent('restore', monthKey, label, records.length);
 
                 saveLocal();
                 showToast(`تمت استعادة ${records.length} حجز من شهر ${label} ✓`, 'success');
