@@ -4440,7 +4440,7 @@ ${acknowledgmentHtml}
                                         </span>
                                         الأرشيف
                                     </button>
-                                    ${state.currentUserEmail === ADMIN_EMAIL ? `
+                                    ${!isGuest() ? `
                                     <button onclick="toggleQuickCalcModal(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
                                             <i data-lucide="gem" class="w-4 h-4 text-[#6E1418]"></i>
@@ -4496,10 +4496,12 @@ ${acknowledgmentHtml}
                             <button onclick="toggleArchiveModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="الأرشيف">
                                 <i data-lucide="archive" class="w-5 h-5"></i>
                             </button>
-                            ${state.currentUserEmail === ADMIN_EMAIL ? `
+                            ${!isGuest() ? `
                             <button onclick="toggleQuickCalcModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="حاسبة باقة فرح سريعة">
                                 <i data-lucide="gem" class="w-5 h-5"></i>
                             </button>
+                            ` : ''}
+                            ${state.currentUserEmail === ADMIN_EMAIL ? `
                             <button onclick="toggleHallsManageModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="إدارة القاعات">
                                 <i data-lucide="building-2" class="w-5 h-5"></i>
                             </button>
@@ -6331,7 +6333,7 @@ ${acknowledgmentHtml}
         // ═══════════════════ حاسبة باقة فرح سريعة (بدون حفظ كحجز) ═══════════════════
 
         function toggleQuickCalcModal() {
-            if (isGuest() || state.currentUserEmail !== ADMIN_EMAIL) return;
+            if (isGuest()) return;
             const modal = document.getElementById('quickCalcModal');
             if (modal.classList.contains('hidden')) {
                 renderQuickCalcModal();
@@ -6361,6 +6363,14 @@ ${acknowledgmentHtml}
                         <input type="number" id="qcPricePerPerson" min="0" step="any" value="0" ${isAdmin ? '' : 'disabled'} oninput="recalcQuickCalc()">
                     </div>
                 </div>
+                ${!isAdmin ? `
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2.5" id="qcExtrasContainer">
+                    <div class="qc-emp-line">دي جي</div>
+                    <div class="qc-emp-line">الاستديو: 2 كاميرا HD مع ميكسر وكاميرا كرين وبروجيكتور</div>
+                    <div class="qc-emp-line">الديكور: كوشة ومدخل للقاعة ودانس فلور وليزر وكراسي فيرفورجيه</div>
+                    <div class="flex justify-between items-center pt-2.5 border-t border-slate-200 text-sm font-black text-slate-700"><span>إجمالي الإضافات</span><span id="qcEmpExtrasTotal"></span></div>
+                </div>
+                ` : `
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2.5" id="qcExtrasContainer">
                     ${state.weddingSettings.extras.map(ex => `
                         <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
@@ -6375,11 +6385,12 @@ ${acknowledgmentHtml}
                         </div>
                     `).join('')}
                 </div>
+                `}
                 <div id="qcTotalsBox" class="bg-amber-50/60 rounded-xl p-4 space-y-1.5 text-sm border border-amber-100"></div>
-                <button type="button" onclick="convertQuickCalcToBooking()" class="w-full bg-gradient-to-r from-[#6E1418] to-[#8a1c22] hover:from-[#5a1013] hover:to-[#6E1418] text-white font-black py-4 rounded-2xl shadow-xl shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-3 text-lg">
+                ${isAdmin ? `<button type="button" onclick="convertQuickCalcToBooking()" class="w-full bg-gradient-to-r from-[#6E1418] to-[#8a1c22] hover:from-[#5a1013] hover:to-[#6E1418] text-white font-black py-4 rounded-2xl shadow-xl shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-3 text-lg">
                     <i data-lucide="calendar-plus" class="w-6 h-6 text-[#A88A45]"></i>
                     <span>تحويل إلى حجز جديد</span>
-                </button>
+                </button>` : ''}
             `;
             onQcPackageChange();
             if (typeof lucide !== "undefined") refreshIcons('quickCalcModal');
@@ -6395,6 +6406,18 @@ ${acknowledgmentHtml}
             const guests = parseFloat(document.getElementById('qcGuests').value) || 0;
             const price = parseFloat(document.getElementById('qcPricePerPerson').value) || 0;
             let extrasTotal = 0, chairTotal = 0;
+            if (state.currentUserEmail !== ADMIN_EMAIL) {
+                const exv = k => parseFloat((state.weddingSettings.extras.find(e => e.key === k) || {}).value) || 0;
+                const empExtras = exv('dj') + exv('video') + exv('decor') + exv('rooms') + exv('chair') * guests;
+                const subtotalE = price * guests;
+                document.getElementById('qcEmpExtrasTotal').textContent = fmtEGP(empExtras);
+                document.getElementById('qcTotalsBox').innerHTML = `
+                    <div class="flex justify-between text-slate-600"><span>إجمالي الأفراد</span><span class="font-bold">${fmtEGP(subtotalE)}</span></div>
+                    <div class="flex justify-between text-slate-600"><span>إجمالي الإضافات</span><span class="font-bold">${fmtEGP(empExtras)}</span></div>
+                    <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(subtotalE + empExtras)}</span></div>
+                `;
+                return;
+            }
             document.querySelectorAll('.qc-extra-toggle').forEach(cb => {
                 if (!cb.checked) return;
                 const key = cb.dataset.extra;
@@ -6414,6 +6437,7 @@ ${acknowledgmentHtml}
 
         // ينقل بيانات الحاسبة السريعة إلى فورم حجز جديد (نوع فرح/خطوبة) ليكمل الموظف باقي بيانات الحجز
         function convertQuickCalcToBooking() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
             const pkgId = document.getElementById('qcPackageSelect').value;
             const guests = document.getElementById('qcGuests').value;
             const price = document.getElementById('qcPricePerPerson').value;
