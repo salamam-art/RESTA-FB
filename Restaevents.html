@@ -534,6 +534,9 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
+                    <button id="archiveDetailPrintBtn" onclick="printArchivedMonth()" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black flex items-center gap-1.5 transition-all" title="طباعة حجوزات الشهر">
+                        <i data-lucide="printer" class="w-4 h-4"></i> <span class="hidden sm:inline">طباعة</span>
+                    </button>
                     <button id="archiveDetailRestoreBtn" onclick="restoreArchivedMonth(document.getElementById('archiveDetailModal').dataset.monthKey)" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black flex items-center gap-1.5 transition-all" title="استعادة إلى القائمة النشطة">
                         <i data-lucide="rotate-ccw" class="w-4 h-4"></i> <span class="hidden sm:inline">استعادة</span>
                     </button>
@@ -542,23 +545,8 @@
                     </button>
                 </div>
             </div>
-            <div class="overflow-y-auto flex-1">
-                <div class="table-responsive">
-                    <table class="users-table mt-0">
-                        <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-                            <tr>
-                                <th class="text-slate-500 py-3 w-10 text-center">#</th>
-                                <th class="text-[#6E1418] py-3">اسم العميل</th>
-                                <th class="text-[#6E1418] py-3">الهاتف</th>
-                                <th class="text-[#6E1418] py-3">القاعة</th>
-                                <th class="text-[#6E1418] py-3">التاريخ</th>
-                                <th class="text-[#6E1418] py-3">الوقت</th>
-                                <th class="text-[#6E1418] py-3">ملاحظات</th>
-                            </tr>
-                        </thead>
-                        <tbody id="archiveDetailTableBody"></tbody>
-                    </table>
-                </div>
+            <div class="overflow-y-auto overflow-x-hidden flex-1 bg-slate-50/50">
+                <div id="archiveDetailCards" class="p-4 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
             </div>
         </div>
     </div>
@@ -940,7 +928,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261106b"></script>
+    <script src="app.js?v=20261107b"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">

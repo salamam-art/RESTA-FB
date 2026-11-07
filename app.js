@@ -1557,8 +1557,153 @@
             return _xlsxLoadingPromise;
         }
 
-        // --- Export to Excel ---
+        // --- تحميل ExcelJS عند الحاجة فقط (لتنسيق ملف الإكسيل: ألوان/حدود/RTL) ---
+        let _exceljsLoadingPromise = null;
+        function loadExcelJsLibrary() {
+            if (typeof ExcelJS !== 'undefined') return Promise.resolve();
+            if (_exceljsLoadingPromise) return _exceljsLoadingPromise;
+            _exceljsLoadingPromise = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+                s.onload = () => resolve();
+                s.onerror = () => { _exceljsLoadingPromise = null; s.remove(); reject(new Error('exceljs load failed')); };
+                document.head.appendChild(s);
+            });
+            return _exceljsLoadingPromise;
+        }
+
+        // --- Export to Excel (منسّق) — لو تعذّر تحميل ExcelJS نرجع للتصدير البسيط القديم ---
         async function exportToExcel() {
+            try {
+                await loadExcelJsLibrary();
+            } catch (e) {
+                return _exportToExcelPlain();
+            }
+            try {
+                const bookings = [...state.bookings].sort((a, b) =>
+                    (a.startDate || '').localeCompare(b.startDate || '') || (a.startTime || '').localeCompare(b.startTime || ''));
+                const toDate = d => {
+                    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || '');
+                    return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : '';
+                };
+                const tint = hex => { // لون فاتح من لون القاعة
+                    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+                    if (!m) return null;
+                    const n = parseInt(m[1], 16), mix = c => Math.round(c * 0.16 + 255 * 0.84);
+                    const h = v => v.toString(16).padStart(2, '0');
+                    return ('FF' + h(mix(n >> 16)) + h(mix((n >> 8) & 255)) + h(mix(n & 255))).toUpperCase();
+                };
+
+                const wb = new ExcelJS.Workbook();
+                wb.creator = 'Resta Events';
+                const ws = wb.addWorksheet('الحجوزات', {
+                    views: [{ rightToLeft: true, state: 'frozen', ySplit: 3, showGridLines: false }],
+                    pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+                                 margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 } }
+                });
+
+                const cols = [
+                    ['م', 6], ['اسم الشركة / الجهة', 32], ['القاعة', 20], ['من تاريخ', 14], ['إلى تاريخ', 14],
+                    ['من وقت', 10], ['إلى وقت', 10], ['رقم الهاتف', 17], ['القائم بالحجز', 18],
+                    ['ملاحظات', 42], ['روابط المرفقات', 30], ['تم الإنشاء بواسطة', 24], ['تاريخ الإنشاء', 14], ['الرقم المرجعي', 22]
+                ];
+                ws.columns = cols.map(c => ({ width: c[1] }));
+                const N = cols.length;
+                const border = { style: 'thin', color: { argb: 'FFE2E8F0' } };
+                const allBorders = { top: border, bottom: border, left: border, right: border };
+
+                // سطر العنوان
+                ws.mergeCells(1, 1, 1, N);
+                const t = ws.getCell(1, 1);
+                t.value = 'رستا بورسعيد — سجل الحجوزات';
+                t.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+                t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6E1418' } };
+                t.alignment = { horizontal: 'center', vertical: 'middle' };
+                ws.getRow(1).height = 32;
+
+                // سطر المعلومات
+                ws.mergeCells(2, 1, 2, N);
+                const info = ws.getCell(2, 1);
+                info.value = 'تاريخ التصدير: ' + new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }) +
+                             '   |   عدد الحجوزات: ' + bookings.length;
+                info.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF8F753A' } };
+                info.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBF6EA' } };
+                info.alignment = { horizontal: 'center', vertical: 'middle' };
+                ws.getRow(2).height = 22;
+
+                // سطر رؤوس الأعمدة
+                const head = ws.getRow(3);
+                cols.forEach((c, i) => {
+                    const cell = head.getCell(i + 1);
+                    cell.value = c[0];
+                    cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFA88A45' } };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                    cell.border = allBorders;
+                });
+                head.height = 26;
+
+                bookings.forEach((b, i) => {
+                    const hall = HALLS.find(h => h.id === b.hallId);
+                    const row = ws.getRow(4 + i);
+                    const vals = [
+                        i + 1,
+                        b.companyName || '',
+                        (hall && hall.name) || b.hallId || '',
+                        toDate(b.startDate),
+                        toDate(b.endDate || b.startDate),
+                        b.startTime || '',
+                        b.endTime || '',
+                        b.phone ? String(b.phone) : '',
+                        b.employee || '',
+                        b.notes || '',
+                        getBookingLinks(b).join('\n'),
+                        b.createdBy || '',
+                        toDate(b.createdAt ? String(b.createdAt).split('T')[0] : ''),
+                        String(b.id || '')
+                    ];
+                    const zebra = i % 2 === 1 ? 'FFF8FAFC' : 'FFFFFFFF';
+                    vals.forEach((v, k) => {
+                        const cell = row.getCell(k + 1);
+                        cell.value = v;
+                        cell.font = { name: 'Arial', size: 10.5, bold: k === 1, color: { argb: k === 1 ? 'FF6E1418' : 'FF334155' } };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: zebra } };
+                        cell.border = allBorders;
+                        const centered = [0, 2, 3, 4, 5, 6, 7, 12].includes(k);
+                        cell.alignment = { horizontal: centered ? 'center' : 'right', vertical: 'middle', wrapText: true,
+                                           readingOrder: 'rtl' };
+                        if (k === 3 || k === 4 || k === 12) cell.numFmt = 'dd/mm/yyyy';
+                        if (k === 7) { cell.numFmt = '@'; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
+                        if (k === 13) cell.font = { name: 'Arial', size: 9, color: { argb: 'FF94A3B8' } };
+                    });
+                    const hc = tint(hall && hall.dot);
+                    if (hc) row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hc } };
+                    row.getCell(3).font = { name: 'Arial', size: 10.5, bold: true, color: { argb: 'FF334155' } };
+                    // ارتفاع الصف حسب طول الملاحظات
+                    const lines = Math.max(1, Math.ceil(String(b.notes || '').length / 45), getBookingLinks(b).length);
+                    row.height = Math.min(120, Math.max(22, lines * 15 + 6));
+                });
+
+                ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3 + bookings.length, column: N } };
+                ws.pageSetup.printTitlesRow = '3:3';
+
+                const buf = await wb.xlsx.writeBuffer();
+                const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Resta_Bookings_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
+            } catch (e) {
+                console.error('formatted excel export failed', e);
+                return _exportToExcelPlain();
+            }
+        }
+
+        // التصدير البسيط القديم (احتياطي)
+        async function _exportToExcelPlain() {
             if (typeof XLSX === 'undefined') {
                 try {
                     await loadXlsxLibrary();
@@ -7490,14 +7635,14 @@ ${acknowledgmentHtml}
             const restoreBtn = document.getElementById('archiveDetailRestoreBtn');
             if (restoreBtn) restoreBtn.style.display = isArchiveAdmin() ? '' : 'none';
 
-            const tbody = document.getElementById('archiveDetailTableBody');
-            tbody.innerHTML = `
-                <tr><td colspan="7" class="text-center py-12 text-slate-400 font-bold">
+            const cardsBox = document.getElementById('archiveDetailCards');
+            cardsBox.innerHTML = `
+                <div class="col-span-full text-center py-12 text-slate-400 font-bold">
                     <div class="flex flex-col items-center gap-3">
                         <i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i>
                         <span>جاري تحميل التفاصيل...</span>
                     </div>
-                </td></tr>`;
+                </div>`;
             if (typeof lucide !== "undefined") refreshIcons();
 
             let records = [];
@@ -7512,40 +7657,167 @@ ${acknowledgmentHtml}
         }
 
         function renderArchiveDetailTable(records) {
-            const tbody = document.getElementById('archiveDetailTableBody');
+            const cardsBox = document.getElementById('archiveDetailCards');
+            window._archiveDetailRecords = records || [];
             if (!records || records.length === 0) {
-                tbody.innerHTML = `
-                    <tr><td colspan="7" class="text-center py-16 text-slate-400 font-bold">
+                cardsBox.innerHTML = `
+                    <div class="col-span-full text-center py-16 text-slate-400 font-bold">
                         <div class="flex flex-col items-center gap-3">
                             <i data-lucide="inbox" class="w-12 h-12 text-slate-300"></i>
                             <span>لا توجد بيانات</span>
                         </div>
-                    </td></tr>`;
+                    </div>`;
                 if (typeof lucide !== "undefined") refreshIcons();
                 return;
             }
 
             const fmtDate = d => d ? String(d).split('-').reverse().join('/') : '—';
+            const waIcon = `<svg viewBox="0 0 24 24" class="w-4 h-4 fill-green-600"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg>`;
 
-            tbody.innerHTML = records.map((b, i) => {
+            cardsBox.innerHTML = records.map((b, i) => {
                 const hall = HALLS.find(h => h.id === b.hallId);
+                const hallName = hall ? hall.name : (b.hallName || '—');
+                const dot = hall ? hall.dot : '#94a3b8';
+                const dateTxt = fmtDate(b.startDate) + (b.endDate && b.endDate !== b.startDate ? ' ← ' + fmtDate(b.endDate) : '');
+                const timeTxt = (b.startTime || '') + (b.endTime ? ' - ' + b.endTime : '');
+                const phoneHtml = b.phone
+                    ? `<div class="flex items-center gap-2 text-sm font-medium text-slate-600" style="direction:ltr; justify-content:flex-end;">
+                           <span>${escapeHtml(b.phone)}</span>
+                           <a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" title="واتساب ${escapeHtml(b.phone)}" class="inline-flex items-center justify-center w-6 h-6 shrink-0 hover:opacity-70 transition-opacity">${waIcon}</a>
+                       </div>`
+                    : '';
                 return `
-                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
-                    <td class="px-3 py-3 text-xs font-bold text-slate-300 text-center w-8">${i + 1}</td>
-                    <td class="px-3 py-3 font-bold text-[#6E1418] text-sm max-w-[160px]">
-                        <div class="truncate" title="${escapeHtml(b.companyName)}">${escapeHtml(b.companyName) || '—'}</div>
-                    </td>
-                    <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap" style="direction:ltr; text-align:right;">${b.phone ? `<span class="inline-flex items-center gap-1.5"><span>${escapeHtml(b.phone)}</span><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="واتساب ${escapeHtml(b.phone)}" class="inline-flex items-center justify-center w-5 h-5 shrink-0 hover:opacity-70 transition-opacity"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-green-600"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></a></span>` : '—'}</td>
-                    <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">${hall ? hall.name : (b.hallName || '—')}</td>
-                    <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">${fmtDate(b.startDate)}${b.endDate && b.endDate !== b.startDate ? ' → ' + fmtDate(b.endDate) : ''}</td>
-                    <td class="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap">${b.startTime || ''}${b.endTime ? ' - ' + b.endTime : ''}</td>
-                    <td class="px-3 py-3 text-sm text-slate-600 max-w-[220px]">
-                        <div class="truncate" title="${escapeHtml(b.notes)}">${escapeHtml(b.notes) || '—'}</div>
-                    </td>
-                </tr>`;
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 min-w-0" style="border-right:4px solid ${dot};">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <div class="font-black text-[#6E1418] text-base leading-snug break-words min-w-0">${escapeHtml(b.companyName) || '—'}</div>
+                        <span class="shrink-0 text-[11px] font-black text-slate-400 bg-slate-100 rounded-lg px-2 py-0.5">${i + 1}</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">
+                            <span class="w-2 h-2 rounded-full" style="background:${dot}"></span>${escapeHtml(hallName)}
+                        </span>
+                        <span class="inline-flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">📅 ${dateTxt}</span>
+                        ${timeTxt ? `<span class="inline-flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1" style="direction:ltr;">🕒 ${escapeHtml(timeTxt)}</span>` : ''}
+                    </div>
+                    ${phoneHtml}
+                    ${b.employee ? `<div class="text-xs font-bold text-slate-400 mt-1">الموظف: ${escapeHtml(b.employee)}</div>` : ''}
+                    ${b.notes ? `<div class="mt-2 text-sm text-slate-600 bg-amber-50/60 border border-amber-100/50 rounded-xl px-3 py-2 break-words whitespace-pre-wrap">${escapeHtml(b.notes)}</div>` : ''}
+                </div>`;
             }).join('');
 
             if (typeof lucide !== "undefined") refreshIcons();
+        }
+
+        // طباعة حجوزات الشهر المؤرشف (جدول منسق A4 أفقي — نفس أسلوب طباعة الحجوزات القادمة)
+        function printArchivedMonth() {
+            const records = window._archiveDetailRecords || [];
+            if (!records.length) { showToast('لا توجد حجوزات للطباعة', 'error'); return; }
+            const monthKey = document.getElementById('archiveDetailModal').dataset.monthKey || '';
+            const monthLabel = monthKeyLabel(monthKey);
+            const fmtDate = d => d ? String(d).split('-').reverse().join('/') : '-';
+            const printDate = new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            const rows = records.map((b, i) => {
+                const hall = HALLS.find(h => h.id === b.hallId);
+                const hallName = hall ? hall.name : (b.hallName || '-');
+                const dateTxt = fmtDate(b.startDate) + (b.endDate && b.endDate !== b.startDate ? ' ← ' + fmtDate(b.endDate) : '');
+                const timeTxt = (b.startTime && b.endTime) ? b.startTime + ' – ' + b.endTime : (b.startTime || 'يوم كامل');
+                return `<tr>
+                    <td class="num">${i + 1}</td>
+                    <td class="company">${escapeHtml(b.companyName) || '-'}</td>
+                    <td class="phone">${escapeHtml(b.phone) || '—'}</td>
+                    <td class="hall">${escapeHtml(hallName)}</td>
+                    <td class="date">${dateTxt}</td>
+                    <td class="time">${escapeHtml(timeTxt)}</td>
+                    <td class="emp">${escapeHtml(b.employee) || '-'}</td>
+                    <td class="notes">${escapeHtml(b.notes) || '—'}</td>
+                </tr>`;
+            }).join('');
+
+            const printHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>حجوزات ${monthLabel} (مؤرشف) – رستا بورسعيد</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans Arabic', sans-serif; background: #fff; color: #1e293b; direction: rtl; padding: 24px 28px; font-size: 13px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 3px solid #6E1418; }
+    .logo-area { display: flex; align-items: center; gap: 12px; }
+    .logo-box { width: 48px; height: 48px; background: linear-gradient(135deg, #6E1418, #8a1c22); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 22px; font-weight: 900; }
+    .hotel-name { font-size: 20px; font-weight: 900; color: #6E1418; }
+    .hotel-sub { font-size: 12px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
+    .meta-area { text-align: left; }
+    .print-date-label { font-size: 11px; color: #94a3b8; font-weight: 600; }
+    .print-date-val { font-size: 13px; font-weight: 700; color: #475569; margin-top: 2px; }
+    .count-badge { display: inline-block; background: #6E1418; color: white; padding: 5px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; margin-top: 6px; }
+    .section-title { font-size: 15px; font-weight: 900; color: #334155; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .section-title::before { content: ''; display: inline-block; width: 4px; height: 18px; background: #A88A45; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    thead { background: #6E1418; color: white; display: table-header-group; }
+    thead th { padding: 10px 8px; font-weight: 800; font-size: 11.5px; text-align: right; white-space: nowrap; }
+    thead th:first-child { border-radius: 0 8px 8px 0; text-align: center; }
+    thead th:last-child { border-radius: 8px 0 0 8px; }
+    tbody tr { border-bottom: 1px solid #f1f5f9; page-break-inside: avoid; break-inside: avoid; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    tbody td { padding: 9px 8px; vertical-align: top; }
+    td.num { font-weight: 700; color: #94a3b8; text-align: center; width: 36px; }
+    td.company { font-weight: 900; color: #6E1418; min-width: 120px; }
+    td.phone { font-family: monospace; color: #475569; white-space: nowrap; direction: ltr; text-align: right; font-size: 12px; }
+    td.hall { font-weight: 700; color: #475569; white-space: nowrap; }
+    td.date, td.time { font-family: monospace; color: #334155; white-space: nowrap; font-size: 12px; }
+    td.emp { color: #64748b; font-size: 12px; }
+    td.notes { color: #64748b; font-size: 11.5px; max-width: 180px; word-break: break-word; }
+    .footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10.5px; color: #94a3b8; font-weight: 600; }
+    @media print {
+        body { padding: 0; }
+        @page { size: A4 landscape; margin: 12mm 14mm; }
+        thead, .count-badge, .logo-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+</style>
+</head>
+<body>
+<div class="page-header">
+    <div class="logo-area">
+        <div class="logo-box">R</div>
+        <div>
+            <div class="hotel-name">رستا بورسعيد</div>
+            <div class="hotel-sub">Resta Port Said Hotel</div>
+        </div>
+    </div>
+    <div class="meta-area">
+        <div class="print-date-label">تاريخ الطباعة</div>
+        <div class="print-date-val">${printDate}</div>
+        <div class="count-badge">${records.length} حجز</div>
+    </div>
+</div>
+<div class="section-title">حجوزات شهر ${monthLabel} (أرشيف)</div>
+<table>
+    <thead>
+        <tr>
+            <th>#</th><th>الشركة / الجهة</th><th>الهاتف</th><th>القاعة</th><th>التاريخ</th><th>الوقت</th><th>الموظف</th><th>ملاحظات</th>
+        </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+</table>
+<div class="footer">
+    <span>نظام إدارة حجوزات رستا – Resta Events Booking System</span>
+    <span>${printDate}</span>
+</div>
+<script>
+    window.onload = function() { setTimeout(function() { window.print(); }, 600); };
+<\/script>
+</body>
+</html>`;
+
+            const win = window.open('', '_blank', 'width=1050,height=750,scrollbars=yes');
+            if (!win) {
+                showToast('يرجى السماح بفتح النوافذ المنبثقة في المتصفح', 'error');
+                return;
+            }
+            win.document.write(printHtml);
+            win.document.close();
         }
 
         async function restoreArchivedMonth(monthKey) {
