@@ -6370,6 +6370,7 @@ ${acknowledgmentHtml}
                     <div class="qc-emp-line">الديكور: كوشة ومدخل للقاعة ودانس فلور وليزر وكراسي فيرفورجيه</div>
                     <div class="flex justify-between items-center pt-2.5 border-t border-slate-200 text-sm font-black text-slate-700"><span>إجمالي الإضافات</span><span id="qcEmpExtrasTotal"></span></div>
                 </div>
+                <div id="qcMenuCard"></div>
                 ` : `
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2.5" id="qcExtrasContainer">
                     ${state.weddingSettings.extras.map(ex => `
@@ -6399,6 +6400,17 @@ ${acknowledgmentHtml}
         function onQcPackageChange() {
             const pkg = state.weddingSettings.packages.find(p => p.id === document.getElementById('qcPackageSelect').value);
             if (pkg) document.getElementById('qcPricePerPerson').value = pkg.price;
+            const menuCard = document.getElementById('qcMenuCard');
+            if (menuCard) {
+                const items = pkg ? (pkg.menuItems || []).filter(m => (m || '').trim()) : [];
+                const notes = pkg ? (pkg.menuNotes || '').trim() : '';
+                menuCard.innerHTML = (items.length || notes) ? `
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="text-sm font-black text-slate-700 mb-2.5">أصناف الوجبة${pkg ? ' — ' + escapeHtml(pkg.name) : ''}</div>
+                        ${items.length ? `<div class="flex flex-wrap gap-1.5">${items.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+                        ${notes ? `<p class="text-xs text-slate-500 font-medium bg-amber-50 rounded-lg px-2.5 py-1.5 border border-amber-100 mt-2">${escapeHtml(notes)}</p>` : ''}
+                    </div>` : '';
+            }
             recalcQuickCalc();
         }
 
