@@ -5765,11 +5765,11 @@ ${acknowledgmentHtml}
                     <div class="grid grid-cols-2 gap-2">
                         <div class="input-group !mb-0">
                             <label class="text-xs">عدد الأفراد</label>
-                            <input type="number" class="other-menu-guests" min="0" step="1" value="${m.guests || 0}" oninput="recalcOtherMenuTotal(${mi})">
+                            <input type="number" class="other-menu-guests" min="0" step="1" value="${m.guests || ''}" oninput="recalcOtherMenuTotal(${mi})">
                         </div>
                         <div class="input-group !mb-0">
                             <label class="text-xs">سعر الفرد (جنيه)</label>
-                            <input type="number" class="other-menu-price" min="0" step="any" value="${m.pricePerPerson || 0}" oninput="recalcOtherMenuTotal(${mi})">
+                            <input type="number" class="other-menu-price" min="0" step="any" value="${m.pricePerPerson || ''}" oninput="recalcOtherMenuTotal(${mi})">
                         </div>
                     </div>
                     <div class="other-menu-total text-xs font-bold text-[#6E1418] bg-white/70 rounded-lg px-2.5 py-1.5 border border-amber-100">الإجمالي: ${fmtEGP((m.guests || 0) * (m.pricePerPerson || 0))}</div>
@@ -5877,7 +5877,7 @@ ${acknowledgmentHtml}
             if (customContainer) customContainer.innerHTML = savedCustom.map(e => otherCustomEquipRowHtml(e.name, e.price, e.qty)).join('');
             container.innerHTML = OTHER_EQUIPMENT_CATALOG.map(eq => {
                 const s = savedMap[eq.key];
-                const price = s ? (Number(s.price) || 0) : '';
+                const price = s ? (Number(s.price) || '') : '';
                 const qty = s ? (Number(s.qty) || 1) : 1;
                 return `
                 <div class="other-equip-row bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2" data-equip-key="${eq.key}">
@@ -5902,7 +5902,7 @@ ${acknowledgmentHtml}
         // تجهيز مخصّص يكتبه المستخدم (اسم + عدد + سعر) — يُحفظ مع الحجز فقط ولا يُضاف للكتالوج الثابت
         function otherCustomEquipRowHtml(name, price, qty) {
             const q = Number(qty) || 1;
-            const p = (price === '' || price === undefined || price === null) ? '' : (Number(price) || 0);
+            const p = (price === '' || price === undefined || price === null) ? '' : (Number(price) || '');
             return `
                 <div class="other-custom-equip-row bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
                     <input type="text" class="other-custom-equip-name flex-1 text-sm font-bold" style="min-width:170px" dir="auto" value="${escapeHtml(name || '')}" placeholder="اسم التجهيز" oninput="recalcOtherEquipmentTotal()">
@@ -5981,7 +5981,7 @@ ${acknowledgmentHtml}
         // ═══════════════════ مقدمات الحجز للمناسبة الخاصة (أدمن فقط) — تُخصم من الإجمالي ويظهر المتبقي ═══════════════════
 
         function otherPaymentRowHtml(val) {
-            const v = (val === '' || val === undefined || val === null) ? '' : (Number(val) || 0);
+            const v = (val === '' || val === undefined || val === null) ? '' : (Number(val) || '');
             return `
                 <div class="other-payment-row flex items-center gap-2">
                     <input type="number" class="other-payment-input flex-1" min="0" step="any" value="${v}" placeholder="مبلغ المقدم" oninput="recalcOtherPayments()">
@@ -6123,7 +6123,7 @@ ${acknowledgmentHtml}
                         </button>
                     </div>
                     <div class="flex items-center gap-2">
-                        <input type="number" class="wedding-extra-value" data-extra="${key}" value="${value}" min="0" step="any" oninput="recalcWeddingTotals()">
+                        <input type="number" class="wedding-extra-value" data-extra="${key}" value="${value || ''}" min="0" step="any" oninput="recalcWeddingTotals()">
                         ${key === 'chair' ? '<span class="text-xs text-slate-400 shrink-0">× فرد</span>' : ''}
                     </div>
                 </div>
@@ -6266,8 +6266,8 @@ ${acknowledgmentHtml}
             if (!w) { recalcWeddingTotals(); return; }
 
             document.getElementById('weddingPackageSelect').value = w.packageId || '';
-            document.getElementById('weddingGuests').value = w.guests || 0;
-            document.getElementById('weddingPricePerPerson').value = w.pricePerPerson || 0;
+            document.getElementById('weddingGuests').value = w.guests || '';
+            document.getElementById('weddingPricePerPerson').value = w.pricePerPerson || '';
             const pkgForMenu = state.weddingSettings.packages.find(p => p.id === (w.packageId || ''));
             const menuItems = (w.menuItems && w.menuItems.length) ? w.menuItems : (pkgForMenu ? pkgForMenu.menuItems : []);
             const menuNotes = (w.menuNotes !== undefined && w.menuNotes !== '') ? w.menuNotes : (pkgForMenu ? pkgForMenu.menuNotes : '');
@@ -6356,11 +6356,11 @@ ${acknowledgmentHtml}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div class="input-group bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                         <label class="required">عدد الأفراد</label>
-                        <input type="number" id="qcGuests" min="0" step="1" value="0" oninput="recalcQuickCalc()">
+                        <input type="number" id="qcGuests" min="0" step="1" placeholder="" oninput="recalcQuickCalc()">
                     </div>
                     <div class="input-group bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                         <label>سعر الفرد (جنيه)</label>
-                        <input type="number" id="qcPricePerPerson" min="0" step="any" value="0" ${isAdmin ? '' : 'disabled'} oninput="recalcQuickCalc()">
+                        <input type="number" id="qcPricePerPerson" min="0" step="any" ${isAdmin ? '' : 'disabled'} oninput="recalcQuickCalc()">
                     </div>
                 </div>
                 ${!isAdmin ? `
@@ -6380,7 +6380,7 @@ ${acknowledgmentHtml}
                                 ${ex.name} ${ex.perGuest ? '<span class="text-[10px] text-slate-400 font-normal">(× عدد الأفراد)</span>' : ''}
                             </label>
                             <div class="flex items-center gap-2">
-                                <input type="number" class="qc-extra-value" data-extra="${ex.key}" value="${ex.value}" min="0" step="any" ${isAdmin ? '' : 'disabled'} oninput="recalcQuickCalc()">
+                                <input type="number" class="qc-extra-value" data-extra="${ex.key}" value="${ex.value || ''}" min="0" step="any" ${isAdmin ? '' : 'disabled'} oninput="recalcQuickCalc()">
                                 <span class="text-xs text-slate-400 shrink-0">${ex.perGuest ? 'جنيه/فرد' : 'جنيه'}</span>
                             </div>
                         </div>
@@ -6596,7 +6596,7 @@ ${acknowledgmentHtml}
                         ${state.weddingSettings.packages.map((p, i) => `
                             <div class="flex items-center gap-3">
                                 <span class="flex-1 text-sm font-bold text-slate-600">${p.name}</span>
-                                <input type="number" class="ws-package-price w-32" data-idx="${i}" value="${p.price}" min="0" step="any">
+                                <input type="number" class="ws-package-price w-32" data-idx="${i}" value="${p.price || ''}" min="0" step="any">
                             </div>
                         `).join('')}
                     </div>
@@ -6653,7 +6653,7 @@ ${acknowledgmentHtml}
                             <div class="space-y-1.5">
                                 <input type="text" class="ws-extra-name w-full text-sm font-bold text-slate-600" data-idx="${i}" value="${String(ex.name || '').replace(/"/g, '&quot;')}" placeholder="اسم الإضافة">
                                 <div class="flex items-center gap-2">
-                                    <input type="number" class="ws-extra-value flex-1" data-idx="${i}" value="${ex.value}" min="0" step="any">
+                                    <input type="number" class="ws-extra-value flex-1" data-idx="${i}" value="${ex.value || ''}" min="0" step="any">
                                     ${ex.perGuest ? '<span class="text-[10px] text-slate-400 shrink-0">(جنيه/فرد)</span>' : ''}
                                 </div>
                             </div>
