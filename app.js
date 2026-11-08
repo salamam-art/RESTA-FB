@@ -851,11 +851,26 @@
         function _presenceBeat(force) {
             const ref = _presenceRef();
             if (!ref || !auth.currentUser) return;
+            if (_presenceOnline) _touchLastLog();
             if (!force && (Date.now() - _presenceLastActivity) > PRESENCE_IDLE_MS) return; // خامل: ما نكتبش
             ref.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
         }
 
         function _presenceRef() { return _presenceKey ? db.ref('presence/' + _presenceKey) : null; }
+
+        // ─── دمج الاتصالات القصيرة: لو نفس الحساب رجع في خلال دقيقتين يكمل على نفس سطر سجل الدخول ───
+        // (انقطاع النت لحظة / الخلفية والأمامية / فتح التطبيق من إشعار كانت بتعمل سطر جديد كل مرة)
+        const SESSLOG_REUSE_MS = 2 * 60 * 1000;
+        const SESSLOG_LS_KEY = 'hotel_last_session_log';
+        let _presenceOnline = false;
+        function _readLastLog() { try { return JSON.parse(localStorage.getItem(SESSLOG_LS_KEY) || 'null'); } catch (e) { return null; } }
+        function _saveLastLog(k, uid) { try { localStorage.setItem(SESSLOG_LS_KEY, JSON.stringify({ k: k, u: uid, t: Date.now() })); } catch (e) {} }
+        function _touchLastLog() {
+            const o = _readLastLog();
+            if (o && _sessionLogKey && o.k === _sessionLogKey) _saveLastLog(o.k, o.u);
+        }
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && _presenceOnline) _touchLastLog(); });
+        window.addEventListener('pagehide', function () { if (_presenceOnline) _touchLastLog(); });
 
         function _publishPresence() {
             const ref = _presenceRef();
@@ -863,24 +878,41 @@
             if (!ref || !u) return;
             const TS = firebase.database.ServerValue.TIMESTAMP;
             const email = isGuest() ? '' : state.currentUserEmail;
-            // سجل جديد لكل اتصال: وقت الدخول الآن، ووقت الخروج يتكتب تلقائيًا عند قطع الاتصال
-            const logKey = db.ref('sessionLogs').push().key;
-            const logRef = db.ref('sessionLogs/' + logKey);
-            _sessionLogKey = logKey;
             const gname = isGuest() ? getGuestName() : '';
             // لو القواعد رفضت حقل الاسم الإضافي نرجع للشكل القديم بدونه عشان التسجيل ما يتعطلش
             const _setOptName = (r, base) => gname
                 ? r.set(Object.assign({}, base, { name: gname })).catch(() => r.set(base))
                 : r.set(base);
-            ref.onDisconnect().remove()
-                .then(() => _setOptName(ref, { uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
-                .then(() => _presenceBeat(true))
-                .catch(err => console.warn('presence failed:', err && err.code));
-            // الترتيب مهم: نكتب السجل الكامل الأول، وبعدها نسجّل تحديث وقت الخروج عند قطع الاتصال
-            // (قواعد التحقق بترفض تحديث logoutAt لوحده على عقدة لسه مش موجودة)
-            _setOptName(logRef, { uid: u.uid, email: email, guest: isGuest(), loginAt: TS })
-                .then(() => logRef.onDisconnect().update({ logoutAt: TS }))
-                .catch(err => console.warn('sessionLog failed:', err && err.code));
+
+            // سجل جديد (وقت الدخول الآن)، أو استكمال آخر سجل لنفس الحساب لو الانقطاع أقل من دقيقتين
+            const newLog = () => {
+                const k = db.ref('sessionLogs').push().key;
+                return _setOptName(db.ref('sessionLogs/' + k), { uid: u.uid, email: email, guest: isGuest(), loginAt: TS })
+                    .then(() => ({ key: k }), err => { console.warn('sessionLog failed:', err && err.code); return { key: k }; });
+            };
+            const prev = _readLastLog();
+            const canReuse = !!(prev && prev.k && prev.u === u.uid && (Date.now() - prev.t) < SESSLOG_REUSE_MS);
+            const logP = canReuse
+                ? db.ref('sessionLogs/' + prev.k).update({ logoutAt: null })
+                    .then(() => {
+                        if (gname) db.ref('sessionLogs/' + prev.k + '/name').set(gname).catch(() => {});
+                        return { key: prev.k };
+                    })
+                    .catch(() => newLog()) // السجل القديم مش موجود/مرفوض: نفتح سطر جديد
+                : newLog();
+
+            logP.then(r => {
+                const logKey = r.key;
+                _sessionLogKey = logKey;
+                _saveLastLog(logKey, u.uid);
+                const logRef = db.ref('sessionLogs/' + logKey);
+                // وقت الخروج بيتكتب تلقائيًا عند قطع الاتصال
+                logRef.onDisconnect().update({ logoutAt: TS }).catch(() => {});
+                ref.onDisconnect().remove()
+                    .then(() => _setOptName(ref, { uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
+                    .then(() => _presenceBeat(true))
+                    .catch(err => console.warn('presence failed:', err && err.code));
+            });
         }
 
         function startPresence() {
@@ -889,7 +921,8 @@
             if (!_presenceKey) _presenceKey = db.ref('presence').push().key;
             const connRef = db.ref('.info/connected');
             _presenceConnHandler = (snap) => {
-                if (snap.val() === true) _publishPresence();
+                if (snap.val() === true) { _presenceOnline = true; _publishPresence(); }
+                else { _touchLastLog(); _presenceOnline = false; }
             };
             connRef.on('value', _presenceConnHandler);
             if (!_serverOffsetBound) {
@@ -906,6 +939,8 @@
                 _presenceConnHandler = null;
             }
             if (_presenceBeatTimer) { clearInterval(_presenceBeatTimer); _presenceBeatTimer = null; }
+            _presenceOnline = false;
+            try { localStorage.removeItem(SESSLOG_LS_KEY); } catch (e) {}
             if (ref) ref.remove().catch(() => {});
             if (_sessionLogKey) {
                 // خروج يدوي: نسجّل وقت الخروج الآن ونلغي تسجيل الخروج التلقائي عند قطع الاتصال
