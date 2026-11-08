@@ -2343,6 +2343,38 @@
                     </td>
                 </tr>
             `).join('');
+            // نفس البيانات على شكل كروت (بتظهر على الموبايل بدل الجدول)
+            const ucards = document.getElementById('usersCards');
+            if (ucards) {
+                ucards.innerHTML = state.users.map(user => `
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                        <div class="flex items-center gap-3" style="direction: ltr;">
+                            <button type="button" data-email="${escapeHtml(user.email)}" onclick="pickAccountAvatar(this.dataset.email)" class="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-1 ring-[#A88A45]/50 bg-[#6E1418]/10 text-[#6E1418] flex items-center justify-center" title="تغيير صورة هذا الحساب">
+                                ${adminUserPhotos[emailKey(user.email)]
+                                    ? `<img src="${escapeHtml(adminUserPhotos[emailKey(user.email)])}" alt="" class="w-full h-full object-cover">`
+                                    : `<span class="font-black text-base leading-none">${escapeHtml((user.email || '?').charAt(0).toUpperCase())}</span>`}
+                            </button>
+                            <div class="min-w-0 font-bold text-slate-800 text-sm break-all text-left">${escapeHtml(user.email)}</div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200">
+                            <div class="text-xs">
+                                <span class="block text-slate-400 font-bold mb-0.5">تاريخ التسجيل</span>
+                                <span class="text-slate-700 font-bold">${user.createdAt ? new Date(user.createdAt).toLocaleDateString('ar-EG') : '—'}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button data-email="${escapeHtml(user.email)}" onclick="sendUserPasswordReset(this.dataset.email)" class="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors" title="إرسال رابط إعادة تعيين كلمة المرور">
+                                    <i data-lucide="key" class="w-4 h-4"></i>
+                                </button>
+                                ${user.email !== ADMIN_EMAIL ? `
+                                    <button data-email="${escapeHtml(user.email)}" onclick="deleteUser(this.dataset.email)" class="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors" title="إيقاف المستخدم">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                ` : '<span class="text-xs font-bold text-white bg-slate-800 px-3 py-1 rounded-full">أدمن النظام</span>'}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
             if(typeof lucide!=="undefined") refreshIcons('usersModal');
         }
 

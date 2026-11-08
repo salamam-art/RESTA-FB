@@ -1057,3 +1057,11 @@ main { overflow-x: hidden; }
     #sessionLogsCards { display: block; }
 }
 /* ===================== End Session Logs ===================== */
+
+/* ===================== المستخدمون المسجلون: جدول على الشاشات الكبيرة، كروت على الموبايل (≤767px) ===================== */
+#usersCards { display: none; }
+@media (max-width: 767px) {
+    #usersModal .users-table-wrap { display: none; }
+    #usersCards { display: block; }
+}
+/* ===================== End Users Cards ===================== */

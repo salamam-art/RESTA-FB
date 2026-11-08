@@ -43,7 +43,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20261106a">
+    <link rel="stylesheet" href="styles.css?v=20261108a">
 </head>
 <body>
     <script>window.__restaSplashStart = Date.now();</script>
@@ -265,7 +265,7 @@
                     </button>
                 </div>
 
-                <div class="table-responsive rounded-xl border border-slate-200">
+                <div class="table-responsive users-table-wrap rounded-xl border border-slate-200">
                     <table class="users-table">
                         <thead class="bg-slate-50 border-b border-slate-200">
                             <tr>
@@ -277,6 +277,8 @@
                         <tbody id="usersTableBody"></tbody>
                     </table>
                 </div>
+                <!-- نفس المستخدمين كروت على الموبايل بدل الجدول -->
+                <div id="usersCards" class="space-y-3"></div>
             </div>
         </div>
     </div>
@@ -928,7 +930,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261108a"></script>
+    <script src="app.js?v=20261108b"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">
