@@ -675,6 +675,34 @@
                     }
                 });
 
+                // نقل حجز من يوم ليوم على جهاز تاني (نفس الرقم وتاريخ مختلف): إشعار + رسالة (عرض فقط — ما بيغيّرش في البيانات)
+                try {
+                    const _dirtyIdSet = new Set(dirtyBookings.map(d => String(d.id)));
+                    const _prevById = new Map(state.bookings.filter(b => !b._isDirty).map(b => [String(b.id), b]));
+                    const _moved = [];
+                    finalBookings.forEach(b => {
+                        const o = _prevById.get(String(b.id));
+                        if (o && !_dirtyIdSet.has(String(b.id)) && o.startDate && b.startDate && o.startDate !== b.startDate) {
+                            _moved.push({ b: b, oldDate: o.startDate });
+                        }
+                    });
+                    const _fd = d => d ? d.split('-').reverse().join('/') : '';
+                    if (_moved.length > 3) {
+                        addNotification(`تم نقل ${_moved.length} حجوزات إلى تواريخ أخرى`, 'add');
+                    } else {
+                        _moved.forEach(m => {
+                            const _mvLogs = serverLogs
+                                .filter(l => l.type === 'نقل' && l.company === m.b.companyName)
+                                .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
+                            const _mvBy = isGuest() ? '' : ((((_mvLogs[0] && _mvLogs[0].user) || '').split('@')[0]));
+                            const _byTxt = _mvBy ? ` بواسطة ${_mvBy}` : '';
+                            const _txt = `تم نقل حجز${_byTxt}: ${m.b.companyName} - من ${_fd(m.oldDate)} إلى ${_fd(m.b.startDate)}`;
+                            addNotification(_txt, 'add', m.b.startDate);
+                            showToast(_txt, 'success', m.b.startDate);
+                        });
+                    }
+                } catch (e) { console.warn('move notification failed', e); }
+
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
                 const _bookingsUnchanged = _bookingsSignature(state.bookings) === _bookingsSignature(finalBookings);
@@ -8587,17 +8615,19 @@ window.openFromNotification = function (date, bookingId) {
         showToast(msg, 'error', null, { center: true });
     };
 
-    // الحجز مش موجود عندنا محليًا: نسأل السيرفر مرة واحدة (قراءة فقط) هل لسه موجود ولا اتحذف
+    // نسأل السيرفر مرة واحدة (قراءة فقط): هل الحجز لسه موجود؟ وتاريخه الحالي إيه؟
+    // (مهم: النسخة المحلية ممكن تكون قديمة لو الحجز اتنقل لتاريخ تاني قبل ما التطبيق يتزامن)
+    let serverBooking = null, serverFailed = false, syncKicked = false, syncTries = 0;
     const checkServer = () => {
         serverChecked = true;
         try {
             db.ref('bookings').once('value').then(snap => {
                 if (finished) return;
-                const onServer = fbValToArray(snap.val()).some(b => b && String(b.id) === idStr);
-                if (!onServer) { stop(); announceDeleted(); }
-                // لو موجود على السيرفر نكمل نستنى وصوله بالمزامنة العادية ونفتحه
-            }).catch(() => {});
-        } catch (e) {}
+                const sb = fbValToArray(snap.val()).find(b => b && String(b.id) === idStr);
+                if (!sb) { stop(); announceDeleted(); return; }
+                serverBooking = sb;
+            }).catch(() => { serverFailed = true; });
+        } catch (e) { serverFailed = true; }
     };
 
     const timer = setInterval(() => {
@@ -8610,14 +8640,30 @@ window.openFromNotification = function (date, bookingId) {
             return;
         }
         try {
-            const booking = idStr ? state.bookings.find(b => String(b.id) === idStr) : null;
-            if (idStr && !booking) {
+            if (idStr) {
                 if (!serverChecked) checkServer();
-                if (++findTries <= MAX_FIND_TRIES) return; // لسه ماوصلش من المزامنة — نستنى
+                // نستنى رد السيرفر (لو ما ردّش أو فشل نكمل بالنسخة المحلية زي الأول)
+                if (!serverBooking && !serverFailed && ++findTries <= MAX_FIND_TRIES) return;
             }
+            const booking = idStr ? state.bookings.find(b => String(b.id) === idStr) : null;
+
+            if (serverBooking) {
+                const inSync = booking && booking.startDate === serverBooking.startDate;
+                if (!inSync) {
+                    // النسخة المحلية قديمة (الحجز اتنقل/اتعدّل): نطلب مزامنة عادية ونستنى توصل
+                    if (!syncKicked) { syncKicked = true; try { syncToCloud(true); } catch (e) {} }
+                    if (++syncTries <= MAX_FIND_TRIES) return;
+                    stop();
+                    renderDayDetails(serverBooking.startDate, { bookingId: null, fresh: true, forceList: true });
+                    return;
+                }
+            } else if (idStr && !booking && ++findTries <= MAX_FIND_TRIES) {
+                return; // السيرفر ما ردّش ولسه ماوصلش من المزامنة — نستنى
+            }
+
             stop();
             if (booking) {
-                // نفتح الحجز نفسه على تاريخه الفعلي (حتى لو تاريخ الإشعار قديم بعد تعديل)
+                // نفتح الحجز نفسه على تاريخه الفعلي (حتى لو تاريخ الإشعار قديم بعد نقل/تعديل)
                 renderDayDetails(booking.startDate, { bookingId: booking.id, fresh: true });
             } else if (date) {
                 // مفيش معرّف حجز (أو السيرفر مردّش): نفتح قائمة اليوم دايمًا ومش حجز عشوائي
