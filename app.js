@@ -675,33 +675,58 @@
                     }
                 });
 
-                // نقل حجز من يوم ليوم على جهاز تاني (نفس الرقم وتاريخ مختلف): إشعار + رسالة (عرض فقط — ما بيغيّرش في البيانات)
+                // نقل أو تعديل حجز على جهاز تاني (نفس الرقم): إشعار + رسالة (عرض فقط — ما بيغيّرش في البيانات)
                 try {
                     const _dirtyIdSet = new Set(dirtyBookings.map(d => String(d.id)));
                     const _prevById = new Map(state.bookings.filter(b => !b._isDirty).map(b => [String(b.id), b]));
-                    const _moved = [];
+                    const _EDIT_FIELDS = [['companyName', 'اسم الشركة'], ['hallId', 'القاعة'], ['startTime', 'الوقت'], ['endTime', 'الوقت'],
+                                          ['phone', 'الهاتف'], ['employee', 'القائم بالحجز'], ['notes', 'الملاحظات']];
+                    const _moved = [], _edited = [], _seenGroups = new Set();
                     finalBookings.forEach(b => {
                         const o = _prevById.get(String(b.id));
-                        if (o && !_dirtyIdSet.has(String(b.id)) && o.startDate && b.startDate && o.startDate !== b.startDate) {
+                        if (!o || _dirtyIdSet.has(String(b.id))) return;
+                        if (o.startDate && b.startDate && o.startDate !== b.startDate) {
                             _moved.push({ b: b, oldDate: o.startDate });
+                            return;
                         }
+                        const changed = [];
+                        _EDIT_FIELDS.forEach(f => {
+                            if (String(o[f[0]] == null ? '' : o[f[0]]).trim() !== String(b[f[0]] == null ? '' : b[f[0]]).trim() && !changed.includes(f[1])) changed.push(f[1]);
+                        });
+                        if (!changed.length) return;
+                        // الحجز متعدد الأيام بيتعدّل كل أيامه مع بعض: إشعار واحد للمجموعة
+                        const gk = String(b.groupId || String(b.id).split('_d')[0]);
+                        if (_seenGroups.has(gk)) return;
+                        _seenGroups.add(gk);
+                        _edited.push({ b: b, changed: changed });
                     });
                     const _fd = d => d ? d.split('-').reverse().join('/') : '';
+                    const _byOf = (type, company) => {
+                        if (isGuest()) return '';
+                        const lg = serverLogs.filter(l => l.type === type && l.company === company)
+                            .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
+                        const nm = (((lg[0] && lg[0].user) || '').split('@')[0]);
+                        return nm ? ` بواسطة ${nm}` : '';
+                    };
                     if (_moved.length > 3) {
                         addNotification(`تم نقل ${_moved.length} حجوزات إلى تواريخ أخرى`, 'add');
                     } else {
                         _moved.forEach(m => {
-                            const _mvLogs = serverLogs
-                                .filter(l => l.type === 'نقل' && l.company === m.b.companyName)
-                                .sort((x, y) => new Date(y.isoTimestamp || 0) - new Date(x.isoTimestamp || 0));
-                            const _mvBy = isGuest() ? '' : ((((_mvLogs[0] && _mvLogs[0].user) || '').split('@')[0]));
-                            const _byTxt = _mvBy ? ` بواسطة ${_mvBy}` : '';
-                            const _txt = `تم نقل حجز${_byTxt}: ${m.b.companyName} - من ${_fd(m.oldDate)} إلى ${_fd(m.b.startDate)}`;
+                            const _txt = `تم نقل حجز${_byOf('نقل', m.b.companyName)}: ${m.b.companyName} - من ${_fd(m.oldDate)} إلى ${_fd(m.b.startDate)}`;
                             addNotification(_txt, 'add', m.b.startDate);
                             showToast(_txt, 'success', m.b.startDate);
                         });
                     }
-                } catch (e) { console.warn('move notification failed', e); }
+                    if (_edited.length > 3) {
+                        addNotification(`تم تعديل ${_edited.length} حجوزات`, 'add');
+                    } else {
+                        _edited.forEach(m => {
+                            const _txt = `تم تعديل حجز${_byOf('تعديل', m.b.companyName)}: ${m.b.companyName} - بتاريخ ${_fd(m.b.startDate)} (${m.changed.join('، ')})`;
+                            addNotification(_txt, 'add', m.b.startDate);
+                            showToast(_txt, 'success', m.b.startDate);
+                        });
+                    }
+                } catch (e) { console.warn('move/edit notification failed', e); }
 
 
                 const finalLogs  = mergeLogs(state.activityLogs, serverLogs);
