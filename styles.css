@@ -1065,3 +1065,21 @@ main { overflow-x: hidden; }
     #usersCards { display: block; }
 }
 /* ===================== End Users Cards ===================== */
+
+
+/* ===================== ملاحظات الأيام (أعياد / عطلات / تذكير) ===================== */
+.day-note-chip {
+    font-size: 0.7rem; padding: 3px 7px; border-radius: 0.5rem; flex-shrink: 0; height: 22px; line-height: 16px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; min-width: 0; width: 100%;
+    background: #fef3c7; color: #92400e; border-right: 4px solid #d97706;
+}
+html.dark .day-note-chip { background: rgba(245, 158, 11, 0.18); color: #fcd34d; border-right-color: #f59e0b; }
+.day-note-btn { opacity: 0; font-size: 12px; line-height: 1; padding: 3px; border-radius: 6px; transition: opacity .15s; }
+.day-cell:hover .day-note-btn { opacity: .85; }
+.day-note-btn:hover { background: rgba(217, 119, 6, 0.15); }
+@media (hover: none) { .day-note-btn { opacity: .5; } }
+@media (max-width: 767px) {
+    .day-note-btn { display: none; }
+    .day-note-chip { font-size: 0.5rem; padding: 0 2px; height: 14px; line-height: 12px; border-right-width: 3px; border-radius: 0.3rem; }
+}
+/* ===================== End Day Notes ===================== */

@@ -485,7 +485,7 @@
         }
         // القراءة تحتاج جلسة Firebase صالحة (زائر أو موظف)، فنشغّل/نوقف الاشتراك مع حالة الدخول
         auth.onAuthStateChanged((u) => {
-            if (u) { setupWeddingSettingsListener(); setupHallsListener(); } else { teardownWeddingSettingsListener(); teardownHallsListener(); }
+            if (u) { setupWeddingSettingsListener(); setupHallsListener(); setupDayNotesListener(); } else { teardownWeddingSettingsListener(); teardownHallsListener(); teardownDayNotesListener(); }
         });
         function setupHallsListener() {
             if (!CLOUD_ENABLED) return;
@@ -505,6 +505,125 @@
         }
         function teardownHallsListener() {
             try { db.ref('hallsSettings').off('value'); } catch (e) {}
+        }
+
+        // ─── ملاحظات الأيام (أعياد / عطلات رسمية / تذكير) ───────────────────────
+        // مستقلة تمامًا عن الحجوزات: عقدة dayNotes/<YYYY-MM-DD> في Firebase.
+        // الكل يقرأ، والأدمن بس اللي يكتب/يعدّل/يحذف (القواعد بتمنع غيره من جهة السيرفر).
+        let DAY_NOTES = {};
+        function getDayNote(dateStr) {
+            const n = DAY_NOTES && DAY_NOTES[dateStr];
+            return (n && typeof n.text === 'string' && n.text.trim()) ? n : null;
+        }
+        function setupDayNotesListener() {
+            if (!CLOUD_ENABLED) return;
+            teardownDayNotesListener();
+            db.ref('dayNotes').on('value', (snap) => {
+                try {
+                    const v = snap.val() || {};
+                    const changed = JSON.stringify(v) !== JSON.stringify(DAY_NOTES);
+                    DAY_NOTES = v;
+                    if (!changed) return;
+                    if (state.isLoggedIn && document.getElementById('app').style.display !== 'none'
+                        && !(state.view === 'hall_detail' && state.activeTab === 'form')) render();
+                    const dm = document.getElementById('detailsModal');
+                    if (dm && !dm.classList.contains('hidden')) {
+                        const d = document.getElementById('modalDateTitle').dataset.date;
+                        if (d) refreshDayDetails(d);
+                    }
+                } catch (e) { console.warn('dayNotes update failed:', e); }
+            }, (err) => { console.warn('dayNotes listener cancelled:', err && err.code); });
+        }
+        function teardownDayNotesListener() {
+            try { db.ref('dayNotes').off('value'); } catch (e) {}
+        }
+
+        // صندوق الملاحظة (للقائمة/التفاصيل): الكل يشوف النص، والأدمن يشوف أزرار تعديل/حذف
+        function dayNoteBoxHtml(dateStr, withAddLink) {
+            const n = getDayNote(dateStr);
+            const isAdm = state.currentUserEmail === ADMIN_EMAIL;
+            if (!n) {
+                return (withAddLink && isAdm) ? `
+                    <button type="button" onclick="openDayNoteEditor('${dateStr}')" class="w-full text-xs font-black text-[#8f753a] bg-amber-50 border border-dashed border-amber-200 rounded-xl py-2 mb-3 flex items-center justify-center gap-1.5">
+                        <i data-lucide="sticky-note" class="w-3.5 h-3.5"></i> إضافة ملاحظة لهذا اليوم
+                    </button>` : '';
+            }
+            return `
+                <div class="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-3 py-2.5 mb-3">
+                    <span class="shrink-0 leading-6">📌</span>
+                    <p class="flex-1 min-w-0 text-sm font-bold leading-relaxed break-words whitespace-pre-wrap">${escapeHtml(n.text)}</p>
+                    ${isAdm ? `
+                        <div class="shrink-0 flex items-center gap-1">
+                            <button type="button" onclick="openDayNoteEditor('${dateStr}')" class="p-1.5 rounded-lg text-[#8f753a] hover:bg-amber-100" title="تعديل الملاحظة"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                            <button type="button" onclick="deleteDayNote('${dateStr}')" class="p-1.5 rounded-lg text-red-600 hover:bg-red-100" title="حذف الملاحظة"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        </div>` : ''}
+                </div>`;
+        }
+
+        // شريط الملاحظة داخل خلية التقويم
+        function dayNoteChipHtml(dateStr) {
+            const n = getDayNote(dateStr);
+            return n ? `<div class="day-note-chip" title="${escapeHtml(n.text)}">📌 ${escapeHtml(n.text)}</div>` : '';
+        }
+
+        function openDayNoteEditor(dateStr) {
+            if (state.currentUserEmail !== ADMIN_EMAIL) { showToast('إضافة الملاحظات متاحة للأدمن فقط.', 'error'); return; }
+            const old = document.getElementById('dayNoteOverlay');
+            if (old) old.remove();
+            const n = getDayNote(dateStr);
+            const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const wrap = document.createElement('div');
+            wrap.id = 'dayNoteOverlay';
+            wrap.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.6)');
+            wrap.innerHTML = `
+                <form class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl" style="direction:rtl" autocomplete="off">
+                    <h3 class="text-lg font-black text-slate-800 mb-1">📌 ملاحظة اليوم</h3>
+                    <p class="text-sm text-slate-500 mb-3 font-bold">${pretty}</p>
+                    <textarea id="dayNoteInput" rows="3" maxlength="300" placeholder="مثال: عيد الأضحى — إجازة رسمية"
+                        class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-bold outline-none focus:border-[#A88A45]" style="resize:none"></textarea>
+                    <p id="dayNoteErr" class="hidden text-xs font-bold text-red-500 mt-2"></p>
+                    <div class="flex gap-2 mt-5">
+                        <button type="submit" id="dayNoteSave" class="flex-1 bg-[#6E1418] text-white font-bold py-3 rounded-xl">حفظ</button>
+                        ${n ? '<button type="button" id="dayNoteDel" class="px-4 bg-red-50 text-red-600 font-bold py-3 rounded-xl">حذف</button>' : ''}
+                        <button type="button" id="dayNoteCancel" class="px-4 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>
+                    </div>
+                </form>`;
+            document.body.appendChild(wrap);
+            const input = wrap.querySelector('#dayNoteInput');
+            input.value = n ? n.text : '';
+            const errEl = wrap.querySelector('#dayNoteErr');
+            const showErr = (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); };
+            const close = () => wrap.remove();
+            wrap.querySelector('#dayNoteCancel').addEventListener('click', close);
+            const delBtn = wrap.querySelector('#dayNoteDel');
+            if (delBtn) delBtn.addEventListener('click', async () => { close(); await deleteDayNote(dateStr, true); });
+            wrap.querySelector('form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const text = input.value.trim();
+                if (!text) { showErr('اكتب نص الملاحظة'); input.focus(); return; }
+                const btn = wrap.querySelector('#dayNoteSave');
+                btn.disabled = true; btn.textContent = 'جاري الحفظ...';
+                try {
+                    await db.ref('dayNotes/' + dateStr).set({ text: text, by: state.currentUserEmail, at: new Date().toISOString() });
+                    close();
+                    showToast('تم حفظ ملاحظة اليوم', 'success');
+                } catch (err) {
+                    btn.disabled = false; btn.textContent = 'حفظ';
+                    showErr(err && err.code === 'PERMISSION_DENIED' ? 'مفيش صلاحية للحفظ — تأكد من تطبيق قواعد Firebase الجديدة (dayNotes).' : 'تعذر الحفظ: ' + (err && err.message || ''));
+                }
+            });
+            setTimeout(() => { try { input.focus(); } catch (e) {} }, 50);
+        }
+
+        async function deleteDayNote(dateStr, skipConfirm) {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            if (!skipConfirm && !confirm('حذف ملاحظة هذا اليوم؟')) return;
+            try {
+                await db.ref('dayNotes/' + dateStr).remove();
+                showToast('تم حذف الملاحظة', 'success');
+            } catch (err) {
+                showToast('تعذر حذف الملاحظة: ' + (err && err.message || ''), 'error');
+            }
         }
         function setupWeddingSettingsListener() {
             if (!CLOUD_ENABLED) return;
@@ -3707,12 +3826,12 @@
             }
 
             if (mode === 'list') {
-                content.innerHTML = `<div class="day-view ${viewCls}">${allBookings.map(renderListCard).join('')}</div>`;
+                content.innerHTML = `<div class="day-view ${viewCls}">${dayNoteBoxHtml(dateStr, false)}${allBookings.map(renderListCard).join('')}</div>`;
             } else {
                 const backBar = allBookings.length > 1
                     ? `<button type="button" onclick="backToDayList()" class="day-back-btn"><i data-lucide="arrow-right" class="w-4 h-4"></i><span>كل حجوزات اليوم (${allBookings.length})</span></button>`
                     : '';
-                content.innerHTML = `<div class="day-view ${viewCls}">${backBar}${bookings.map(renderFullCard).join('')}</div>`;
+                content.innerHTML = `<div class="day-view ${viewCls}">${dayNoteBoxHtml(dateStr, false)}${backBar}${bookings.map(renderFullCard).join('')}</div>`;
             }
             if (animate) content.scrollTop = 0;
 
@@ -4568,6 +4687,7 @@ ${acknowledgmentHtml}
                         </div>
                         ${addBtn}
                     </div>
+                    ${dayNoteBoxHtml(dateStr, true)}
                     ${body}
                 </div>`;
         }
@@ -5308,9 +5428,11 @@ ${acknowledgmentHtml}
                          class="day-cell ${isToday ? 'today-active z-10' : ''} ${heat ? 'heat-' + heat : ''} ${state.selectedDay === dateStr ? 'selected-day' : ''} ${isPast ? 'past-day' : ''} cursor-pointer group">
                         <div class="flex items-center justify-between mb-1" style="flex-shrink:0;">
                             <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
+                            ${state.currentUserEmail === ADMIN_EMAIL ? `<button type="button" class="day-note-btn" onclick="event.stopPropagation(); openDayNoteEditor('${dateStr}')" title="${getDayNote(dateStr) ? 'تعديل ملاحظة اليوم' : 'إضافة ملاحظة لهذا اليوم'}">📌</button>` : ''}
                             ${totalCount > 0 ? `<span class="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">${totalCount}</span>` : ''}
                         </div>
                         <div class="day-bookings-container">
+                            ${dayNoteChipHtml(dateStr)}
                             ${tagsHtml}
                             ${moreHtml}
                         </div>
