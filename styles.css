@@ -1083,3 +1083,40 @@ html.dark .day-note-chip { background: rgba(245, 158, 11, 0.18); color: #fcd34d;
     .day-note-chip { font-size: 0.5rem; padding: 0 2px; height: 14px; line-height: 12px; border-right-width: 3px; border-radius: 0.3rem; }
 }
 /* ===================== End Day Notes ===================== */
+
+/* ===================== عرض التاريخ "09 نوفمبر 2026" فوق حقل التاريخ الأصلي ===================== */
+.date-enh-wrap { position: relative; display: block; }
+.date-enh-wrap > input[type="date"]::-webkit-datetime-edit,
+.date-enh-wrap > input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.date-enh-wrap > input[type="date"]::-webkit-datetime-edit-text,
+.date-enh-wrap > input[type="date"]::-webkit-datetime-edit-day-field,
+.date-enh-wrap > input[type="date"]::-webkit-datetime-edit-month-field,
+.date-enh-wrap > input[type="date"]::-webkit-datetime-edit-year-field { color: transparent !important; }
+.date-enh-text {
+    position: absolute; top: 50%; right: 1rem; left: 2.6rem; transform: translateY(-50%);
+    pointer-events: none; font-size: 0.95rem; font-weight: 600; color: #1e293b;
+    text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.date-enh-text.is-empty { color: #94a3b8; font-weight: 500; }
+html.dark .date-enh-text { color: #e2e8f0; }
+html.dark .date-enh-text.is-empty { color: #64748b; }
+/* ===================== End Date Display ===================== */
+
+
+/* ===================== عرض حقول التاريخ: 09 نوفمبر 2026 (عرض فقط) ===================== */
+input[type="date"][data-dfmt]::-webkit-datetime-edit { display: none; }
+input[type="date"][data-dfmt] { cursor: pointer; display: inline-flex; align-items: center; direction: rtl; }
+input[type="date"][data-dfmt]::before {
+    content: attr(data-dfmt);
+    flex: 1 1 auto;
+    min-width: 0;
+    direction: rtl;
+    unicode-bidi: plaintext;
+    text-align: right;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+input[type="date"][data-dfmt][data-dempty]::before { opacity: .5; }
+/* ===================== End Date Display ===================== */
