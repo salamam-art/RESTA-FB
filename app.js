@@ -245,7 +245,7 @@
 
         // ─── تسجيل الحجوزات المحذوفة في عقدة منفصلة (بديل شيت الحذف المنفصل) ────
         function logDeletedBookingToCloud(booking, deleteType) {
-            const hallName = (HALLS.find(h => h.id === booking.hallId) || {}).name || booking.hallName || '';
+            const hallName = (findHall(booking.hallId) || {}).name || booking.hallName || '';
 
             const payload = {
                 bookingId:   booking.id,
@@ -311,7 +311,13 @@
         // مصفوفة واحدة تُعدَّل في مكانها حتى تبقى كل المراجع الحالية صالحة
         const HALLS = DEFAULT_HALLS.map(normalizeHall);
         function applyHalls(list) { HALLS.length = 0; list.filter(h => h && h.id).map(normalizeHall).forEach(h => HALLS.push(h)); }
-        function hallDotColor(id) { const h = HALLS.find(x => x.id === id); return h ? h.dot : '#94a3b8'; }
+        // ─── فوتوشين: مش قاعة حقيقية — مش بتظهر في قوائم القاعات ولا إحصائيات الداشبورد ───
+        // بتتعامل كحجز عادي (مزامنة/إشعارات/أرشيف) بقاعة افتراضية ثابتة، وبتسمح بأكتر من حجز في نفس اليوم
+        const PHOTO_HALL_ID = 'photoshoot';
+        const PHOTO_HALL = normalizeHall({ id: PHOTO_HALL_ID, name: 'فوتوشين', icon: 'camera', colorKey: 'pink' });
+        function findHall(id) { return HALLS.find(h => h.id === id) || (id === PHOTO_HALL_ID ? PHOTO_HALL : undefined); }
+        function evEmoji(b) { return b && b.eventType === 'wedding' ? '💍 ' : (b && b.eventType === 'photoshoot' ? '📷 ' : ''); }
+        function hallDotColor(id) { const h = findHall(id); return h ? h.dot : '#94a3b8'; }
 
         // ===== وضع المستخدم الثابت (مثال: Restaevents.html?user=marwa) =====
         // دخول تلقائي بدون شاشة تسجيل دخول، وبدون زر خروج أو بصمة أو خروج تلقائي.
@@ -812,6 +818,7 @@
                         _EDIT_FIELDS.forEach(f => {
                             if (String(o[f[0]] == null ? '' : o[f[0]]).trim() !== String(b[f[0]] == null ? '' : b[f[0]]).trim() && !changed.includes(f[1])) changed.push(f[1]);
                         });
+                        if (JSON.stringify(o.photoshoot || null) !== JSON.stringify(b.photoshoot || null)) changed.push('السعر/المدفوع');
                         if (!changed.length) return;
                         // الحجز متعدد الأيام بيتعدّل كل أيامه مع بعض: إشعار واحد للمجموعة
                         const gk = String(b.groupId || String(b.id).split('_d')[0]);
@@ -1851,7 +1858,7 @@
                 head.height = 26;
 
                 bookings.forEach((b, i) => {
-                    const hall = HALLS.find(h => h.id === b.hallId);
+                    const hall = findHall(b.hallId);
                     const row = ws.getRow(4 + i);
                     const vals = [
                         i + 1,
@@ -1928,7 +1935,7 @@
                 ...bookings.map(b => [
                     b.id        || '',
                     b.companyName || '',
-                    HALLS.find(h => h.id === b.hallId)?.name || b.hallId || '',
+                    findHall(b.hallId)?.name || b.hallId || '',
                     b.startDate || '',
                     b.endDate   || '',
                     b.startTime || '',
@@ -2663,7 +2670,7 @@
                     // عرض الموبايل: كروت بدل الجدول
                     if (cardsBox) {
                         cardsBox.innerHTML = sortedBookings.map(b => {
-                            const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
+                            const hall = findHall(b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
                             const fmt = d => d ? String(d).split('-').reverse().join('/') : '—';
                             return `
                                 <div onclick="showDayDetails('${b.startDate}')" class="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm active:scale-[0.99] transition-transform cursor-pointer" style="border-right: 4px solid #A88A45;">
@@ -2685,7 +2692,7 @@
                         }).join('');
                     }
                     tbody.innerHTML = sortedBookings.map(b => {
-                        const hall = HALLS.find(h => h.id === b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
+                        const hall = findHall(b.hallId) || { name: 'غير معروف', color: 'bg-gray-100 text-gray-500' };
                         return `
                             <tr onclick="showDayDetails('${b.startDate}')" class="cursor-pointer hover:bg-slate-50 transition-all border-l-4 border-transparent hover:border-[#A88A45] bg-white group">
                                 <td class="font-bold text-[#6E1418] group-hover:pl-2 transition-all">${escapeHtml(b.companyName)}</td>
@@ -2975,6 +2982,7 @@
         }
 
         function checkConflict(hallId, date, startTime, endTime, ignoreId = null, ignoreGroup = false) {
+            if (hallId === PHOTO_HALL_ID) return false; // فوتوشين: أكتر من حجز في نفس اليوم مسموح
             return state.bookings.some(b => {
                 if (ignoreId) {
                     if (ignoreGroup && (b.groupId === ignoreId || b.id === ignoreId)) return false;
@@ -3255,7 +3263,7 @@
             const range = getBookingGroupRange(booking);
             const fmt = d => d ? d.split('-').reverse().join('/') : '';
             const days = diffDaysDateStr(range.startDate, range.endDate) + 1;
-            const hall = HALLS.find(h => h.id === booking.hallId);
+            const hall = findHall(booking.hallId);
             document.getElementById('copyBookingSummary').innerHTML =
                 'الحجز الأصلي: <strong class="text-[#6E1418]">' + escapeHtml(booking.companyName || '') + '</strong>' +
                 (hall ? '<br>القاعة: <strong>' + escapeHtml(hall.name) + '</strong>' : '') +
@@ -3399,7 +3407,7 @@
             state.activityLogs.unshift({
                 type:         'حذف',
                 company:      booking.companyName,
-                hallName:     (HALLS.find(h => h.id === booking.hallId) || {}).name || booking.hallName || '',
+                hallName:     (findHall(booking.hallId) || {}).name || booking.hallName || '',
                 user:         state.currentUserEmail,
                 bookingId:    booking.id || '',
                 startDate:    booking.startDate || '',
@@ -3445,7 +3453,7 @@
             state.activityLogs.unshift({
                 type:         'حذف',
                 company:      booking.companyName,
-                hallName:     (HALLS.find(h => h.id === booking.hallId) || {}).name || booking.hallName || '',
+                hallName:     (findHall(booking.hallId) || {}).name || booking.hallName || '',
                 user:         state.currentUserEmail,
                 bookingId:    booking.id || '',
                 startDate:    booking.startDate || '',
@@ -3561,13 +3569,22 @@
                 ` : '';
             }
 
+            if (actionsEl && state.view === 'dashboard' && !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr))) {
+                actionsEl.insertAdjacentHTML('beforeend', `
+                    <button onclick="openPhotoshootModal({date:'${dateStr}'})"
+                        class="flex items-center gap-2 bg-white/10 hover:bg-pink-400/30 border border-white/20 rounded-xl px-3 py-2 text-sm font-bold transition-all duration-200"
+                        title="إضافة حجز فوتوشين لهذا اليوم">
+                        <span>📷</span><span class="hidden sm:inline text-white">فوتوشين</span>
+                    </button>`);
+            }
+
             // Remove any leftover attachment dropdowns from a previous render
             // before wiping the list (they live under <body>, not under
             // #modalContent, since toggleAttachmentDropdown() reparents them).
             cleanupAttachmentDropdowns();
 
             const renderFullCard = (b) => {
-                const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف', color: 'bg-gray-100 text-gray-500', border: 'border-gray-200' };
+                const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف', color: 'bg-gray-100 text-gray-500', border: 'border-gray-200' };
                 const isOwner = b.createdBy === state.currentUserEmail;
                 const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
                 const canControl = isAdmin || (isOwner && !isPastDateStr(b.startDate));
@@ -3608,11 +3625,21 @@
                                 </div>
                                 <h4 class="font-black text-xl text-[#6E1418] mt-3 mb-4">${escapeHtml(b.companyName)}</h4>
                                 <div class="grid grid-cols-2 gap-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.startTime || 'يوم كامل'} - ${b.endTime || 'يوم كامل'}</span></div>
+                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.eventType === 'photoshoot' ? '📷 فوتوشين' : (b.startTime || 'يوم كامل') + ' - ' + (b.endTime || 'يوم كامل')}</span></div>
                                     <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${escapeHtml(b.employee) || 'غير محدد'}</span></div>
                                     <div class="flex items-center gap-2 col-span-2">${b.phone ? `<a href="tel:${escapeHtml(b.phone)}" class="flex items-center gap-2 group" title="اتصال بـ ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover:bg-green-50 group-active:bg-green-100 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45] group-hover:text-green-600 transition-colors"></i></div><span class="font-medium font-mono dir-ltr group-hover:text-green-600 transition-colors underline-offset-2 group-hover:underline">${escapeHtml(b.phone)}</span></a><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="flex items-center justify-center shrink-0 group/wa" title="واتساب ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover/wa:bg-green-50 group-active/wa:bg-green-100 transition-colors"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-[#A88A45] group-hover/wa:fill-green-600 transition-colors"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></div></a>` : `<div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div><span class="font-medium text-slate-400">لا يوجد رقم</span>`}</div>
                                 </div>
                                 
+                                ${(() => {
+                                    if (b.eventType !== 'photoshoot' || !b.photoshoot) return '';
+                                    const pr = Number(b.photoshoot.price) || 0, pd = Number(b.photoshoot.paid) || 0, rm = Math.max(0, pr - pd);
+                                    return `<div class="mt-4 grid grid-cols-3 gap-2 text-center">
+                                        <div class="bg-slate-50 border border-slate-100 rounded-xl py-2"><div class="text-[11px] font-bold text-slate-400">السعر</div><div class="text-sm font-black text-slate-700">${fmtEGP(pr)}</div></div>
+                                        <div class="bg-emerald-50 border border-emerald-100 rounded-xl py-2"><div class="text-[11px] font-bold text-emerald-600">المدفوع</div><div class="text-sm font-black text-emerald-700">${fmtEGP(pd)}</div></div>
+                                        <div class="${rm > 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'} border rounded-xl py-2"><div class="text-[11px] font-bold ${rm > 0 ? 'text-red-500' : 'text-emerald-600'}">المتبقي</div><div class="text-sm font-black ${rm > 0 ? 'text-red-600' : 'text-emerald-700'}">${fmtEGP(rm)}</div></div>
+                                    </div>`;
+                                })()}
+
                                 ${b.notes ? `
                                 <div class="mt-4 p-3 bg-amber-50/50 rounded-xl text-sm text-amber-900 border border-amber-100/50 flex items-start gap-2">
                                     <i data-lucide="info" class="w-4 h-4 mt-0.5 text-amber-600 shrink-0"></i>
@@ -3789,7 +3816,7 @@
             // كارت مختصر لكل حجز في قائمة اليوم
             const isAdminNow = state.currentUserEmail === ADMIN_EMAIL;
             const renderListCard = (b, i) => {
-                const hall = HALLS.find(h => h.id === b.hallId) || { name: '', color: '', border: '', icon: 'calendar' };
+                const hall = findHall(b.hallId) || { name: '', color: '', border: '', icon: 'calendar' };
                 const isOwner = b.createdBy === state.currentUserEmail;
                 const hiddenForMe = b.detailsHidden && !isAdminNow;
                 const timeTxt = (b.startTime && b.endTime) ? (b.startTime + ' - ' + b.endTime) : 'يوم كامل';
@@ -3863,7 +3890,7 @@
             // pickContact: من غير رقم — واتساب نفسه بيفتح قايمة اختيار الشخص والرسالة مكتوبة جاهزة
             const link = pickContact ? 'https://wa.me/' : getWhatsAppLink(phone);
             if (!link) return '';
-            const hallName = (HALLS.find(h => h.id === b.hallId) || {}).name || b.hallName || '-';
+            const hallName = (findHall(b.hallId) || {}).name || b.hallName || '-';
             const dateTxt  = b.startDate ? b.startDate.split('-').reverse().join('/') : '-';
             const w = b.wedding || {};
             const extras = w.extras || [];
@@ -3939,7 +3966,7 @@
                 return;
             }
 
-            const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف' };
+            const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف' };
 
             // Determine actual range from group (similar logic to upcoming bookings print)
             let startDate = b.startDate, endDate = b.endDate || b.startDate;
@@ -4377,7 +4404,7 @@ ${acknowledgmentHtml}
                 return;
             }
 
-            const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف' };
+            const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف' };
 
             // تحديد نطاق التاريخ الفعلي (بنفس منطق الطباعة)
             let startDate = b.startDate, endDate = b.endDate || b.startDate;
@@ -4496,7 +4523,7 @@ ${acknowledgmentHtml}
 
         // بناء نص تفاصيل الحجز (نفس محتوى إرسال البريد) لاستخدامه في المشاركة
         function buildBookingShareText(b) {
-            const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف' };
+            const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف' };
 
             let startDate = b.startDate, endDate = b.endDate || b.startDate;
             if (b.originalRange && b.originalRange.includes(' to ')) {
@@ -4648,8 +4675,13 @@ ${acknowledgmentHtml}
                     <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i><span>حجز جديد</span>
                 </button>` : '';
 
+            const psBtn = canAdd ? `
+                <button onclick="openPhotoshootModal({date:'${dateStr}'})" class="shrink-0 flex items-center gap-1 bg-pink-50 text-pink-700 border border-pink-200 text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                    <span>📷</span><span>فوتوشين</span>
+                </button>` : '';
+
             const items = bookings.map(b => {
-                const hall = HALLS.find(h => h.id === b.hallId) || { name: '' };
+                const hall = findHall(b.hallId) || { name: '' };
                 const isMyBooking = b.createdBy === state.currentUserEmail;
                 const canDrag = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || isMyBooking);
                 const time = b.startTime ? (b.startTime + (b.endTime ? ' – ' + b.endTime : '')) : 'طوال اليوم';
@@ -4665,7 +4697,7 @@ ${acknowledgmentHtml}
                          ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
                          ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
                         <div class="min-w-0 flex-1">
-                            <div class="text-sm font-black text-slate-800 truncate">${b.eventType === 'wedding' ? '💍 ' : ''}${escapeHtml(b.companyName)}</div>
+                            <div class="text-sm font-black text-slate-800 truncate">${evEmoji(b)}${escapeHtml(b.companyName)}</div>
                             <div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>
                         </div>
                         <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
@@ -4685,7 +4717,7 @@ ${acknowledgmentHtml}
                             <div class="text-sm font-black text-[#6E1418] truncate">${pretty}</div>
                             ${bookings.length ? `<div class="text-[11px] font-bold text-slate-400">${bookings.length} حجز</div>` : ''}
                         </div>
-                        ${addBtn}
+                        <div class="flex items-center gap-1.5 shrink-0">${psBtn}${addBtn}</div>
                     </div>
                     ${dayNoteBoxHtml(dateStr, true)}
                     ${body}
@@ -5390,7 +5422,7 @@ ${acknowledgmentHtml}
                 const hiddenCount = totalCount - visibleBookings.length;
 
                 const tagsHtml = visibleBookings.map(b => {
-                    const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف', color: 'bg-gray-100 text-gray-500', border: 'border-gray-200' };
+                    const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف', color: 'bg-gray-100 text-gray-500', border: 'border-gray-200' };
                     const isMyBooking = b.createdBy === state.currentUserEmail;
                     const canDrag = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || isMyBooking);
                     return `
@@ -5404,7 +5436,7 @@ ${acknowledgmentHtml}
                              ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
                              ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
                             <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" style="min-width:6px;"></div>
-                            <span>${b.eventType === 'wedding' ? '💍 ' : ''}${escapeHtml(b.companyName)}</span>
+                            <span>${evEmoji(b)}${escapeHtml(b.companyName)}</span>
                         </div>
                     `;
                 }).join('');
@@ -5541,6 +5573,7 @@ ${acknowledgmentHtml}
 
             const titleEl = document.getElementById('globalModalTitle');
             if (titleEl) titleEl.textContent = 'حجز جديد';
+            setPsSwitch(true);
 
             // إغلاق نافذة التفاصيل إن كانت مفتوحة
             document.getElementById('detailsModal').classList.add('hidden');
@@ -5954,10 +5987,123 @@ ${acknowledgmentHtml}
             document.querySelectorAll('body > .attachment-dropdown').forEach(el => el.remove());
         }
 
+        // ═══════════════════ فوتوشين (حجز تصوير بدون قاعة — أكتر من حجز في اليوم) ═══════════════════
+        function setPsSwitch(show) {
+            const b = document.getElementById('psSwitchBtn');
+            if (b) b.classList.toggle('hidden', !show);
+        }
+        // من فورم الحجز العادي: التحويل لفوتوشين مع نقل الاسم والهاتف والتاريخ
+        function switchToPhotoshoot() {
+            const f = document.getElementById('globalBookingForm');
+            const pre = f ? { name: f.company.value, phone: f.phone.value, date: f.dateFrom.value } : {};
+            const m = document.getElementById('globalBookingModal');
+            if (m && !m.classList.contains('hidden')) toggleGlobalBookingModal();
+            openPhotoshootModal(pre);
+        }
+        function psRecalc() {
+            const f = document.getElementById('photoshootForm');
+            if (!f) return;
+            const price = parseFloat(f.psPrice.value) || 0, paid = parseFloat(f.psPaid.value) || 0;
+            const rem = price - paid;
+            const el = document.getElementById('psRemaining');
+            el.textContent = fmtEGP(Math.max(0, rem));
+            el.className = 'font-black ' + (rem > 0 ? 'text-red-600' : 'text-emerald-700');
+        }
+        // src: حجز موجود (تعديل) أو {name, phone, date} لحجز جديد. copyOpts: نسخ حجز موجود لتاريخ جديد
+        function openPhotoshootModal(src, copyOpts) {
+            if (isGuest()) return;
+            src = src || {};
+            const isBooking = !!src.eventType;
+            const f = document.getElementById('photoshootForm');
+            if (!f) return;
+            f.reset();
+            window._psEditId = (isBooking && !copyOpts) ? src.id : null;
+            const ph = (isBooking && src.photoshoot) || {};
+            f.psName.value  = isBooking ? (src.companyName || '') : (src.name || '');
+            f.psPhone.value = isBooking ? (src.phone || '') : (src.phone || '');
+            f.psDate.value  = (copyOpts && copyOpts.newStart) ? copyOpts.newStart : (isBooking ? src.startDate : (src.date || new Date().toISOString().split('T')[0]));
+            f.psPrice.value = ph.price ? ph.price : '';
+            f.psPaid.value  = (isBooking && !copyOpts && ph.paid) ? ph.paid : '';
+            f.psLink.value  = isBooking ? (getBookingLinks(src)[0] || '') : '';
+            f.psNotes.value = isBooking ? (src.notes || '') : '';
+            document.getElementById('photoshootTitle').textContent = window._psEditId ? 'تعديل حجز فوتوشين' : (copyOpts ? 'نسخ حجز فوتوشين' : 'حجز فوتوشين جديد');
+            psRecalc();
+            document.getElementById('detailsModal').classList.add('hidden');
+            document.getElementById('photoshootModal').classList.remove('hidden');
+            if (typeof lucide !== "undefined") refreshIcons('photoshootModal');
+        }
+        function closePhotoshootModal() {
+            const m = document.getElementById('photoshootModal');
+            if (m) m.classList.add('hidden');
+            window._psEditId = null;
+        }
+        function savePhotoshoot(e) {
+            e.preventDefault();
+            if (isGuest()) return;
+            const f = e.target;
+            const name = f.psName.value.trim();
+            const date = f.psDate.value;
+            if (!name) { alert('اكتب الاسم'); return; }
+            if (!date) { alert('اختر التاريخ'); return; }
+            const price = Math.max(0, parseFloat(f.psPrice.value) || 0);
+            const paid  = Math.max(0, parseFloat(f.psPaid.value) || 0);
+            if (paid > price) { alert('المبلغ المدفوع أكبر من السعر'); return; }
+            const link = f.psLink.value.trim();
+            const editId = window._psEditId;
+            const old = editId ? state.bookings.find(b => b.id === editId) : null;
+            if (editId && !old) { closePhotoshootModal(); return; }
+            if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(date) && (!old || old.startDate !== date)) {
+                alert('عذراً، لا يمكنك إضافة حجز في يوم منصرم. هذه الصلاحية للأدمن فقط.');
+                return;
+            }
+            const base = {
+                hallId: PHOTO_HALL_ID, hallName: PHOTO_HALL.name,
+                companyName: name, phone: f.psPhone.value.trim(),
+                startDate: date, endDate: date, startTime: '', endTime: '',
+                notes: f.psNotes.value.trim(), links: link ? [link] : [],
+                eventType: 'photoshoot', photoshoot: { price: price, paid: paid }
+            };
+            const fmtD = d => d ? d.split('-').reverse().join('/') : '';
+            let logType, logMsg;
+            if (old) {
+                const moved = old.startDate !== date;
+                state.bookings = state.bookings.map(b => b.id === editId
+                    ? { ...b, ...base, employee: b.employee || getDefaultEmployeeName(), images: b.images || [], originalRange: date + ' to ' + date, _isDirty: true }
+                    : b);
+                logType = moved ? 'نقل' : 'تعديل';
+                logMsg = moved
+                    ? 'تم نقل حجز - ' + name + ' - من ' + fmtD(old.startDate) + ' إلى ' + fmtD(date)
+                    : 'تم تعديل حجز - ' + name + ' - بتاريخ ' + fmtD(date);
+            } else {
+                const groupId = String(Date.now()) + '_' + Math.random().toString(36).slice(2);
+                state.bookings.push({
+                    ...base, id: groupId + '_d0', groupId: groupId,
+                    employee: getDefaultEmployeeName(), images: [],
+                    createdBy: state.currentUserEmail, createdAt: new Date().toISOString(),
+                    originalRange: date + ' to ' + date, _isDirty: true
+                });
+                logType = 'إضافة';
+                logMsg = 'تم إضافة حجز - ' + name + ' - بتاريخ ' + fmtD(date);
+            }
+            addNotification(logMsg, 'add', date);
+            showToast(logMsg, 'success', date);
+            state.activityLogs.unshift({
+                type: logType, company: name, hallName: PHOTO_HALL.name,
+                user: state.currentUserEmail,
+                date: new Date().toLocaleDateString('ar-EG'),
+                time: new Date().toLocaleTimeString('ar-EG'),
+                isoTimestamp: new Date().toISOString()
+            });
+            saveLocal();
+            closePhotoshootModal();
+            render();
+        }
+
         // ─── Global New Booking Modal ─────────────────────────────────────
         function openGlobalBookingForEdit(id, groupId, copyOpts) {
             const booking = state.bookings.find(b => b.id === id);
             if (!booking) return;
+            if (booking.eventType === 'photoshoot') { openPhotoshootModal(booking, copyOpts); return; }
 
             // Always track the groupId (not the individual day id) for smart-merge edits
             const resolvedGroupId = groupId || booking.groupId || id;
@@ -6043,6 +6189,7 @@ ${acknowledgmentHtml}
 
             const titleEl = document.getElementById('globalModalTitle');
             if (titleEl) titleEl.textContent = copyOpts ? 'نسخ حجز — راجع التفاصيل ثم احفظ' : 'تعديل الحجز الحالي';
+            setPsSwitch(false);
             modal.classList.remove('hidden');
             if(typeof lucide!=="undefined") refreshIcons('globalBookingModal');
         }
@@ -6076,6 +6223,7 @@ ${acknowledgmentHtml}
                     '<i data-lucide="check-circle" class="w-6 h-6 text-[#A88A45]"></i><span>حفظ بيانات الحجز</span>';
                 const titleEl = document.getElementById('globalModalTitle');
                 if (titleEl) titleEl.textContent = 'حجز جديد';
+                setPsSwitch(true);
 
                 modal.classList.remove('hidden');
                 if(typeof lucide!=="undefined") refreshIcons('globalBookingModal');
@@ -6197,7 +6345,7 @@ ${acknowledgmentHtml}
             return Array.from(document.querySelectorAll('.other-menu-block')).map(block => {
                 const hallSelectEl = block.querySelector('.other-menu-hall');
                 const hallId = hallSelectEl ? hallSelectEl.value : '';
-                const hall = HALLS.find(h => h.id === hallId);
+                const hall = findHall(hallId);
                 const guests = block.querySelector('.other-menu-guests') ? (parseFloat(block.querySelector('.other-menu-guests').value) || 0) : 0;
                 const pricePerPerson = block.querySelector('.other-menu-price') ? (parseFloat(block.querySelector('.other-menu-price').value) || 0) : 0;
                 return {
@@ -7146,7 +7294,7 @@ ${acknowledgmentHtml}
         function handleGlobalBookingSubmitInner(e) {
             const form   = e.target;
             const hallId = form.hallId.value;
-            const hall   = HALLS.find(h => h.id === hallId);
+            const hall   = findHall(hallId);
             if (!hall) { alert('الرجاء اختيار القاعة أولاً'); return; }
 
             const isEditing = !!state.editingBookingId;
@@ -7917,7 +8065,7 @@ ${acknowledgmentHtml}
             const waIcon = `<svg viewBox="0 0 24 24" class="w-4 h-4 fill-green-600"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg>`;
 
             cardsBox.innerHTML = records.map((b, i) => {
-                const hall = HALLS.find(h => h.id === b.hallId);
+                const hall = findHall(b.hallId);
                 const hallName = hall ? hall.name : (b.hallName || '—');
                 const dot = hall ? hall.dot : '#94a3b8';
                 const dateTxt = fmtDate(b.startDate) + (b.endDate && b.endDate !== b.startDate ? ' ← ' + fmtDate(b.endDate) : '');
@@ -7960,7 +8108,7 @@ ${acknowledgmentHtml}
             const printDate = new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
             const rows = records.map((b, i) => {
-                const hall = HALLS.find(h => h.id === b.hallId);
+                const hall = findHall(b.hallId);
                 const hallName = hall ? hall.name : (b.hallName || '-');
                 const dateTxt = fmtDate(b.startDate) + (b.endDate && b.endDate !== b.startDate ? ' ← ' + fmtDate(b.endDate) : '');
                 const timeTxt = (b.startTime && b.endTime) ? b.startTime + ' – ' + b.endTime : (b.startTime || 'يوم كامل');
@@ -8149,7 +8297,7 @@ ${acknowledgmentHtml}
             const fmtDate = d => d ? d.split('-').reverse().join('/') : '-';
 
             const rows = uniqueUpcoming.map((b, i) => {
-                const hall = HALLS.find(h => h.id === b.hallId) || { name: b.hallId || 'غير معروف' };
+                const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف' };
 
                 // Determine actual range from group
                 let startDate = b.startDate, endDate = b.endDate || b.startDate;
