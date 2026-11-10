@@ -796,7 +796,7 @@
                         const _deletedByName = (((_delLogMatch && _delLogMatch.user) || '').split('@')[0]) || 'مستخدم آخر';
                         const _byPart = isGuest() ? '' : ` بواسطة ${_deletedByName}`; // الزائر لا يقرأ السجلات فلا يمكن معرفة الاسم
                         addNotification(`تم حذف حجز${_byPart}: ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'delete', b.startDate);
-                        showToast(`تم حذف حجز${_byPart} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error', null, { center: true });
+                        showToast(`تم حذف حجز${_byPart} - ${b.companyName} - بتاريخ ${b.startDate ? b.startDate.split('-').reverse().join('/') : ''}`, 'error', b.startDate);
                     }
                 });
 
@@ -8907,7 +8907,7 @@ window.openFromNotification = function (date, bookingId) {
                 msg = dels[0].text;
             }
         } catch (e) {}
-        showToast(msg, 'error', null, { center: true });
+        showToast(msg, 'error');
     };
 
     // نسأل السيرفر مرة واحدة (قراءة فقط): هل الحجز لسه موجود؟ وتاريخه الحالي إيه؟
