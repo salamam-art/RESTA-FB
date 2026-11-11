@@ -570,12 +570,21 @@
             </div>
             <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
                 <form onsubmit="savePhotoshoot(event)" id="photoshootForm" class="space-y-4" autocomplete="off">
+                    <input type="hidden" name="psKind" value="floor">
+                    <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                        <button type="button" id="psKindFloor" onclick="psSetKind('floor')" class="py-2.5 rounded-lg text-sm font-black transition-all bg-white text-[#6E1418] shadow">أرضية التصوير</button>
+                        <button type="button" id="psKindPrep" onclick="psSetKind('prep')" class="py-2.5 rounded-lg text-sm font-black transition-all text-slate-500">غرفة تجهيز</button>
+                    </div>
                     <div class="input-group">
                         <label class="required">الاسم</label>
                         <input type="text" name="psName" required maxlength="80" placeholder="اسم العميل">
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="input-group">
+                        <div class="input-group hidden" id="psRoomWrap">
+                            <label>رقم الغرفة</label>
+                            <input type="text" name="psRoom" maxlength="20" placeholder="اختياري">
+                        </div>
+                        <div class="input-group" id="psPhoneWrap">
                             <label>الهاتف</label>
                             <input type="tel" name="psPhone" maxlength="20" placeholder="01xxxxxxxxx" dir="ltr" style="text-align:right">
                         </div>
@@ -584,6 +593,7 @@
                             <input type="date" name="psDate" required>
                         </div>
                     </div>
+                    <div id="psFloorOnly" class="space-y-4">
                     <div class="grid grid-cols-2 gap-3">
                         <div class="input-group">
                             <label>السعر (جنيه)</label>
@@ -600,6 +610,7 @@
                     <div class="input-group">
                         <label>لينك المرفقات</label>
                         <input type="url" name="psLink" placeholder="https://..." dir="ltr" style="text-align:right">
+                    </div>
                     </div>
                     <div class="input-group">
                         <label>ملاحظات</label>
