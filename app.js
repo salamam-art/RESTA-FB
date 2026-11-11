@@ -368,20 +368,6 @@
         function evEmoji(b) { return b && b.eventType === 'wedding' ? '💍 ' : (b && b.eventType === 'photoshoot' ? '📷 ' : ''); }
         function hallDotColor(id) { const h = findHall(id); return h ? h.dot : '#94a3b8'; }
 
-        // ===== وضع المستخدم الثابت (مثال: Restaevents.html?user=marwa) =====
-        // دخول تلقائي بدون شاشة تسجيل دخول، وبدون زر خروج أو بصمة أو خروج تلقائي.
-        // لإضافة مستخدم ثابت آخر: أضف سطرًا جديدًا داخل FIXED_USERS.
-        const FIXED_USERS = { marwa: 'marwa@gmail.com' };
-        const FIXED_USER_EMAIL = FIXED_USERS[(new URLSearchParams(location.search).get('user') || '').toLowerCase()] || '';
-        // ملاحظة أمنية: لم يعد الدخول بدون كلمة مرور ممكنًا. المستخدم الثابت يسجّل الدخول مرة واحدة
-        // بكلمة المرور على كل جهاز، وبعدها تبقى جلسة Firebase محفوظة فيدخل تلقائيًا في المرات التالية.
-        if (FIXED_USER_EMAIL) {
-            const fixedStyle = document.createElement('style');
-            fixedStyle.textContent = 'button[onclick="logout()"], button[onclick="toggleBiometricForCurrentUser()"]{display:none!important}';
-            document.head.appendChild(fixedStyle);
-        }
-        // ===== نهاية وضع المستخدم الثابت =====
-
         let state = {
             currentUserEmail: localStorage.getItem('hotel_app_email') || '',
             isLoggedIn: !!localStorage.getItem('hotel_app_email'),
@@ -489,16 +475,7 @@
             const localEmail = state.currentUserEmail;
             const uEmail = u && u.email ? u.email.toLowerCase() : '';
 
-            // مستخدم ثابت (?user=marwa) عنده جلسة صالحة على الجهاز → دخول تلقائي
-            if (FIXED_USER_EMAIL && u && !u.isAnonymous && uEmail === FIXED_USER_EMAIL) {
-                state.currentUserEmail = FIXED_USER_EMAIL;
-                state.isLoggedIn = true;
-                localStorage.setItem('hotel_app_email', FIXED_USER_EMAIL);
-                unlockApp();
-                return;
-            }
-
-            if (!state.isLoggedIn) { prefillFixedUserEmail(); return; }
+            if (!state.isLoggedIn) return;
 
             const valid = u && (localEmail === GUEST_EMAIL ? u.isAnonymous : (!u.isAnonymous && uEmail === localEmail));
             if (!valid) {
@@ -509,7 +486,6 @@
                 hideBiometricLockScreen();
                 document.getElementById('app').style.display = 'none';
                 document.getElementById('loginModal').style.display = 'flex';
-                prefillFixedUserEmail();
                 updateLoginScreenBiometricButton();
                 return;
             }
@@ -521,17 +497,10 @@
                 hideBiometricLockScreen();
                 document.getElementById('app').style.display = 'none';
                 document.getElementById('loginModal').style.display = 'flex';
-                prefillFixedUserEmail();
                 updateLoginScreenBiometricButton();
                 return;
             }
             attemptAutoUnlock();
-        }
-
-        function prefillFixedUserEmail() {
-            if (!FIXED_USER_EMAIL) return;
-            const el = document.getElementById('loginEmail');
-            if (el && !el.value) el.value = FIXED_USER_EMAIL;
         }
 
         // ─── إعدادات باقات الأفراح والخطوبة (مشتركة بين جميع المستخدمين) ───
@@ -2134,7 +2103,6 @@
         // خروج عادي: لو البصمة مفعّلة لهذا المستخدم على الجهاز نُبقي جلسة Firebase (مقفولة بالبصمة)
         // عشان الدخول بالبصمة يفضل شغال؛ وإلا بننهي الجلسة بالكامل. جلسة الزائر بتتحفظ لإعادة استخدامها.
         function logout(force) {
-            if (FIXED_USER_EMAIL && !force) return; // المستخدم الثابت لا يخرج
             if (CLOUD_ENABLED) teardownRealtimeSync();
             stopPresence();
             stopChat();
@@ -2148,7 +2116,6 @@
             document.getElementById('app').style.display = 'none';
             document.getElementById('loginEmail').value = '';
             document.getElementById('loginPassword').value = '';
-            prefillFixedUserEmail();
 
             const stored = getBiometricCredential();
             const keepSession = !force && prevEmail && (
@@ -2448,7 +2415,6 @@
         }
 
         async function attemptAutoUnlock() {
-            if (FIXED_USER_EMAIL) { unlockApp(); return; } // بدون قفل بصمة
             const stored = getBiometricCredential();
             const canTryBiometric = stored && stored.email === state.currentUserEmail &&
                 state.currentUserEmail !== GUEST_EMAIL && await isBiometricAvailable();
@@ -5780,13 +5746,13 @@ ${acknowledgmentHtml}
 
         // ─── صورة الحساب (Avatar) بجانب الإيميل ───────────────────────────
         // الصورة تُرفع إلى Storage (avatars/<emailKey>.jpg) ويُحفظ رابطها في userPhotos/<emailKey>.
-        // الزائر والمستخدم الثابت (?user=) يبقون على الأيقونة الافتراضية ولا يمكنهم التغيير.
+        // الزائر يبقى على الأيقونة الافتراضية ولا يمكنه التغيير.
         const AVATAR_SIZE = 256; // px — مربعة، وتُعرض دائرية بالـ CSS
         const AVATAR_JPEG_QUALITY = 0.85;
         let avatarListenerEmail = '';
 
         function avatarEnabled() {
-            return !!(state.isLoggedIn && state.currentUserEmail && !isGuest() && !FIXED_USER_EMAIL);
+            return !!(state.isLoggedIn && state.currentUserEmail && !isGuest());
         }
         // صور كل الحسابات (يحمّلها الأدمن فقط عند فتح نافذة المستخدمين): { emailKey: url }
         let adminUserPhotos = {};
