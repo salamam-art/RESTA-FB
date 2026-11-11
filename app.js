@@ -3625,13 +3625,13 @@
                                 </div>
                                 <h4 class="font-black text-xl text-[#6E1418] mt-3 mb-4">${escapeHtml(b.companyName)}</h4>
                                 <div class="grid grid-cols-2 gap-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.eventType === 'photoshoot' ? '📷 فوتوشين' : (b.startTime || 'يوم كامل') + ' - ' + (b.endTime || 'يوم كامل')}</span></div>
+                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.eventType === 'photoshoot' ? (b.photoshoot && b.photoshoot.sub === 'prep' ? '📷 غرفة تجهيز' + (b.photoshoot.room ? ' - غرفة ' + escapeHtml(b.photoshoot.room) : '') : '📷 فوتوشين') : (b.startTime || 'يوم كامل') + ' - ' + (b.endTime || 'يوم كامل')}</span></div>
                                     <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${escapeHtml(b.employee) || 'غير محدد'}</span></div>
                                     <div class="flex items-center gap-2 col-span-2">${b.phone ? `<a href="tel:${escapeHtml(b.phone)}" class="flex items-center gap-2 group" title="اتصال بـ ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover:bg-green-50 group-active:bg-green-100 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45] group-hover:text-green-600 transition-colors"></i></div><span class="font-medium font-mono dir-ltr group-hover:text-green-600 transition-colors underline-offset-2 group-hover:underline">${escapeHtml(b.phone)}</span></a><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="flex items-center justify-center shrink-0 group/wa" title="واتساب ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover/wa:bg-green-50 group-active/wa:bg-green-100 transition-colors"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-[#A88A45] group-hover/wa:fill-green-600 transition-colors"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></div></a>` : `<div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div><span class="font-medium text-slate-400">لا يوجد رقم</span>`}</div>
                                 </div>
                                 
                                 ${(() => {
-                                    if (b.eventType !== 'photoshoot' || !b.photoshoot) return '';
+                                    if (b.eventType !== 'photoshoot' || !b.photoshoot || b.photoshoot.sub === 'prep') return '';
                                     const pr = Number(b.photoshoot.price) || 0, pd = Number(b.photoshoot.paid) || 0, rm = Math.max(0, pr - pd);
                                     return `<div class="mt-4 grid grid-cols-3 gap-2 text-center">
                                         <div class="bg-slate-50 border border-slate-100 rounded-xl py-2"><div class="text-[11px] font-bold text-slate-400">السعر</div><div class="text-sm font-black text-slate-700">${fmtEGP(pr)}</div></div>
@@ -6000,6 +6000,19 @@ ${acknowledgmentHtml}
             if (m && !m.classList.contains('hidden')) toggleGlobalBookingModal();
             openPhotoshootModal(pre);
         }
+        function psSetKind(kind) {
+            const f = document.getElementById('photoshootForm');
+            if (!f) return;
+            const prep = kind === 'prep';
+            f.psKind.value = prep ? 'prep' : 'floor';
+            document.getElementById('psFloorOnly').classList.toggle('hidden', prep);
+            document.getElementById('psPhoneWrap').classList.toggle('hidden', prep);
+            document.getElementById('psRoomWrap').classList.toggle('hidden', !prep);
+            const on = 'py-2.5 rounded-lg text-sm font-black transition-all bg-white text-[#6E1418] shadow';
+            const off = 'py-2.5 rounded-lg text-sm font-black transition-all text-slate-500';
+            document.getElementById('psKindFloor').className = prep ? off : on;
+            document.getElementById('psKindPrep').className = prep ? on : off;
+        }
         function psRecalc() {
             const f = document.getElementById('photoshootForm');
             if (!f) return;
@@ -6027,6 +6040,8 @@ ${acknowledgmentHtml}
             f.psLink.value  = isBooking ? (getBookingLinks(src)[0] || '') : '';
             f.psNotes.value = isBooking ? (src.notes || '') : '';
             document.getElementById('photoshootTitle').textContent = window._psEditId ? 'تعديل حجز فوتوشين' : (copyOpts ? 'نسخ حجز فوتوشين' : 'حجز فوتوشين جديد');
+            f.psRoom.value = (ph.sub === 'prep' && ph.room) ? ph.room : '';
+            psSetKind(ph.sub === 'prep' ? 'prep' : 'floor');
             psRecalc();
             document.getElementById('detailsModal').classList.add('hidden');
             document.getElementById('photoshootModal').classList.remove('hidden');
@@ -6045,10 +6060,11 @@ ${acknowledgmentHtml}
             const date = f.psDate.value;
             if (!name) { alert('اكتب الاسم'); return; }
             if (!date) { alert('اختر التاريخ'); return; }
-            const price = Math.max(0, parseFloat(f.psPrice.value) || 0);
-            const paid  = Math.max(0, parseFloat(f.psPaid.value) || 0);
+            const isPrep = f.psKind.value === 'prep';
+            const price = isPrep ? 0 : Math.max(0, parseFloat(f.psPrice.value) || 0);
+            const paid  = isPrep ? 0 : Math.max(0, parseFloat(f.psPaid.value) || 0);
             if (paid > price) { alert('المبلغ المدفوع أكبر من السعر'); return; }
-            const link = f.psLink.value.trim();
+            const link = isPrep ? '' : f.psLink.value.trim();
             const editId = window._psEditId;
             const old = editId ? state.bookings.find(b => b.id === editId) : null;
             if (editId && !old) { closePhotoshootModal(); return; }
@@ -6058,10 +6074,10 @@ ${acknowledgmentHtml}
             }
             const base = {
                 hallId: PHOTO_HALL_ID, hallName: PHOTO_HALL.name,
-                companyName: name, phone: f.psPhone.value.trim(),
+                companyName: name, phone: isPrep ? '' : f.psPhone.value.trim(),
                 startDate: date, endDate: date, startTime: '', endTime: '',
                 notes: f.psNotes.value.trim(), links: link ? [link] : [],
-                eventType: 'photoshoot', photoshoot: { price: price, paid: paid }
+                eventType: 'photoshoot', photoshoot: isPrep ? { sub: 'prep', room: f.psRoom.value.trim() } : { price: price, paid: paid }
             };
             const fmtD = d => d ? d.split('-').reverse().join('/') : '';
             let logType, logMsg;
