@@ -44,6 +44,55 @@
         // مزامنة غير ضرورية عندما يكون التغيير صادراً من كتابتنا نحن أنفسنا
         let _lastKnownUpdatedAt = null;
 
+        // حالة اتصال Firebase الفعلية (null = لسه مش معروفة). بنستخدمها لمنع حفظ الحجوزات وقت انقطاع الإنترنت،
+        // لأن Firebase بيحتفظ بالكتابات المعلّقة ويرفعها لما النت يرجع، واحنا مش عايزين ده.
+        let _fbConnected = null;
+        try { db.ref('.info/connected').on('value', (snap) => { _fbConnected = snap.val() === true; updateConnBanner(); }); } catch (e) {}
+
+        // شريط تحذير أحمر أعلى الشاشة يظهر لما الاتصال بالإنترنت ينقطع ويختفي لما يرجع
+        let _connBannerTimer = null;
+        let _connWasOffline = false;
+        function _isOffline() { return navigator.onLine === false || _fbConnected === false; }
+        function updateConnBanner() {
+            let bar = document.getElementById('connLostBanner');
+            if (_isOffline()) {
+                if (_connBannerTimer || (bar && bar.style.display !== 'none')) return;
+                // تأخير بسيط عشان ما يظهرش مع أي رجّة لحظية في الشبكة
+                _connBannerTimer = setTimeout(() => {
+                    _connBannerTimer = null;
+                    if (!_isOffline() || !state.isLoggedIn) return;
+                    if (!bar) {
+                        bar = document.createElement('div');
+                        bar.id = 'connLostBanner';
+                        bar.setAttribute('role', 'alert');
+                        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B91C1C;color:#fff;'
+                            + 'text-align:center;font-weight:800;font-size:14px;line-height:1.6;direction:rtl;'
+                            + 'padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px;box-shadow:0 2px 10px rgba(0,0,0,.3);';
+                        bar.textContent = '⚠️ انقطع الاتصال بالإنترنت — لن يتم حفظ أي حجز لحين عودة الاتصال';
+                        document.body.appendChild(bar);
+                    }
+                    bar.style.display = 'block';
+                    _connWasOffline = true;
+                }, 2000);
+            } else {
+                if (_connBannerTimer) { clearTimeout(_connBannerTimer); _connBannerTimer = null; }
+                if (bar) bar.style.display = 'none';
+                if (_connWasOffline) {
+                    _connWasOffline = false;
+                    try { showToast('تم استعادة الاتصال بالإنترنت', 'success'); } catch (e) {}
+                }
+            }
+        }
+        window.addEventListener('offline', updateConnBanner);
+        window.addEventListener('online', updateConnBanner);
+        function ensureOnlineForSave() {
+            if (navigator.onLine === false || _fbConnected === false) {
+                alert('لا يوجد اتصال بالإنترنت — لم يتم حفظ الحجز.\nتأكد من الاتصال ثم أعد المحاولة (بياناتك لسه موجودة في الشاشة).');
+                return false;
+            }
+            return true;
+        }
+
         const ADMIN_EMAIL = "salama.m@gmail.com";
 
         // منع تغيير قيمة حقول الأرقام (input type="number") بالخطأ عن طريق سكرول
@@ -6055,6 +6104,7 @@ ${acknowledgmentHtml}
         function savePhotoshoot(e) {
             e.preventDefault();
             if (isGuest()) return;
+            if (!ensureOnlineForSave()) return;
             const f = e.target;
             const name = f.psName.value.trim();
             const date = f.psDate.value;
@@ -7285,6 +7335,7 @@ ${acknowledgmentHtml}
 
         function handleGlobalBookingSubmit(e) {
             e.preventDefault();
+            if (!ensureOnlineForSave()) return;
 
             // ─── منع الإرسال المزدوج ────────────────────────────────────────
             // نقرة مزدوجة (أو تاتش سريع مرتين) على زر الحفظ كانت تسبب تنفيذ هذه
