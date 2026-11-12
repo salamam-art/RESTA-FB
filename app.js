@@ -350,6 +350,230 @@
             }
         }
 
+        // ─── سجل التعديلات: بيسجّل كان إيه وبقى إيه ومين عدّل (عقدة editedBookings في Firebase) ───
+        const EDIT_EVENT_LABELS = { normal: 'عادي', wedding: 'فرح', other: 'أخرى', photoshoot: 'فوتوشين' };
+
+        function _editFmtDate(d) { return d ? String(d).split('-').reverse().join('/') : ''; }
+        function _editHallName(day) { return (findHall(day.hallId) || {}).name || day.hallName || ''; }
+
+        // بيقارن حالة الحجز (كل أيامه) قبل وبعد، ويرجّع قايمة بالحقول اللي اتغيّرت
+        function computeBookingChanges(oldDays, newDays) {
+            const byDate = arr => (arr || []).slice().sort((x, y) => String(x.startDate || '').localeCompare(String(y.startDate || '')));
+            const o = byDate(oldDays), n = byDate(newDays);
+            if (!o.length || !n.length) return [];
+            const a = o[0], b = n[0];
+            const changes = [];
+            const show = v => (v === null || v === undefined || String(v).trim() === '') ? '—' : String(v).trim();
+            const push = (label, before, after, money) => {
+                const bs = show(before), af = show(after);
+                if (bs !== af) changes.push({ label: label, before: bs, after: af, money: !!money });
+            };
+            const range = days => {
+                const ds = days.map(d => d.startDate).filter(Boolean);
+                if (!ds.length) return '';
+                const f = _editFmtDate(ds[0]), l = _editFmtDate(ds[ds.length - 1]);
+                return f === l ? f : f + ' إلى ' + l;
+            };
+            const tm = d => (d.startTime || d.endTime) ? ((d.startTime || '—') + ' - ' + (d.endTime || '—')) : '';
+
+            push('اسم الشركة', a.companyName, b.companyName);
+            push('القاعة', _editHallName(a), _editHallName(b));
+            push('التاريخ', range(o), range(n));
+            push('الوقت', tm(a), tm(b));
+            push('الهاتف', a.phone, b.phone);
+            push('القائم بالحجز', a.employee, b.employee);
+            push('الملاحظات', a.notes, b.notes);
+            push('نوع المناسبة', EDIT_EVENT_LABELS[a.eventType || 'normal'] || a.eventType, EDIT_EVENT_LABELS[b.eventType || 'normal'] || b.eventType);
+            push('الروابط', getBookingLinks(a).join(' ، '), getBookingLinks(b).join(' ، '));
+            push('عدد الصور', (a.images || []).length, (b.images || []).length);
+
+            // فوتوشين
+            const pa = a.photoshoot || {}, pb = b.photoshoot || {};
+            push('سعر الفوتوشين', pa.price, pb.price, true);
+            push('المدفوع', pa.paid, pb.paid, true);
+            push('الغرفة', pa.room, pb.room);
+
+            // فرح
+            if (a.wedding || b.wedding) {
+                const x = a.wedding || {}, y = b.wedding || {};
+                const ex = w => (w.extras || []).filter(e => e && e.active).map(e => e.name || e.key).join(' ، ');
+                push('الباقة', x.packageName, y.packageName);
+                push('عدد الأفراد', x.guests, y.guests);
+                push('سعر الفرد', x.pricePerPerson, y.pricePerPerson, true);
+                push('الإضافات', ex(x), ex(y));
+                push('إجمالي الفرح', x.total, y.total, true);
+                push('المدفوع (فرح)', x.paidTotal, y.paidTotal, true);
+                push('قائمة الطعام', (x.menuItems || []).join(' ، '), (y.menuItems || []).join(' ، '));
+                push('ملاحظات المنيو', x.menuNotes, y.menuNotes);
+            }
+
+            // مناسبة أخرى (منيو/معدات/دفعات): بنسجّل إنها اتعدّلت بدون تفاصيل
+            const jo = v => JSON.stringify(v || null);
+            if (jo(a.otherMenu) !== jo(b.otherMenu)) {
+                changes.push({ label: 'المنيو / المعدات / الدفعات', before: '', after: '', summary: 'تم التعديل', money: true });
+            }
+            return changes;
+        }
+
+        function logEditedBookingToCloud(oldDays, newDays, editType) {
+            try {
+                const changes = computeBookingChanges(oldDays, newDays);
+                if (!changes.length) return;
+                const nd = (newDays || []).slice().sort((x, y) => String(x.startDate || '').localeCompare(String(y.startDate || '')));
+                const first = nd[0], last = nd[nd.length - 1];
+                const payload = {
+                    editType:    editType || 'تعديل',
+                    bookingId:   first.id || '',
+                    groupId:     first.groupId || '',
+                    companyName: first.companyName || '',
+                    hallName:    _editHallName(first),
+                    startDate:   first.startDate || '',
+                    endDate:     last.startDate || '',
+                    hidden:      !!first.detailsHidden,
+                    changes:     changes,
+                    editedBy:    state.currentUserEmail || '',
+                    editedAt:    new Date().toISOString()
+                };
+                db.ref('editedBookings').push(JSON.parse(JSON.stringify(payload))).catch(() => {});
+            } catch (e) {
+                // نتجاهل أي خطأ هنا حتى لا يعطّل عملية التعديل الأساسية
+            }
+        }
+
+        async function toggleEditedBookingsModal() {
+            if (isGuest()) return;
+            const modal = document.getElementById('editedBookingsModal');
+            if (!modal) return;
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                if (typeof lucide !== "undefined") refreshIcons();
+                await loadEditedBookings();
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        async function loadEditedBookings() {
+            const box = document.getElementById('editedBookingsList');
+            if (!box) return;
+            box.innerHTML = '<div class="text-center py-12 text-slate-400 font-bold">جاري تحميل سجل التعديلات...</div>';
+            let records = [];
+            let failed = false;
+            try {
+                if (CLOUD_ENABLED) {
+                    const snap = await db.ref('editedBookings').limitToLast(300).once('value');
+                    const val = snap.val() || {};
+                    records = Object.entries(val).map(([key, r]) => Object.assign({ key: key }, r));
+                }
+            } catch (e) {
+                failed = true;
+            }
+            if (failed) {
+                box.innerHTML = '<div class="text-center py-12 text-red-500 font-bold">تعذّر تحميل سجل التعديلات. تأكد من صلاحيات القراءة لعقدة editedBookings في قواعد Firebase.</div>';
+                return;
+            }
+            records.sort((x, y) => String(y.editedAt || '').localeCompare(String(x.editedAt || '')));
+            window._allEditedBookings = records;
+            const s = document.getElementById('editedBookingsSearchInput');
+            if (s) s.value = '';
+            renderEditedBookings(records);
+        }
+
+        function renderEditedBookings(records) {
+            const box = document.getElementById('editedBookingsList');
+            const badge = document.getElementById('editedBookingsCountBadge');
+            if (!box) return;
+            if (badge) badge.textContent = records.length + ' تعديل';
+            const isAdminUser = state.currentUserEmail === ADMIN_EMAIL;
+
+            if (!records.length) {
+                box.innerHTML = '<div class="text-center py-16 text-slate-400 font-bold">لا توجد تعديلات مسجّلة حتى الآن</div>';
+                return;
+            }
+
+            box.innerHTML = records.map(r => {
+                let tsDate = '—', tsTime = '';
+                if (r.editedAt) {
+                    try {
+                        const d = new Date(r.editedAt);
+                        tsDate = d.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                        tsTime = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+                    } catch (e) { /* تجاهل */ }
+                }
+                const dateRange = r.startDate
+                    ? (r.endDate && r.endDate !== r.startDate ? _editFmtDate(r.startDate) + ' ← ' + _editFmtDate(r.endDate) : _editFmtDate(r.startDate))
+                    : '—';
+                const isMove = r.editType === 'نقل';
+                const typeColor = isMove ? 'bg-sky-100 text-sky-700 border border-sky-200' : 'bg-amber-100 text-amber-700 border border-amber-200';
+                const changes = Array.isArray(r.changes) ? r.changes : [];
+
+                let rows;
+                if (r.hidden && !isAdminUser) {
+                    rows = '<div class="text-xs font-bold text-slate-400 px-1 py-2">تفاصيل هذا الحجز مخفية (للأدمن فقط)</div>';
+                } else {
+                    rows = changes.map(c => {
+                        const label = '<div class="text-[11px] font-black text-slate-500 mb-1">' + escapeHtml(c.label || '') + '</div>';
+                        let body;
+                        if (c.money && !isAdminUser) {
+                            body = '<div class="text-xs font-bold text-slate-400">تم التعديل (القيم للأدمن فقط)</div>';
+                        } else if (c.summary) {
+                            body = '<div class="text-xs font-bold text-slate-700">' + escapeHtml(c.summary) + '</div>';
+                        } else {
+                            body = '<div class="flex flex-col gap-1 text-xs">'
+                                + '<div class="flex items-start gap-2"><span class="shrink-0 font-black text-red-500 w-10">كان</span><span class="font-bold text-slate-500 line-through break-words min-w-0">' + escapeHtml(c.before) + '</span></div>'
+                                + '<div class="flex items-start gap-2"><span class="shrink-0 font-black text-emerald-600 w-10">بقى</span><span class="font-black text-slate-800 break-words min-w-0">' + escapeHtml(c.after) + '</span></div>'
+                                + '</div>';
+                        }
+                        return '<div class="bg-slate-50 rounded-xl px-3 py-2">' + label + body + '</div>';
+                    }).join('');
+                }
+
+                const delBtn = isAdminUser
+                    ? '<button onclick="deleteEditedBookingRecord(\'' + escapeHtml(r.key) + '\')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all shrink-0" title="حذف هذا السجل"><i data-lucide="trash-2" class="w-4 h-4"></i></button>'
+                    : '';
+
+                return '<div class="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm" style="border-right: 4px solid #A88A45;">'
+                    + '<div class="flex items-start justify-between gap-2">'
+                    +   '<div class="min-w-0"><div class="font-black text-[#6E1418] text-sm leading-snug break-words">' + escapeHtml(r.companyName || '—') + '</div>'
+                    +   '<div class="text-[11px] font-bold text-slate-400 mt-0.5">' + escapeHtml(r.hallName || '') + (r.hallName ? ' • ' : '') + dateRange + '</div></div>'
+                    +   '<span class="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg shrink-0 ' + typeColor + '">' + escapeHtml(r.editType || 'تعديل') + '</span>'
+                    + '</div>'
+                    + '<div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">' + rows + '</div>'
+                    + '<div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">'
+                    +   '<div class="flex items-center gap-2 min-w-0">'
+                    +     '<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 font-black text-[11px] border border-slate-200">' + escapeHtml(r.editedBy ? r.editedBy.charAt(0).toUpperCase() : '?') + '</div>'
+                    +     '<div class="min-w-0"><div class="text-[11px] font-bold text-slate-600 truncate" dir="ltr" style="text-align:right;">' + escapeHtml(r.editedBy || '—') + '</div>'
+                    +     '<div class="text-[10px] text-slate-400 font-medium">' + tsDate + ' ' + tsTime + '</div></div>'
+                    +   '</div>' + delBtn
+                    + '</div></div>';
+            }).join('');
+            if (typeof lucide !== "undefined") refreshIcons();
+        }
+
+        function filterEditedBookings() {
+            const q = (document.getElementById('editedBookingsSearchInput').value || '').trim().toLowerCase();
+            if (!window._allEditedBookings) return;
+            const list = !q ? window._allEditedBookings : window._allEditedBookings.filter(r => {
+                const hay = [r.companyName, r.hallName, r.editedBy, r.editType]
+                    .concat((r.changes || []).map(c => [c.label, c.before, c.after].join(' ')))
+                    .join(' ').toLowerCase();
+                return hay.includes(q);
+            });
+            renderEditedBookings(list);
+        }
+
+        async function deleteEditedBookingRecord(key) {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            if (!confirm('حذف هذا السجل نهائياً؟')) return;
+            try {
+                await db.ref('editedBookings/' + key).remove();
+                if (window._allEditedBookings) window._allEditedBookings = window._allEditedBookings.filter(r => r.key !== key);
+                filterEditedBookings();
+            } catch (e) {
+                alert('تعذّر حذف السجل');
+            }
+        }
+
         // ─── Default Employee Name Based on Logged-in User ────────────────
         const DEFAULT_EMPLOYEE_BY_EMAIL = {
             "salama.m@gmail.com": "محمد عبد السلام",
@@ -2994,6 +3218,8 @@
                 isoTimestamp: new Date().toISOString()
             });
 
+            logEditedBookingToCloud([{ ...booking, startDate: oldDate }], [booking], 'نقل');
+
             saveLocal();
             render();
         }
@@ -4902,6 +5128,12 @@ ${acknowledgmentHtml}
                                         </span>
                                         الحجوزات المحذوفة
                                     </button>
+                                    <button onclick="toggleEditedBookingsModal(); toggleMoreMenu()">
+                                        <span class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="history" class="w-4 h-4 text-amber-600"></i>
+                                        </span>
+                                        سجل التعديلات
+                                    </button>
                                     ` : ''}
                                     <button onclick="toggleArchiveModal(); toggleMoreMenu()">
                                         <span class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
@@ -4960,6 +5192,9 @@ ${acknowledgmentHtml}
                             ${!isGuest() ? `
                             <button onclick="toggleDeletedBookingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0" title="الحجوزات المحذوفة">
                                 <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="toggleEditedBookingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all shrink-0" title="سجل التعديلات">
+                                <i data-lucide="history" class="w-5 h-5"></i>
                             </button>
                             ` : ''}
                             <button onclick="toggleArchiveModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="الأرشيف">
@@ -6163,6 +6398,10 @@ ${acknowledgmentHtml}
                 time: new Date().toLocaleTimeString('ar-EG'),
                 isoTimestamp: new Date().toISOString()
             });
+            if (old) {
+                const _psNew = state.bookings.find(b => b.id === editId);
+                if (_psNew) logEditedBookingToCloud([old], [_psNew], logType);
+            }
             saveLocal();
             closePhotoshootModal();
             render();
@@ -7422,6 +7661,7 @@ ${acknowledgmentHtml}
                 ? state.editingBookingId
                 : String(Date.now()) + '_' + Math.random().toString(36).slice(2);
 
+            let _editOldDays = null; // لقطة من أيام الحجز قبل التعديل (لسجل التعديلات)
             if (isEditing) {
                 // ── Smart merge ──────────────────────────────────────────────
                 // 1. Find all existing days of this group
@@ -7429,6 +7669,7 @@ ${acknowledgmentHtml}
                     b.groupId === groupId || b.id === groupId
                 );
                 const existingDates = existingGroupDays.map(b => b.startDate);
+                _editOldDays = existingGroupDays.map(d => ({ ...d }));
 
                 // 2. Remove days that are no longer in the new range
                 const idsToRemove = existingGroupDays
@@ -7533,6 +7774,10 @@ ${acknowledgmentHtml}
                 time:         new Date().toLocaleTimeString('ar-EG'),
                 isoTimestamp: new Date().toISOString()
             });
+
+            if (isEditing && _editOldDays) {
+                logEditedBookingToCloud(_editOldDays, state.bookings.filter(b => b.groupId === groupId || b.id === groupId), 'تعديل');
+            }
 
             state.editingBookingId = null;
             saveLocal();

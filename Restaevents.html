@@ -400,6 +400,42 @@
         </div>
     </div>
 
+    <!-- Edited Bookings Modal (سجل التعديلات) -->
+    <div id="editedBookingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
+            <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
+                        <i data-lucide="history" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-xl tracking-wide">سجل التعديلات</h3>
+                        <p class="text-xs text-white/70 font-medium mt-0.5">كل تعديل على الحجوزات: كان إيه وبقى إيه ومين عدّل، من الأحدث للأقدم</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('editedBookingsModal').classList.add('hidden')" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 shrink-0 flex items-center gap-3">
+                <div class="relative flex-1">
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                    </div>
+                    <input id="editedBookingsSearchInput" type="text" oninput="filterEditedBookings()" placeholder="بحث في التعديلات (اسم العميل، القاعة، المستخدم...)"
+                        class="w-full pr-10 pl-4 py-2.5 border border-slate-200 rounded-xl bg-white text-sm outline-none focus:border-[#A88A45] focus:ring-2 focus:ring-[#A88A45]/20 transition-all font-medium">
+                </div>
+                <button onclick="loadEditedBookings()" class="p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="تحديث">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+                <div id="editedBookingsCountBadge" class="text-xs font-bold text-slate-400 whitespace-nowrap shrink-0 bg-slate-100 px-3 py-2 rounded-xl"></div>
+            </div>
+            <div class="flex-1 bg-slate-50" style="overflow-y: auto;">
+                <div id="editedBookingsList" class="p-3 space-y-3"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Deleted Bookings Modal -->
     <div id="deletedBookingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4">
         <div class="bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in">
@@ -1006,7 +1042,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261112c"></script>
+    <script src="app.js?v=20261113c"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">
