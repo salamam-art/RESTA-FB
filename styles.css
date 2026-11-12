@@ -1083,3 +1083,8 @@ html.dark .day-note-chip { background: rgba(245, 158, 11, 0.18); color: #fcd34d;
     .day-note-chip { font-size: 0.5rem; padding: 0 2px; height: 14px; line-height: 12px; border-right-width: 3px; border-radius: 0.3rem; }
 }
 /* ===================== End Day Notes ===================== */
+
+/* ===================== تبهيت أزرار حفظ الحجز أثناء انقطاع الاتصال (عرض فقط — المنع نفسه في ensureOnlineForSave) ===================== */
+body.is-offline #globalBookingForm button[type="submit"],
+body.is-offline #photoshootForm button[type="submit"] { opacity: .45; filter: grayscale(.6); cursor: not-allowed; }
+/* ===================== End Offline Save Buttons ===================== */

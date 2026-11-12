@@ -55,6 +55,7 @@
         function _isOffline() { return navigator.onLine === false || _fbConnected === false; }
         function updateConnBanner() {
             let bar = document.getElementById('connLostBanner');
+            try { document.body.classList.toggle('is-offline', _isOffline()); } catch (e) {} // تبهيت أزرار الحفظ أثناء الانقطاع (عرض فقط)
             if (_isOffline()) {
                 if (_connBannerTimer || (bar && bar.style.display !== 'none')) return;
                 // تأخير بسيط عشان ما يظهرش مع أي رجّة لحظية في الشبكة
