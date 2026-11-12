@@ -52,7 +52,37 @@
         // شريط تحذير أحمر أعلى الشاشة يظهر لما الاتصال بالإنترنت ينقطع ويختفي لما يرجع
         let _connBannerTimer = null;
         let _connWasOffline = false;
-        function _isOffline() { return navigator.onLine === false || _fbConnected === false; }
+        // فحص نشط للإنترنت على الكمبيوتر فقط (الموبايل نظام التشغيل بيبلّغ لحظيًا). بيجرب الوصول لسيرفر Firebase نفسه بطلب HTTP عادي
+        // (مش عن طريق SDK ومش بيلمس المزامنة)، لو فشل مرتين ورا بعض نعتبر الاتصال مقطوع.
+        let _pingDown = false;
+        function _isOffline() { return navigator.onLine === false || _fbConnected === false || _pingDown; }
+        (function startDesktopPing() {
+            try {
+                const ua = navigator.userAgent || '';
+                if (/Android|iPhone|iPad|iPod|Mobile|;\s*wv\)/i.test(ua)) return;
+                const url = (firebase.app().options.databaseURL || '').replace(/\/$/, '') + '/.json?shallow=true';
+                if (url.indexOf('http') !== 0) return;
+                let fails = 0;
+                const INTERVAL = 5000, TIMEOUT = 4000;
+                async function ping() {
+                    if (document.hidden) return;
+                    let ok = false;
+                    const ctrl = new AbortController();
+                    const to = setTimeout(() => ctrl.abort(), TIMEOUT);
+                    try {
+                        // no-cors: أي رد (حتى 401 من قواعد القراءة) معناه إن السيرفر وصلناله
+                        await fetch(url + '&_=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
+                        ok = true;
+                    } catch (e) { ok = false; }
+                    clearTimeout(to);
+                    fails = ok ? 0 : fails + 1;
+                    const down = fails >= 2;
+                    if (down !== _pingDown) { _pingDown = down; updateConnBanner(); }
+                }
+                setInterval(ping, INTERVAL);
+                document.addEventListener('visibilitychange', () => { if (!document.hidden) ping(); });
+            } catch (e) { /* الفحص اختياري */ }
+        })();
         function updateConnBanner() {
             let bar = document.getElementById('connLostBanner');
             try { document.body.classList.toggle('is-offline', _isOffline()); } catch (e) {} // تبهيت أزرار الحفظ أثناء الانقطاع (عرض فقط)
@@ -87,7 +117,7 @@
         window.addEventListener('offline', updateConnBanner);
         window.addEventListener('online', updateConnBanner);
         function ensureOnlineForSave() {
-            if (navigator.onLine === false || _fbConnected === false) {
+            if (_isOffline()) {
                 alert('لا يوجد اتصال بالإنترنت — لم يتم حفظ الحجز.\nتأكد من الاتصال ثم أعد المحاولة (بياناتك لسه موجودة في الشاشة).');
                 return false;
             }
