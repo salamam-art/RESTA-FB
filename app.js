@@ -2242,6 +2242,11 @@
             return !!(window.Android && typeof window.Android.authenticateBiometric === 'function');
         }
 
+        // متصفح كمبيوتر (مش تطبيق الأندرويد ولا متصفح موبايل): الدخول بالبصمة/Windows Hello متعطّل هنا
+        function _isDesktopBrowser() {
+            return !hasAndroidBiometricBridge() && !/Android|iPhone|iPad|iPod|Mobile|;\s*wv\)/i.test(navigator.userAgent || '');
+        }
+
         let _androidBiometricResolver = null;
 
         // دالة لطلب البصمة من تطبيق الأندرويد (بترجع Promise تتحل لما يوصل الرد)
@@ -2271,6 +2276,7 @@
 
         async function isBiometricAvailable() {
             if (hasAndroidBiometricBridge()) return true;
+            if (_isDesktopBrowser()) return false;
             try {
                 return !!(window.PublicKeyCredential &&
                     typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function' &&
@@ -5038,7 +5044,7 @@ ${acknowledgmentHtml}
                                 </button>
                             ` : ''}
 
-                            ${((window.PublicKeyCredential || hasAndroidBiometricBridge()) && state.currentUserEmail !== GUEST_EMAIL) ? `
+                            ${((window.PublicKeyCredential || hasAndroidBiometricBridge()) && !_isDesktopBrowser() && state.currentUserEmail !== GUEST_EMAIL) ? `
                                 <button onclick="toggleBiometricForCurrentUser()" class="p-2 sm:p-2.5 ${isBiometricRegisteredForCurrentUser() ? 'text-[#6E1418] bg-red-50' : 'text-slate-500 hover:text-[#6E1418] hover:bg-red-50'} rounded-xl transition-all shrink-0" title="${isBiometricRegisteredForCurrentUser() ? 'إلغاء الدخول بالبصمة' : 'تفعيل الدخول بالبصمة'}">
                                     <i data-lucide="fingerprint" class="w-5 h-5"></i>
                                 </button>
