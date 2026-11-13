@@ -413,10 +413,10 @@
         .sync-dropdown button:not(:last-child), .sync-dropdown a:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
         .sync-dropdown .hdr-dd-title { padding: 8px 16px 6px; font-size: 10px; font-weight: 900; color: #94a3b8; background: #f8fafc; border-bottom: 1px solid #f1f5f9; letter-spacing: .02em; }
         .sync-dropdown { max-width: calc(100vw - 16px); }
-        /* موبايل: القائمة fixed جوه الهيدر (الهيدر عنده backdrop-filter فهو الـ containing block)
+        /* موبايل: القائمة fixed ومتوسطة أفقيًا في منتصف الشاشة (الهيدر عنده backdrop-filter فهو الـ containing block)
            فمبتخرجش برا الشاشة ومبتعملش overflow أفقي يزق الواجهة */
         @media (max-width: 639px) {
-            .hdr-dd .sync-dropdown { position: fixed; top: 72px; left: 8px; right: auto; transform-origin: top left; }
+            .hdr-dd .sync-dropdown { position: fixed; top: 72px; left: 0; right: 0; margin-left: auto; margin-right: auto; width: max-content; max-width: calc(100vw - 16px); transform-origin: top center; }
         }
         .sync-dropdown.hdr-scroll { max-height: calc(100vh - 90px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
         @media (max-width: 639px) { .sync-dropdown.hdr-scroll { min-width: 240px; } }
