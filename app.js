@@ -6292,6 +6292,8 @@ ${acknowledgmentHtml}
             if (!f) return;
             const prep = kind === 'prep';
             f.psKind.value = prep ? 'prep' : 'floor';
+            const _sub = document.getElementById('psSubtitle');
+            if (_sub) _sub.textContent = prep ? 'غرفة تجهيز' : 'تصوير داخل الفندق — بدون قاعة';
             document.getElementById('psFloorOnly').classList.toggle('hidden', prep);
             document.getElementById('psPhoneWrap').classList.toggle('hidden', prep);
             document.getElementById('psRoomWrap').classList.toggle('hidden', !prep);
