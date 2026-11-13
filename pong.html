@@ -20,6 +20,7 @@
     -webkit-tap-highlight-color:transparent;
     touch-action:none;
   }
+  @supports (height:100dvh){ html,body{ height:100dvh; } }
   #bgGlow{
     position:fixed;inset:0;
     background:
@@ -33,6 +34,7 @@
     position:relative;
     width:100%;
     height:100%;
+    padding:calc(env(safe-area-inset-top,0px) + 46px) 0 calc(env(safe-area-inset-bottom,0px) + 8px);
     display:flex;
     flex-direction:column;
     align-items:center;
@@ -92,7 +94,7 @@
   #controls{
     display:flex;
     gap:12px;
-    margin-top:12px;
+    margin-top:8px;
     flex-wrap:wrap;
     justify-content:center;
   }
@@ -101,6 +103,7 @@
     border:1px solid var(--neon-cyan);
     color:var(--neon-cyan);
     padding:8px 18px;
+    min-height:40px;
     border-radius:8px;
     font-size:13px;
     letter-spacing:1px;
@@ -128,7 +131,7 @@
   #sliderWrap{
     direction:ltr;
     width:min(96vw, 420px);
-    margin:14px auto 0;
+    margin:8px auto 0;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -150,11 +153,14 @@
     appearance:none;
     direction:ltr;
     width:100%;
-    height:8px;
+    height:34px;
+    padding:13px 0;
+    background-clip:content-box;
     border-radius:4px;
     background:linear-gradient(90deg, rgba(0,255,242,0.28), rgba(255,43,214,0.28));
+    background-clip:content-box;
     outline:none;
-    box-shadow:0 0 8px rgba(0,255,242,0.15), inset 0 0 3px rgba(0,0,0,0.5);
+    box-shadow:none;
     cursor:pointer;
     flex:1 1 auto;
     touch-action:none;
@@ -162,8 +168,8 @@
   #paddleSlider::-webkit-slider-thumb{
     -webkit-appearance:none;
     appearance:none;
-    width:24px;
-    height:24px;
+    width:34px;
+    height:34px;
     border-radius:50%;
     background:#fff;
     border:2px solid var(--neon-cyan);
@@ -171,8 +177,8 @@
     cursor:pointer;
   }
   #paddleSlider::-moz-range-thumb{
-    width:24px;
-    height:24px;
+    width:34px;
+    height:34px;
     border-radius:50%;
     background:#fff;
     border:2px solid var(--neon-cyan);
@@ -190,7 +196,7 @@
     color:#888;
     font-size:11px;
     letter-spacing:1px;
-    margin-top:8px;
+    margin-top:2px;
   }
 
   .overlay{
@@ -232,7 +238,7 @@
     background:rgba(255,255,255,0.05);
     border:1px solid #444;
     color:#aaa;
-    padding:8px 16px;
+    padding:10px 18px;
     border-radius:8px;
     cursor:pointer;
     font-size:13px;
@@ -340,6 +346,9 @@
     justify-content:center;
   }
 
+  @media (max-height:700px){
+    #sliderLabel{ display:none; }
+  }
   @media (max-width:600px){
     .scoreValue{font-size:30px;}
     .btn{padding:7px 14px;font-size:12px;}
@@ -425,17 +434,31 @@
   const LOGICAL_H = 800;
 
   function resizeCanvas(){
-    const maxW = Math.min(window.innerWidth * 0.96, 520);
-    const maxH = window.innerHeight * 0.72;
+    // measure everything else in the column (score bar, buttons, slider...) and give the canvas what is left
+    const container = document.getElementById('gameContainer');
+    let used = 0;
+    Array.prototype.forEach.call(container.children, function(el){
+      if(el === canvasWrap) return;
+      const cs = getComputedStyle(el);
+      if(cs.display === 'none' || cs.position === 'fixed' || cs.position === 'absolute') return;
+      used += el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+    });
+    const ccs = getComputedStyle(container);
+    const padV = (parseFloat(ccs.paddingTop) || 0) + (parseFloat(ccs.paddingBottom) || 0);
+    const wrapExtra = 12 + 4; // canvasWrap padding + small safety margin
+    const maxW = Math.min(window.innerWidth * 0.96 - 12, 520);
+    const maxH = window.innerHeight - used - padV - wrapExtra;
     let scale = Math.min(maxW / LOGICAL_W, maxH / LOGICAL_H);
-    if(scale <= 0 || !isFinite(scale)) scale = 1;
+    if(scale <= 0.15 || !isFinite(scale)) scale = 0.15;
     canvas.style.width = (LOGICAL_W * scale) + 'px';
     canvas.style.height = (LOGICAL_H * scale) + 'px';
     canvas.width = LOGICAL_W;
     canvas.height = LOGICAL_H;
   }
   window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', function(){ setTimeout(resizeCanvas, 200); });
   resizeCanvas();
+  window.addEventListener('load', resizeCanvas);
 
   /* ============ حالة اللعبة ============ */
   const state = {

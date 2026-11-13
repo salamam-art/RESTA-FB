@@ -18,6 +18,7 @@
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{
     margin:0; height:100%;
+    overflow:hidden; touch-action:none;
     background:#0a0a0a;
     background-image:radial-gradient(circle at 50% 0%, #2a2a28, #0a0a0a 70%);
     display:flex; align-items:center; justify-content:center;
@@ -25,6 +26,7 @@
     overscroll-behavior:none;
     user-select:none;
   }
+  @supports (height:100dvh){ html,body{ height:100dvh; } }
   .phone{
     width:min(94vw, 380px);
     background:linear-gradient(160deg, var(--phone-body-light), var(--phone-body) 60%);
@@ -64,6 +66,7 @@
     width:100%;
     background:var(--lcd-bg);
     image-rendering:pixelated;
+    touch-action:none;
   }
   #overlay{
     position:absolute; inset:0;
@@ -102,26 +105,32 @@
   .dpad{
     direction:ltr;
     display:grid;
-    grid-template-columns:42px 42px 42px;
-    grid-template-rows:42px 42px 42px;
+    grid-template-columns:52px 52px 52px;
+    grid-template-rows:52px 52px 52px;
     grid-template-areas:
       ".  up   ."
       "left . right"
       ".  down .";
-    gap:4px;
+    gap:6px;
   }
   .dpad button{
     border:none; border-radius:8px;
     background:var(--phone-body-light);
     color:#cfd6bd;
     box-shadow: 0 2px 0 #000, inset 0 1px 1px rgba(255,255,255,0.08);
-    font-size:16px;
+    font-size:20px;
     display:flex; align-items:center; justify-content:center;
     cursor:pointer;
+    touch-action:none;
   }
   .dpad button:active{ background:var(--accent); transform:translateY(1px); }
   .dpad .up{grid-area:up;} .dpad .down{grid-area:down;}
   .dpad .left{grid-area:left;} .dpad .right{grid-area:right;}
+  @media (max-height:700px){
+    .earpiece{ display:none; }
+    .phone{ padding-top:14px; padding-bottom:14px; }
+    .controls{ margin-top:10px; }
+  }
   .hint{
     color:#8d9178; font-size:11px; text-align:center; flex:1;
     line-height:1.5;
@@ -171,10 +180,18 @@
   let cellSize = 20;
 
   function resize(){
-    const wrapWidth = canvas.parentElement.clientWidth;
-    cellSize = Math.floor(wrapWidth / COLS);
+    // fit the whole phone (screen + buttons) inside the visible window, width AND height
+    const phone = document.querySelector('.phone');
+    const wrap = canvas.parentElement;
+    phone.style.width = '';
+    const wrapWidth = wrap.clientWidth;
+    const extraW = phone.offsetWidth - wrapWidth;               // padding/borders around the screen
+    const extraH = phone.offsetHeight - canvas.offsetHeight;    // everything above/below the canvas
+    const maxByH = (window.innerHeight - extraH - 12) / ROWS;
+    cellSize = Math.max(8, Math.floor(Math.min(wrapWidth / COLS, maxByH)));
     canvas.width = cellSize * COLS;
     canvas.height = cellSize * ROWS;
+    phone.style.width = (cellSize * COLS + extraW) + 'px';
     draw();
   }
 
@@ -389,7 +406,8 @@
 
   // ---------- Input: on-screen D-pad ----------
   document.querySelectorAll('.dpad button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('pointerdown', (e)=>{
+      e.preventDefault();
       if(!running && !gameOver) startGame();
       setDirection(btn.dataset.dir);
     });
@@ -423,6 +441,7 @@
 
   startBtn.addEventListener('click', startGame, {once:true});
   window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', ()=>setTimeout(resize, 200));
 
   // ---------- Init ----------
   resetState();
