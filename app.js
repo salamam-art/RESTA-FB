@@ -579,8 +579,20 @@
             "salama.m@gmail.com": "محمد عبد السلام",
             "rihan@gmail.com": "علاء شحاته"
         };
+        // اسم الموظف من الإيميل: الجدول أولاً، وإلا الجزء اللي قبل @ بشكل منسّق (marwa → Marwa)
+        function _nameFromEmail(email) {
+            const e = String(email || '').toLowerCase().trim();
+            if (!e) return '';
+            if (DEFAULT_EMPLOYEE_BY_EMAIL[e]) return DEFAULT_EMPLOYEE_BY_EMAIL[e];
+            return e.split('@')[0].replace(/[._\-]+/g, ' ').trim()
+                .replace(/\b[a-z]/g, c => c.toUpperCase());
+        }
         function getDefaultEmployeeName() {
-            return DEFAULT_EMPLOYEE_BY_EMAIL[(state.currentUserEmail || '').toLowerCase()] || '';
+            return _nameFromEmail(state.currentUserEmail);
+        }
+        // للعرض فقط: اسم الموظف المسجّل، وللحجوزات القديمة الفاضية اسم من أنشأ الحجز
+        function _empName(b) {
+            return (b && b.employee) || (b && _nameFromEmail(b.createdBy)) || '';
         }
 
         // Colors for JS Injection
@@ -2142,7 +2154,7 @@
                         b.startTime || '',
                         b.endTime || '',
                         b.phone ? String(b.phone) : '',
-                        b.employee || '',
+                        _empName(b) || '',
                         b.notes || '',
                         getBookingLinks(b).join('\n'),
                         b.createdBy || '',
@@ -2214,7 +2226,7 @@
                     b.startTime || '',
                     b.endTime   || '',
                     b.phone     || '',
-                    b.employee  || '',
+                    _empName(b)  || '',
                     (b.notes    || '').replace(/\n/g, ' '),
                     getBookingLinks(b).join(' | '),
                     b.createdBy || '',
@@ -3922,7 +3934,7 @@
                                 <h4 class="font-black text-xl text-[#6E1418] mt-3 mb-4">${escapeHtml(b.companyName)}</h4>
                                 <div class="grid grid-cols-2 gap-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-bold">${b.eventType === 'photoshoot' ? (b.photoshoot && b.photoshoot.sub === 'prep' ? '📷 غرفة تجهيز' + (b.photoshoot.room ? ' - غرفة ' + escapeHtml(b.photoshoot.room) : '') : '📷 فوتوسيشن') : (b.startTime || 'يوم كامل') + ' - ' + (b.endTime || 'يوم كامل')}</span></div>
-                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${escapeHtml(b.employee) || 'غير محدد'}</span></div>
+                                    <div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i></div> <span class="font-medium truncate">${escapeHtml(_empName(b)) || 'غير محدد'}</span></div>
                                     <div class="flex items-center gap-2 col-span-2">${b.phone ? `<a href="tel:${escapeHtml(b.phone)}" class="flex items-center gap-2 group" title="اتصال بـ ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover:bg-green-50 group-active:bg-green-100 transition-colors"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45] group-hover:text-green-600 transition-colors"></i></div><span class="font-medium font-mono dir-ltr group-hover:text-green-600 transition-colors underline-offset-2 group-hover:underline">${escapeHtml(b.phone)}</span></a><a href="${getWhatsAppLink(b.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="flex items-center justify-center shrink-0 group/wa" title="واتساب ${escapeHtml(b.phone)}"><div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0 group-hover/wa:bg-green-50 group-active/wa:bg-green-100 transition-colors"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-[#A88A45] group-hover/wa:fill-green-600 transition-colors"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2m0 1.67a8.2 8.2 0 018.24 8.24c0 4.55-3.7 8.24-8.25 8.24a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 01-1.26-4.38c0-4.55 3.7-8.24 8.25-8.24m-4.53 4.72c-.16 0-.42.06-.64.31s-.85.83-.85 2.03.87 2.36.99 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.47-.28s-1.44-.71-1.66-.79-.39-.12-.55.12c-.16.24-.63.79-.77.95-.14.16-.28.18-.53.06-.24-.12-1.02-.38-1.95-1.2-.72-.64-1.2-1.44-1.35-1.68-.14-.24-.02-.37.11-.5.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.47" /></svg></div></a>` : `<div class="w-6 h-6 rounded bg-white shadow-sm flex items-center justify-center shrink-0"><i data-lucide="phone" class="w-3.5 h-3.5 text-[#A88A45]"></i></div><span class="font-medium text-slate-400">لا يوجد رقم</span>`}</div>
                                 </div>
                                 
@@ -4130,7 +4142,7 @@
                             ? '<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mt-1"><i data-lucide="eye-off" class="w-3 h-3"></i> التفاصيل مخفية</div>'
                             : `<div class="flex items-center gap-3 text-xs font-bold text-slate-500 mt-1 flex-wrap">
                                    <span class="inline-flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5 text-[#A88A45]"></i>${timeTxt}</span>
-                                   ${b.employee ? `<span class="inline-flex items-center gap-1 truncate"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i>${escapeHtml(b.employee)}</span>` : ''}
+                                   ${_empName(b) ? `<span class="inline-flex items-center gap-1 truncate"><i data-lucide="user" class="w-3.5 h-3.5 text-[#A88A45]"></i>${escapeHtml(_empName(b))}</span>` : ''}
                                </div>`}
                     </div>
                     ${hiddenForMe ? '' : '<i data-lucide="chevron-left" class="w-5 h-5 day-card-chevron shrink-0"></i>'}
@@ -4329,7 +4341,7 @@
                 ['التاريخ', dateRow],
                 ['الوقت', timeDisplay],
                 ['رقم الهاتف', b.phone || 'لا يوجد رقم'],
-                ['القائم بالحجز', (b.employee || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;')],
+                ['القائم بالحجز', (_empName(b) || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;')],
                 ['تم الإنشاء بواسطة', (b.createdBy || '-').split('@')[0]],
                 ['تاريخ الإنشاء', createdAtDisplay],
             ];
@@ -4739,7 +4751,7 @@ ${acknowledgmentHtml}
                 `القاعة: ${hall.name}`,
                 `التاريخ: ${dateRow}`,
                 `الوقت: ${timeDisplay}`,
-                `القائم بالحجز: ${b.employee || 'غير محدد'}`,
+                `القائم بالحجز: ${_empName(b) || 'غير محدد'}`,
                 `رقم الهاتف: ${b.phone || 'لا يوجد رقم'}`,
                 `تم الإنشاء بواسطة: ${(b.createdBy || '-').split('@')[0]}`,
                 `تاريخ الإنشاء: ${createdAtDisplay}`,
@@ -4856,7 +4868,7 @@ ${acknowledgmentHtml}
                 `القاعة: ${hall.name}`,
                 `التاريخ: ${dateRow}`,
                 `الوقت: ${timeDisplay}`,
-                `القائم بالحجز: ${b.employee || 'غير محدد'}`,
+                `القائم بالحجز: ${_empName(b) || 'غير محدد'}`,
                 `رقم الهاتف: ${b.phone || 'لا يوجد رقم'}`,
                 `تم الإنشاء بواسطة: ${(b.createdBy || '-').split('@')[0]}`,
                 `تاريخ الإنشاء: ${createdAtDisplay}`,
@@ -6561,7 +6573,7 @@ ${acknowledgmentHtml}
             if (old) {
                 const moved = old.startDate !== date;
                 state.bookings = state.bookings.map(b => b.id === editId
-                    ? { ...b, ...base, employee: b.employee || getDefaultEmployeeName(), images: psImgs, originalRange: date + ' to ' + date, _isDirty: true }
+                    ? { ...b, ...base, employee: _empName(b) || getDefaultEmployeeName(), images: psImgs, originalRange: date + ' to ' + date, _isDirty: true }
                     : b);
                 logType = moved ? 'نقل' : 'تعديل';
                 logMsg = moved
@@ -8596,7 +8608,7 @@ ${acknowledgmentHtml}
                         ${timeTxt ? `<span class="inline-flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1" style="direction:ltr;">🕒 ${escapeHtml(timeTxt)}</span>` : ''}
                     </div>
                     ${phoneHtml}
-                    ${b.employee ? `<div class="text-xs font-bold text-slate-400 mt-1">الموظف: ${escapeHtml(b.employee)}</div>` : ''}
+                    ${_empName(b) ? `<div class="text-xs font-bold text-slate-400 mt-1">الموظف: ${escapeHtml(_empName(b))}</div>` : ''}
                     ${b.notes ? `<div class="mt-2 text-sm text-slate-600 bg-amber-50/60 border border-amber-100/50 rounded-xl px-3 py-2 break-words whitespace-pre-wrap">${escapeHtml(b.notes)}</div>` : ''}
                 </div>`;
             }).join('');
@@ -8625,7 +8637,7 @@ ${acknowledgmentHtml}
                     <td class="hall">${escapeHtml(hallName)}</td>
                     <td class="date">${dateTxt}</td>
                     <td class="time">${escapeHtml(timeTxt)}</td>
-                    <td class="emp">${escapeHtml(b.employee) || '-'}</td>
+                    <td class="emp">${escapeHtml(_empName(b)) || '-'}</td>
                     <td class="notes">${escapeHtml(b.notes) || '—'}</td>
                 </tr>`;
             }).join('');
@@ -8830,7 +8842,7 @@ ${acknowledgmentHtml}
                     : (b.startTime || 'يوم كامل');
 
                 const notesDisplay = (b.notes || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                const employeeDisplay = b.employee || '-';
+                const employeeDisplay = _empName(b) || '-';
 
                 return `
                     <tr>
