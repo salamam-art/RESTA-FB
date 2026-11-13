@@ -3965,7 +3965,7 @@
                                     const menuHtml = (menuItems.length || menuNotes) ? `
                                         <div class="mt-3 pt-3 border-t border-[#6E1418]/10">
                                             <div class="flex items-center gap-1.5 text-[11px] font-black text-[#A88A45] mb-2"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> منيو الباقة</div>
-                                            ${menuItems.length ? `<div class="flex flex-wrap gap-1.5 mb-2">${menuItems.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+                                            ${menuItems.length ? `<div class="flex flex-wrap gap-1.5 mb-2">${menuItems.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20" style="max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.6">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
                                             ${menuNotes ? `<p class="text-xs text-slate-500 font-medium bg-amber-50 rounded-lg px-2.5 py-1.5 border border-amber-100">${escapeHtml(menuNotes)}</p>` : ''}
                                         </div>` : '';
                                     return `<div class="mt-4 p-3 bg-[#6E1418]/5 rounded-xl border border-[#6E1418]/10 space-y-1.5 text-sm">
@@ -4018,7 +4018,7 @@
                                                         ${dt ? `<span class="flex items-center gap-1 text-[#8f753a]"><i data-lucide="calendar-clock" class="w-3 h-3"></i>${escapeHtml(dt)}</span>` : ''}
                                                     </span>
                                                 </div>` : ''}
-                                                ${menuItems.length ? `<div class="flex flex-wrap gap-1.5">${menuItems.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+                                                ${menuItems.length ? `<div class="flex flex-wrap gap-1.5">${menuItems.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20" style="max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.6">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
                                                 ${(guests > 0 || price > 0) ? `<div class="flex justify-between text-xs font-bold text-slate-600"><span>${guests} فرد × ${fmtEGP(price)}</span><span class="text-[#6E1418]">${fmtEGP(total)}</span></div>` : ''}
                                                 ${menuNotes ? `<p class="text-xs text-slate-500 font-medium bg-amber-50 rounded-lg px-2.5 py-1.5 border border-amber-100">${escapeHtml(menuNotes)}</p>` : ''}
                                             </div>`;
@@ -4582,6 +4582,7 @@
         color: #000000;
         text-align: center;
         line-height: 1.3;
+            overflow-wrap: anywhere;
     }
     .menu-notes {
         font-size: 10px;
@@ -7453,7 +7454,7 @@ ${acknowledgmentHtml}
                 menuCard.innerHTML = (items.length || notes) ? `
                     <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                         <div class="text-sm font-black text-slate-700 mb-2.5">أصناف الوجبة${pkg ? ' — ' + escapeHtml(pkg.name) : ''}</div>
-                        ${items.length ? `<div class="flex flex-wrap gap-1.5">${items.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+                        ${items.length ? `<div class="flex flex-wrap gap-1.5">${items.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20" style="max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.6">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
                         ${notes ? `<p class="text-xs text-slate-500 font-medium bg-amber-50 rounded-lg px-2.5 py-1.5 border border-amber-100 mt-2">${escapeHtml(notes)}</p>` : ''}
                     </div>` : '';
             }
