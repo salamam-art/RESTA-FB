@@ -5133,9 +5133,21 @@ ${acknowledgmentHtml}
             };
             const theme = { action: 'toggleTheme()', icon: isDarkMode() ? 'sun' : 'moon', bg: 'bg-slate-100', color: 'text-slate-600', label: isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن' };
             const about = { action: 'toggleAboutModal()', icon: 'info', bg: 'bg-blue-50', color: 'text-blue-600', label: 'عن التطبيق / About' };
+            const games = [
+                { url: 'https://salamam-art.github.io/RESTA-FB/pong.html', icon: 'circle-dot', bg: 'bg-blue-50', color: 'text-blue-600', label: 'Pong' },
+                { url: 'https://salamam-art.github.io/RESTA-FB/snake.html', icon: 'dot', bg: 'bg-green-50', color: 'text-green-600', label: 'Snake' },
+                { url: 'https://salamam-art.github.io/RESTA-FB/space-invaders.html', icon: 'rocket', bg: 'bg-purple-50', color: 'text-purple-600', label: 'Space Invaders' },
+                { url: 'https://salamam-art.github.io/RESTA-FB/solitaire.html', icon: 'spade', bg: 'bg-red-50', color: 'text-red-600', label: 'Solitaire' }
+            ];
+            const gamesHtml = `<button type="button" class="hdr-acc-head" data-acc="games" onclick="toggleHdrAcc('games', event)">
+                        <span class="flex items-center gap-2"><i data-lucide="gamepad-2" class="w-4 h-4"></i>الألعاب</span>
+                        <i data-lucide="chevron-down" class="w-4 h-4 hdr-acc-chev"></i>
+                    </button>
+                    <div class="hdr-acc-body hidden" id="hdrAcc_games">${games.map(g => `<a href="${g.url}" target="_blank" rel="noopener" onclick="closeHdrMenus()"><span class="w-8 h-8 rounded-lg ${g.bg} flex items-center justify-center shrink-0"><i data-lucide="${g.icon}" class="w-4 h-4 ${g.color}"></i></span>${g.label}</a>`).join('')}</div>`;
             return acc('export', 'download', 'تصدير ونسخ احتياطي', m.exp)
                  + acc('records', 'folder-open', 'السجلات والأرشيف', m.rec)
                  + acc('tools', 'wrench', 'الأدوات والإدارة', m.tools)
+                 + gamesHtml
                  + _hdrItemHtml(theme) + _hdrItemHtml(about);
         }
 
@@ -5334,7 +5346,7 @@ ${acknowledgmentHtml}
                                 <i data-lucide="${isDarkMode() ? 'sun' : 'moon'}" class="w-5 h-5"></i>
                             </button>
                             <!-- زر الألعاب -->
-                            <div class="relative shrink-0 hdr-dd" id="gamesDropdownContainer">
+                            <div class="relative shrink-0 hidden sm:block hdr-dd" id="gamesDropdownContainer">
                                 <button onclick="toggleHdrMenu('gamesDropdown', event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="الألعاب">
                                     <i data-lucide="gamepad-2" class="w-5 h-5"></i>
                                 </button>
