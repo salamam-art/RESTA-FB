@@ -5166,9 +5166,39 @@ ${acknowledgmentHtml}
             const dd = document.getElementById(id);
             if (!dd) return;
             const wasHidden = dd.classList.contains('hidden');
+            if (!wasHidden && _hdrHoverMode()) return;   // فتحت بالـ hover: الضغط يسيبها مفتوحة
             closeHdrMenus();
             if (wasHidden) dd.classList.remove('hidden');
         }
+
+        // ─── الكمبيوتر فقط: فتح القوائم المنسدلة بمرور الماوس بدون ضغط ───
+        function _hdrHoverMode() {
+            return window.innerWidth >= 640 && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        }
+        (function () {
+            let closeTimer = null;
+            document.addEventListener('mouseenter', function (e) {
+                if (!_hdrHoverMode() || !e.target || !e.target.closest) return;
+                const c = e.target.closest('.hdr-dd');
+                if (!c) return;
+                clearTimeout(closeTimer);
+                const dd = c.querySelector('.sync-dropdown');
+                if (dd && dd.classList.contains('hidden')) {
+                    closeHdrMenus();
+                    dd.classList.remove('hidden');
+                }
+            }, true);
+            document.addEventListener('mouseleave', function (e) {
+                if (!_hdrHoverMode() || !e.target || !e.target.classList || !e.target.classList.contains('hdr-dd')) return;
+                const c = e.target;
+                clearTimeout(closeTimer);
+                closeTimer = setTimeout(function () {
+                    if (c.matches(':hover')) return;
+                    const dd = c.querySelector('.sync-dropdown');
+                    if (dd) dd.classList.add('hidden');
+                }, 280);   // مهلة صغيرة عشان الماوس يعدّي الفراغ بين الأيقونة والقائمة
+            }, true);
+        })();
         document.addEventListener('click', function (e) {
             document.querySelectorAll('.hdr-dd').forEach(c => {
                 if (!c.contains(e.target)) { const d = c.querySelector('.sync-dropdown'); if (d) d.classList.add('hidden'); }
