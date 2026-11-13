@@ -5069,6 +5069,159 @@ ${acknowledgmentHtml}
             if(typeof lucide!=="undefined") refreshIcons('app');
         }
 
+
+        // ═════════ قوائم الهيدر المجمّعة (تصدير / سجلات / أدوات) + نافذة About ═════════
+        function _hdrEntries() {
+            const guest = isGuest(), admin = state.currentUserEmail === ADMIN_EMAIL;
+            const exp = [{ action: 'exportToExcel()', icon: 'file-spreadsheet', bg: 'bg-emerald-50', color: 'text-emerald-600', label: 'تصدير (Excel)' }];
+            if (admin) {
+                exp.push({ action: 'exportFullBackup()', icon: 'database-backup', bg: 'bg-indigo-50', color: 'text-indigo-600', label: 'تصدير نسخة كاملة (شاملة الأرشيف)' });
+                exp.push({ action: 'triggerImportBackup()', icon: 'hard-drive-upload', bg: 'bg-amber-50', color: 'text-amber-600', label: 'استيراد نسخة احتياطية' });
+            }
+            const rec = [];
+            if (!guest) {
+                rec.push({ action: 'toggleDeletedBookingsModal()', icon: 'trash-2', bg: 'bg-red-50', color: 'text-red-600', label: 'الحجوزات المحذوفة' });
+                rec.push({ action: 'toggleEditedBookingsModal()', icon: 'history', bg: 'bg-amber-50', color: 'text-amber-600', label: 'سجل التعديلات' });
+            }
+            rec.push({ action: 'toggleArchiveModal()', icon: 'archive', bg: 'bg-amber-50', color: 'text-[#A88A45]', label: 'الأرشيف' });
+            const tools = [];
+            if (!guest) tools.push({ action: 'toggleQuickCalcModal()', icon: 'gem', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'حاسبة باقة فرح سريعة' });
+            if (admin) {
+                tools.push({ action: 'toggleHallsManageModal()', icon: 'building-2', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إدارة القاعات' });
+                tools.push({ action: 'toggleWeddingSettingsModal()', icon: 'settings-2', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إعدادات باقات الأفراح' });
+                tools.push({ action: 'toggleFinanceStatsModal()', icon: 'bar-chart-3', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'الإحصائيات المالية' });
+            }
+            return { exp, rec, tools };
+        }
+
+        function _hdrItemHtml(e) {
+            return `<button onclick="closeHdrMenus(); ${e.action}"><span class="w-8 h-8 rounded-lg ${e.bg} flex items-center justify-center shrink-0"><i data-lucide="${e.icon}" class="w-4 h-4 ${e.color}"></i></span>${e.label}</button>`;
+        }
+
+        // مجموعة سطح المكتب: عنصر واحد = زر مباشر، أكثر = أيقونة بقائمة منسدلة
+        function _hdrGroupHtml(id, icon, title, entries) {
+            if (!entries.length) return '';
+            const btnCls = 'p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0';
+            if (entries.length === 1) {
+                const e = entries[0];
+                return `<button onclick="closeHdrMenus(); ${e.action}" class="hidden sm:inline-block ${btnCls}" title="${e.label}"><i data-lucide="${e.icon}" class="w-5 h-5"></i></button>`;
+            }
+            return `<div class="relative shrink-0 hidden sm:block hdr-dd" id="${id}Container">
+                <button onclick="toggleHdrMenu('${id}', event)" class="${btnCls}" title="${title}"><i data-lucide="${icon}" class="w-5 h-5"></i></button>
+                <div id="${id}" class="sync-dropdown hidden border border-slate-100">${entries.map(_hdrItemHtml).join('')}</div>
+            </div>`;
+        }
+
+        function _hdrDesktopGroupsHtml() {
+            const m = _hdrEntries();
+            return _hdrGroupHtml('hdrExportMenu', 'download', 'تصدير ونسخ احتياطي', m.exp)
+                 + _hdrGroupHtml('hdrRecordsMenu', 'folder-open', 'السجلات والأرشيف', m.rec)
+                 + _hdrGroupHtml('hdrToolsMenu', 'wrench', 'الأدوات والإدارة', m.tools);
+        }
+
+        function _hdrMobileMenuHtml() {
+            const m = _hdrEntries();
+            const sec = (title, arr) => arr.length ? `<div class="hdr-dd-title">${title}</div>` + arr.map(_hdrItemHtml).join('') : '';
+            const theme = { action: 'toggleTheme()', icon: isDarkMode() ? 'sun' : 'moon', bg: 'bg-slate-100', color: 'text-slate-600', label: isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن' };
+            const about = { action: 'toggleAboutModal()', icon: 'info', bg: 'bg-blue-50', color: 'text-blue-600', label: 'عن التطبيق / About' };
+            return sec('المظهر', [theme]) + sec('تصدير ونسخ احتياطي', m.exp) + sec('السجلات والأرشيف', m.rec)
+                 + sec('الأدوات والإدارة', m.tools) + sec('عن التطبيق', [about]);
+        }
+
+        function closeHdrMenus() {
+            document.querySelectorAll('.hdr-dd .sync-dropdown').forEach(d => d.classList.add('hidden'));
+        }
+        function toggleHdrMenu(id, e) {
+            if (e) e.stopPropagation();
+            const dd = document.getElementById(id);
+            if (!dd) return;
+            const wasHidden = dd.classList.contains('hidden');
+            closeHdrMenus();
+            if (wasHidden) dd.classList.remove('hidden');
+        }
+        document.addEventListener('click', function (e) {
+            document.querySelectorAll('.hdr-dd').forEach(c => {
+                if (!c.contains(e.target)) { const d = c.querySelector('.sync-dropdown'); if (d) d.classList.add('hidden'); }
+            });
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            closeHdrMenus();
+            const am = document.getElementById('aboutAppModal');
+            if (am && !am.classList.contains('hidden')) am.classList.add('hidden');
+        });
+
+        // ─── About: بيانات المصمم + ملف شرح المميزات (TXT) ───
+        const ABOUT_DESIGNER = { name: 'Mohamed Salama', email: 'salama.m@gmail.com' };
+        const ABOUT_TXT_CONTENT = "==================================================\n  Resta Events Booking — شرح التطبيق وطريقة العمل\n==================================================\n\nتصميم وتطوير: Mohamed Salama\nالبريد الإلكتروني: salama.m@gmail.com\n\n--------------------------------------------------\nأولاً: نبذة عن التطبيق\n--------------------------------------------------\nتطبيق لإدارة حجوزات القاعات والمناسبات (أفراح، مناسبات، فوتوسيشن)\nفي فندق ريستا بورسعيد. يعرض الحجوزات على تقويم لكل قاعة، ويتابع\nالتفاصيل والمدفوعات والتنبيهات، ويزامن البيانات بين كل المستخدمين\nلحظياً عبر السحابة.\n\n--------------------------------------------------\nثانياً: المميزات\n--------------------------------------------------\n1) تقويم الحجوزات\n   - تقويم لكل قاعة ولوحة رئيسية تجمع كل القاعات.\n   - الضغط على أي يوم: إضافة حجز جديد لو اليوم فاضي، أو عرض حجوزات اليوم.\n   - الأيام المنصرمة مغلقة أمام الحجز الجديد، والتعديل/الحذف/النقل عليها\n     للأدمن فقط.\n\n2) أنواع الحجوزات\n   - حجز عادي / مناسبات: بيانات العميل، القائمة (المنيو)، المعدات، الدفعات.\n   - حجز فرح: باقات الأفراح، قائمة الطعام، الإضافات، والدفعات.\n   - فوتوسيشن: بدون قاعة، ويسمح بأكثر من حجز في اليوم نفسه، وغرفة تجهيز.\n   - إرفاق صور وروابط بالحجز، وفتح واتساب العميل بضغطة.\n\n3) إدارة الحجز\n   - تعديل الحجز، حذفه، ونسخه لحجز جديد.\n   - نقل الحجز لتاريخ آخر بالسحب والإفلات مع التراجع (Undo) والإعادة (Redo).\n   - طباعة حجز واحد أو طباعة الحجوزات القادمة.\n\n4) الإشعارات والمحادثات\n   - إشعارات بالتغييرات على الحجوزات.\n   - محادثات بين المستخدمين داخل التطبيق.\n\n5) السجلات والأرشيف\n   - الحجوزات المحذوفة: عرض واستعادة.\n   - سجل التعديلات: متابعة من عدّل ماذا.\n   - الأرشيف الشهري: أرشفة الأشهر المنتهية واستعادتها وطباعتها.\n\n6) الحاسبة والإحصائيات\n   - حاسبة باقة فرح سريعة لحساب تكلفة الباقة بسرعة.\n   - إحصائيات الحجوزات لكل القاعات، والإحصائيات المالية (للأدمن).\n\n7) التصدير والنسخ الاحتياطي\n   - تصدير الحجوزات إلى ملف Excel منسّق.\n   - نسخة كاملة (JSON) تشمل الأرشيف، واستيراد نسخة احتياطية (للأدمن).\n\n8) إدارة النظام (للأدمن)\n   - إدارة القاعات (الأسماء والألوان)، وإعدادات باقات الأفراح.\n   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات.\n\n9) الأمان والدخول\n   - تسجيل دخول بالبريد وكلمة المرور.\n   - دخول بالبصمة على الموبايل.\n   - وضع الزائر: عرض فقط بدون تعديل.\n\n10) أخرى\n   - وضع داكن / فاتح.\n   - تعمل على الكمبيوتر والموبايل.\n   - ألعاب ترفيهية (Pong, Snake, Space Invaders, Solitaire).\n\n--------------------------------------------------\nثالثاً: طريقة العمل\n--------------------------------------------------\n1) سجّل الدخول ببريدك وكلمة المرور (أو بالبصمة، أو كزائر للعرض فقط).\n2) من الصفحة الرئيسية اختر القاعة لعرض تقويمها.\n3) اضغط على اليوم المطلوب لإضافة حجز جديد، أو لعرض حجوزات ذلك اليوم.\n4) املأ بيانات الحجز واحفظ. تصل التغييرات لباقي المستخدمين تلقائياً.\n5) لنقل حجز: اسحبه إلى اليوم الجديد، ويمكنك التراجع من أزرار الهيدر.\n6) أزرار الهيدر مجمّعة:\n   - أيقونة التصدير والنسخ الاحتياطي: Excel / نسخة كاملة / استيراد.\n   - أيقونة السجلات: المحذوفة / سجل التعديلات / الأرشيف.\n   - أيقونة الأدوات: الحاسبة وإدارة القاعات والباقات والإحصائيات المالية.\n   - على الموبايل كلها داخل قائمة ⋮ مقسّمة بعناوين.\n7) في نهاية الشهر يمكن أرشفته من نافذة الأرشيف، وتصدير نسخة احتياطية.\n8) من أيقونة (i) تجد بيانات المصمم وهذا الملف.\n\n\n\n==================================================\n  Resta Events Booking — Features & How It Works\n==================================================\n\nDesigned & developed by: Mohamed Salama\nEmail: salama.m@gmail.com\n\n--------------------------------------------------\n1. About the app\n--------------------------------------------------\nA booking management system for halls and events (weddings, events,\nphotoshoots) at Resta Port Said Hotel. It shows bookings on a calendar\nper hall, tracks details, payments and alerts, and syncs data between\nall users in real time through the cloud.\n\n--------------------------------------------------\n2. Features\n--------------------------------------------------\n1) Booking calendar\n   - A calendar per hall plus a main dashboard covering all halls.\n   - Click a day: add a new booking if it is empty, or view that day's bookings.\n   - Past days are closed to new bookings; editing, deleting or moving\n     bookings on them is admin-only.\n\n2) Booking types\n   - Regular / events: client info, menu, equipment, payments.\n   - Wedding: wedding packages, menu, extras and payments.\n   - Photoshoot: no hall needed, several bookings per day allowed, prep room.\n   - Attach images and links to a booking; open the client's WhatsApp in one tap.\n\n3) Managing bookings\n   - Edit, delete and copy a booking into a new one.\n   - Move a booking to another date by drag and drop, with Undo / Redo.\n   - Print a single booking or the upcoming bookings.\n\n4) Notifications and chat\n   - Notifications about changes to bookings.\n   - In-app chat between users.\n\n5) Records and archive\n   - Deleted bookings: view and restore.\n   - Edit history: see who changed what.\n   - Monthly archive: archive finished months, restore and print them.\n\n6) Calculator and statistics\n   - Quick wedding package calculator.\n   - Booking statistics for all halls, and financial statistics (admin).\n\n7) Export and backup\n   - Export bookings to a formatted Excel file.\n   - Full JSON backup including the archive, and backup import (admin).\n\n8) System management (admin)\n   - Manage halls (names and colors) and wedding package settings.\n   - Manage users, see who is online, and view session logs.\n\n9) Security and login\n   - Email and password login.\n   - Biometric (fingerprint) login on mobile.\n   - Guest mode: view only, no editing.\n\n10) Other\n   - Dark / light mode.\n   - Works on desktop and mobile.\n   - Fun games (Pong, Snake, Space Invaders, Solitaire).\n\n--------------------------------------------------\n3. How to use\n--------------------------------------------------\n1) Sign in with your email and password (or fingerprint, or as a guest to view only).\n2) From the home page choose a hall to see its calendar.\n3) Click the day you want to add a new booking or view that day's bookings.\n4) Fill in the booking details and save. Changes reach other users automatically.\n5) To move a booking, drag it to the new day; use Undo/Redo in the header if needed.\n6) Header buttons are grouped:\n   - Export & backup icon: Excel / full backup / import.\n   - Records icon: deleted bookings / edit history / archive.\n   - Tools icon: calculator, halls, packages and financial statistics.\n   - On mobile everything lives in the ⋮ menu, split under section titles.\n7) At month end, archive it from the Archive window and export a backup.\n8) The (i) icon shows the designer's details and this file.\n";
+
+        function ensureAboutModal() {
+            let m = document.getElementById('aboutAppModal');
+            if (m) return m;
+            m = document.createElement('div');
+            m.id = 'aboutAppModal';
+            m.className = 'hidden fixed inset-0 z-[80] flex items-center justify-center p-4 modal-backdrop animate-fade-in';
+            m.onclick = function (ev) { if (ev.target === m) m.classList.add('hidden'); };
+            m.innerHTML = `
+                <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+                    <div class="bg-gradient-to-br from-[#6E1418] to-[#8a1c22] text-white p-5 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center"><i data-lucide="info" class="w-5 h-5 text-[#A88A45]"></i></div>
+                            <div>
+                                <h3 class="font-black text-lg leading-tight">عن التطبيق</h3>
+                                <p class="text-xs text-white/70 font-bold">About</p>
+                            </div>
+                        </div>
+                        <button onclick="toggleAboutModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 hover:rotate-90 transition-all duration-300"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                    <div class="p-5 overflow-y-auto space-y-4">
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <h4 class="font-black text-[#6E1418] text-base mb-1">Resta Events Booking</h4>
+                            <p class="text-sm text-slate-600 font-bold leading-relaxed">نظام لإدارة حجوزات القاعات والمناسبات (أفراح، مناسبات، فوتوسيشن) في فندق ريستا بورسعيد، مع تقويم لكل قاعة ومتابعة المدفوعات والإشعارات والمحادثات ومزامنة لحظية بين المستخدمين.</p>
+                            <p class="text-xs text-slate-500 mt-2 leading-relaxed" dir="ltr">A booking management system for halls and events at Resta Port Said Hotel, with per-hall calendars, payments, notifications, chat and real-time sync.</p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-[#6E1418] text-white flex items-center justify-center font-black text-lg shrink-0">MS</div>
+                            <div class="min-w-0">
+                                <p class="text-[11px] font-black text-[#A88A45] mb-0.5">تصميم وتطوير · Designed &amp; developed by</p>
+                                <p class="font-black text-slate-800 text-base" dir="ltr">${ABOUT_DESIGNER.name}</p>
+                                <a href="mailto:${ABOUT_DESIGNER.email}" class="text-sm font-bold text-[#6E1418] hover:underline inline-flex items-center gap-1.5 break-all" dir="ltr"><i data-lucide="mail" class="w-4 h-4 shrink-0"></i>${ABOUT_DESIGNER.email}</a>
+                            </div>
+                        </div>
+                        <button onclick="downloadAboutTxt()" class="w-full py-3.5 rounded-xl bg-[#6E1418] hover:bg-[#5a1013] text-white font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                            <i data-lucide="file-text" class="w-5 h-5"></i> تحميل شرح المميزات وطريقة العمل (TXT)
+                        </button>
+                    </div>
+                </div>`;
+            document.body.appendChild(m);
+            return m;
+        }
+
+        function toggleAboutModal() {
+            const m = ensureAboutModal();
+            const opening = m.classList.contains('hidden');
+            m.classList.toggle('hidden');
+            if (opening && window.lucide) lucide.createIcons();
+        }
+
+        function downloadAboutTxt() {
+            try {
+                const blob = new Blob(['\uFEFF' + ABOUT_TXT_CONTENT], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Resta-Events-Booking-Guide.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1500);
+            } catch (err) {
+                console.error('about txt download failed', err);
+                showToast('تعذر تحميل الملف', 'error');
+            }
+        }
+
+
         function renderHeader() {
             return `
                 <header class="glass-panel sticky top-0 z-40 border-b border-slate-200 shadow-sm">
@@ -5104,126 +5257,23 @@ ${acknowledgmentHtml}
                             `}
 
                             <!-- زر المزيد (موبايل فقط) -->
-                            <div class="relative shrink-0 sm:hidden" id="moreMenuContainer">
-                                <button onclick="toggleMoreMenu(event)" class="p-2 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all" title="المزيد">
+                            <div class="relative shrink-0 sm:hidden hdr-dd" id="moreMenuContainer">
+                                <button onclick="toggleHdrMenu('moreMenuDropdown', event)" class="p-2 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all" title="المزيد">
                                     <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                 </button>
-                                <div id="moreMenuDropdown" class="sync-dropdown hidden border border-slate-100">
-                                    <button onclick="toggleMoreMenu(); toggleTheme()">
-                                        <span class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                                            <i data-lucide="${isDarkMode() ? 'sun' : 'moon'}" class="w-4 h-4 text-slate-600"></i>
-                                        </span>
-                                        ${isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن'}
-                                    </button>
-                                    <button onclick="exportToExcel(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
-                                        </span>
-                                        تصدير (Excel)
-                                    </button>
-                                    ${!isGuest() ? `
-                                    <button onclick="toggleDeletedBookingsModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="trash-2" class="w-4 h-4 text-red-600"></i>
-                                        </span>
-                                        الحجوزات المحذوفة
-                                    </button>
-                                    <button onclick="toggleEditedBookingsModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="history" class="w-4 h-4 text-amber-600"></i>
-                                        </span>
-                                        سجل التعديلات
-                                    </button>
-                                    ` : ''}
-                                    <button onclick="toggleArchiveModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="archive" class="w-4 h-4 text-[#A88A45]"></i>
-                                        </span>
-                                        الأرشيف
-                                    </button>
-                                    ${!isGuest() ? `
-                                    <button onclick="toggleQuickCalcModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="gem" class="w-4 h-4 text-[#6E1418]"></i>
-                                        </span>
-                                        حاسبة باقة فرح سريعة
-                                    </button>
-                                    ` : ''}
-                                    ${state.currentUserEmail === ADMIN_EMAIL ? `
-                                    <button onclick="toggleHallsManageModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="building-2" class="w-4 h-4 text-[#6E1418]"></i>
-                                        </span>
-                                        إدارة القاعات
-                                    </button>
-                                    <button onclick="toggleWeddingSettingsModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="settings-2" class="w-4 h-4 text-[#6E1418]"></i>
-                                        </span>
-                                        إعدادات باقات الأفراح
-                                    </button>
-                                    <button onclick="toggleFinanceStatsModal(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="bar-chart-3" class="w-4 h-4 text-[#6E1418]"></i>
-                                        </span>
-                                        الإحصائيات المالية
-                                    </button>
-                                    ` : ''}
-                                    ${state.currentUserEmail === ADMIN_EMAIL ? `
-                                    <button onclick="exportFullBackup(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="database-backup" class="w-4 h-4 text-indigo-600"></i>
-                                        </span>
-                                        تصدير نسخة كاملة (شاملة الأرشيف)
-                                    </button>
-                                    <button onclick="triggerImportBackup(); toggleMoreMenu()">
-                                        <span class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                                            <i data-lucide="hard-drive-upload" class="w-4 h-4 text-amber-600"></i>
-                                        </span>
-                                        استيراد نسخة احتياطية
-                                    </button>
-                                    ` : ''}
+                                <div id="moreMenuDropdown" class="sync-dropdown hdr-scroll hidden border border-slate-100">
+                                    ${_hdrMobileMenuHtml()}
                                 </div>
                             </div>
 
-                            <button onclick="exportToExcel()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all shrink-0" title="تصدير (Excel)">
-                                <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
-                            </button>
-                            ${!isGuest() ? `
-                            <button onclick="toggleDeletedBookingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0" title="الحجوزات المحذوفة">
-                                <i data-lucide="trash-2" class="w-5 h-5"></i>
-                            </button>
-                            <button onclick="toggleEditedBookingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all shrink-0" title="سجل التعديلات">
-                                <i data-lucide="history" class="w-5 h-5"></i>
-                            </button>
-                            ` : ''}
-                            <button onclick="toggleArchiveModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="الأرشيف">
-                                <i data-lucide="archive" class="w-5 h-5"></i>
-                            </button>
-                            ${!isGuest() ? `
-                            <button onclick="toggleQuickCalcModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="حاسبة باقة فرح سريعة">
-                                <i data-lucide="gem" class="w-5 h-5"></i>
-                            </button>
-                            ` : ''}
-                            ${state.currentUserEmail === ADMIN_EMAIL ? `
-                            <button onclick="toggleHallsManageModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="إدارة القاعات">
-                                <i data-lucide="building-2" class="w-5 h-5"></i>
-                            </button>
-                            <button onclick="toggleWeddingSettingsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="إعدادات باقات الأفراح">
-                                <i data-lucide="settings-2" class="w-5 h-5"></i>
-                            </button>
-                            <button onclick="toggleFinanceStatsModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-pink-50 rounded-xl transition-all shrink-0" title="الإحصائيات المالية">
-                                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-                            </button>
-                            ` : ''}
-
+                            ${_hdrDesktopGroupsHtml()}
                             <!-- زر الوضع الداكن (ديسكتوب) -->
-                            <button onclick="toggleTheme()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all shrink-0" title="${isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن'}">
+                            <button onclick="toggleTheme()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="${isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن'}">
                                 <i data-lucide="${isDarkMode() ? 'sun' : 'moon'}" class="w-5 h-5"></i>
                             </button>
                             <!-- زر الألعاب -->
-                            <div class="relative shrink-0" id="gamesDropdownContainer">
-                                <button onclick="toggleGamesMenu(event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="الألعاب">
+                            <div class="relative shrink-0 hdr-dd" id="gamesDropdownContainer">
+                                <button onclick="toggleHdrMenu('gamesDropdown', event)" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="الألعاب">
                                     <i data-lucide="gamepad-2" class="w-5 h-5"></i>
                                 </button>
                                 <div id="gamesDropdown" class="sync-dropdown hidden border border-slate-100">
@@ -5254,22 +5304,16 @@ ${acknowledgmentHtml}
                                 </div>
                             </div>
                             ${!isGuest() ? `
+                            <!-- زر About -->
+                            <button onclick="closeHdrMenus(); toggleAboutModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="عن التطبيق / About">
+                                <i data-lucide="info" class="w-5 h-5"></i>
+                            </button>
                             <!-- زر المزامنة -->
                             <div class="relative shrink-0 hidden sm:block" id="syncDropdownContainer">
                                 <button onclick="syncToCloud()" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="مزامنة مع السحابة">
                                     <i data-lucide="refresh-cw" class="w-5 h-5 ${state.isSyncing ? 'animate-spin text-[#A88A45]' : ''}"></i>
                                 </button>
                             </div>
-                            ` : ''}
-                            ${state.currentUserEmail === ADMIN_EMAIL ? `
-                            <!-- زر تصدير نسخة كاملة شاملة الأرشيف (أدمن فقط) -->
-                            <button onclick="exportFullBackup()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0" title="تصدير نسخة كاملة شاملة الأرشيف (JSON)">
-                                <i data-lucide="database-backup" class="w-5 h-5"></i>
-                            </button>
-                            <!-- زر استيراد نسخة احتياطية (أدمن فقط) -->
-                            <button onclick="triggerImportBackup()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all shrink-0" title="استيراد نسخة احتياطية (JSON)">
-                                <i data-lucide="hard-drive-upload" class="w-5 h-5"></i>
-                            </button>
                             ` : ''}
 
                             ${state.currentUserEmail === ADMIN_EMAIL ? `
