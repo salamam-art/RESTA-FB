@@ -2454,6 +2454,10 @@ html button.day-card:focus-visible, html .agenda-item:focus-visible { outline:2p
 @media print {
     html #toast-container, html #toast-center-container, html #sync-status, html #restaSplashScreen { display:none !important; }
 }
+/* ---------- U13. Android WebView: no extra top gap above the header ----------
+   The Android WebView app reports env(safe-area-inset-top) = status-bar height and pads the status bar itself,
+   so the header's safe-area padding doubled the gap. Browsers report 0, so removing it changes nothing there. */
+html body header.glass-panel { padding-top: 0 !important; }
 /* ---------- U12. Mobile header: single compact row + centered games menu ---------- */
 @media (max-width: 767px) {
     html body header.glass-panel > div.max-w-7xl { min-height: 3.5rem; padding-left: .25rem; padding-right: .25rem; }
