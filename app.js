@@ -116,6 +116,14 @@
         }
         window.addEventListener('offline', updateConnBanner);
         window.addEventListener('online', updateConnBanner);
+        // حماية: لو الجلسة انتهت (تسجيل خروج تلقائي) والنافذة لسه مفتوحة، ما نحفظش حجز من غير صاحب
+        function ensureSignedInForSave() {
+            if (!isGuest() && !state.currentUserEmail) {
+                alert('انتهت الجلسة — لم يتم حفظ الحجز.\nسجّل الدخول من جديد ثم أعد إدخال بيانات الحجز.');
+                return false;
+            }
+            return true;
+        }
         function ensureOnlineForSave() {
             if (_isOffline()) {
                 alert('لا يوجد اتصال بالإنترنت — لم يتم حفظ الحجز.\nتأكد من الاتصال ثم أعد المحاولة (بياناتك لسه موجودة في الشاشة).');
@@ -6543,6 +6551,7 @@ ${acknowledgmentHtml}
             e.preventDefault();
             if (isGuest()) return;
             if (!ensureOnlineForSave()) return;
+            if (!ensureSignedInForSave()) return;
             const f = e.target;
             const name = f.psName.value.trim();
             const date = f.psDate.value;
@@ -7782,6 +7791,7 @@ ${acknowledgmentHtml}
         function handleGlobalBookingSubmit(e) {
             e.preventDefault();
             if (!ensureOnlineForSave()) return;
+            if (!ensureSignedInForSave()) return;
 
             // ─── منع الإرسال المزدوج ────────────────────────────────────────
             // نقرة مزدوجة (أو تاتش سريع مرتين) على زر الحفظ كانت تسبب تنفيذ هذه
