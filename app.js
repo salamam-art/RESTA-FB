@@ -5151,25 +5151,10 @@ ${acknowledgmentHtml}
                 const head = document.querySelector('#moreMenuDropdown .hdr-acc-head[data-acc="' + key + '"]');
                 if (head) head.classList.add('open');
             }
-            _hdrPlace(document.getElementById('moreMenuDropdown'));
         }
         function _hdrCollapseAcc() {
             document.querySelectorAll('#moreMenuDropdown .hdr-acc-body').forEach(x => x.classList.add('hidden'));
             document.querySelectorAll('#moreMenuDropdown .hdr-acc-head').forEach(x => x.classList.remove('open'));
-        }
-
-        // يمنع القائمة تخرج برا الشاشة (كانت بتعمل overflow أفقي وتزق الواجهة لليمين)
-        function _hdrPlace(dd) {
-            if (!dd || !dd.parentElement) return;
-            if (getComputedStyle(dd).position === 'fixed') { dd.style.right = ''; return; }   // موبايل: CSS هو اللي بيظبطها
-            dd.style.right = '0px';
-            const cr = dd.parentElement.getBoundingClientRect();
-            const vw = document.documentElement.clientWidth;
-            const m = 8, w = dd.offsetWidth;
-            let shift = 0;
-            if (cr.right - w < m) shift = m - (cr.right - w);          // خارجة من الشمال → حرّكها يمين
-            else if (cr.right > vw - m) shift = (vw - m) - cr.right;   // خارجة من اليمين → حرّكها شمال
-            dd.style.right = (-shift) + 'px';
         }
 
         function closeHdrMenus() {
@@ -5183,7 +5168,7 @@ ${acknowledgmentHtml}
             const wasHidden = dd.classList.contains('hidden');
             if (!wasHidden && _hdrHoverMode()) return;   // فتحت بالـ hover: الضغط يسيبها مفتوحة
             closeHdrMenus();
-            if (wasHidden) { dd.classList.remove('hidden'); _hdrPlace(dd); }
+            if (wasHidden) dd.classList.remove('hidden');
         }
 
         // ─── الكمبيوتر فقط: فتح القوائم المنسدلة بمرور الماوس بدون ضغط ───
@@ -5201,7 +5186,6 @@ ${acknowledgmentHtml}
                 if (dd && dd.classList.contains('hidden')) {
                     closeHdrMenus();
                     dd.classList.remove('hidden');
-                    _hdrPlace(dd);
                 }
             }, true);
             document.addEventListener('mouseleave', function (e) {

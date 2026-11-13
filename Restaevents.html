@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" style="background:#f7f2ea">
+<html lang="ar" dir="rtl" style="background:#FAF7F2">
 <head>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -12,9 +12,33 @@
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        /* Resta Heritage — Tailwind theme remap (Phase 1). Visual tokens only. */
+        if (window.tailwind) {
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: { sans: ['"IBM Plex Sans Arabic"', '"Noto Sans Arabic"', 'system-ui', '-apple-system', '"Segoe UI"', 'Tahoma', 'sans-serif'] },
+                        colors: Object.assign({ ivory: '#FAF7F2' }, {"blue": {"50": "#EFF3F8", "100": "#E0E8F1", "200": "#C4D4E4", "300": "#9DB6D2", "400": "#6C92BC", "500": "#3B6EA5", "600": "#346191", "700": "#2A4F77", "800": "#224060", "900": "#1A3049"}, "red": {"50": "#FBEFEF", "100": "#F8E0E0", "200": "#F1C4C4", "300": "#E89D9D", "400": "#DC6C6C", "500": "#D13B3B", "600": "#B83434", "700": "#962A2A", "800": "#792222", "900": "#5C1A1A"}, "green": {"50": "#EEF6F3", "100": "#DEEDE7", "200": "#C1DDD3", "300": "#97C7B5", "400": "#63AB90", "500": "#2F8F6B", "600": "#297E5E", "700": "#22674D", "800": "#1B533E", "900": "#153F2F"}, "emerald": {"50": "#EEF6F3", "100": "#DEEDE7", "200": "#C1DDD3", "300": "#97C7B5", "400": "#63AB90", "500": "#2F8F6B", "600": "#297E5E", "700": "#22674D", "800": "#1B533E", "900": "#153F2F"}, "purple": {"50": "#F4F2F8", "100": "#EAE5F1", "200": "#D7CEE4", "300": "#BCACD2", "400": "#9B83BC", "500": "#7A5AA6", "600": "#6B4F92", "700": "#584178", "800": "#473460", "900": "#362849"}, "cyan": {"50": "#EEF6F8", "100": "#DDEEF1", "200": "#BFDEE4", "300": "#94C8D2", "400": "#5FADBC", "500": "#2A92A5", "600": "#258091", "700": "#1E6977", "800": "#185560", "900": "#124049"}, "amber": {"50": "#FAF6ED", "100": "#F5ECDB", "200": "#EDDCBC", "300": "#E0C48E", "400": "#D1A756", "500": "#C28A1E", "600": "#AB791A", "700": "#8C6316", "800": "#715011", "900": "#553D0D"}, "pink": {"50": "#FAF2F5", "100": "#F5E5EC", "200": "#EDCEDB", "300": "#E0ADC2", "400": "#D184A4", "500": "#C25B86", "600": "#AB5076", "700": "#8C4260", "800": "#71354E", "900": "#55283B"}, "indigo": {"50": "#F1F2F9", "100": "#E3E5F3", "200": "#CACEE9", "300": "#A7ADDA", "400": "#7B84C8", "500": "#4F5BB5", "600": "#46509F", "700": "#394282", "800": "#2E3569", "900": "#232850"}, "teal": {"50": "#EDF6F5", "100": "#DBECEB", "200": "#BCDCDA", "300": "#8FC4C2", "400": "#57A7A3", "500": "#1F8A84", "600": "#1B7974", "700": "#16635F", "800": "#12504D", "900": "#0E3D3A"}, "orange": {"50": "#FBF3EF", "100": "#F8E7DF", "200": "#F1D2C4", "300": "#E8B49C", "400": "#DC8E6B", "500": "#D1693A", "600": "#B85C33", "700": "#964C2A", "800": "#793D22", "900": "#5C2E1A"}, "yellow": {"50": "#FAF6ED", "100": "#F5ECDB", "200": "#EDDCBC", "300": "#E0C48E", "400": "#D1A756", "500": "#C28A1E", "600": "#AB791A", "700": "#8C6316", "800": "#715011", "900": "#553D0D"}, "slate": {"50": "#F6F2EB", "100": "#EFE9DF", "200": "#E6DFD3", "300": "#D5CCBC", "400": "#7E746A", "500": "#6A6158", "600": "#5B524A", "700": "#443C34", "800": "#2E2823", "900": "#1F1A17"}, "gray": {"50": "#F6F2EB", "100": "#EFE9DF", "200": "#E6DFD3", "300": "#D5CCBC", "400": "#7E746A", "500": "#6A6158", "600": "#5B524A", "700": "#443C34", "800": "#2E2823", "900": "#1F1A17"}, "burgundy": {"50": "#FBF3F3", "100": "#F5E1E2", "200": "#EBC3C5", "400": "#C0575D", "600": "#84191F", "700": "#6E1418", "800": "#5A1013", "900": "#3F0B0E"}, "gold": {"50": "#FAF6EC", "100": "#F3EAD0", "300": "#D6BB74", "500": "#A88A45", "600": "#8F753A", "700": "#735E2F"}}),
+                        borderRadius: { '3xl': '1.25rem' },
+                        boxShadow: {
+                            'sm':    '0 1px 3px rgba(63,40,30,.08), 0 1px 2px rgba(63,40,30,.04)',
+                            'DEFAULT': '0 1px 3px rgba(63,40,30,.08), 0 1px 2px rgba(63,40,30,.04)',
+                            'md':    '0 6px 16px -4px rgba(63,40,30,.12)',
+                            'lg':    '0 14px 32px -10px rgba(63,40,30,.18)',
+                            'xl':    '0 18px 40px -12px rgba(63,40,30,.22)',
+                            '2xl':   '0 28px 64px -16px rgba(31,26,23,.40)',
+                            'inner': 'inset 0 1px 3px rgba(63,40,30,.08)'
+                        }
+                    }
+                }
+            };
+        }
+    </script>
     
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Icons -->
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js" crossorigin="anonymous" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js';s.crossOrigin='anonymous';s.onload=function(){if(typeof lucide!=='undefined')lucide.createIcons();};document.head.appendChild(s);"></script>
@@ -43,7 +67,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20261113f">
+    <link rel="stylesheet" href="styles.css?v=20261113n">
 </head>
 <body>
     <script>window.__restaSplashStart = Date.now();</script>
