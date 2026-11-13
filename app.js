@@ -2929,15 +2929,33 @@
             }
         }
 
+        // يجمّع أيام الحجز الواحد (نفس groupId) في عنصر واحد للعرض في قائمة الحجوزات القادمة
+        function _groupUpcomingForList(list) {
+            const map = new Map(), out = [];
+            list.forEach(b => {
+                const key = String(b.groupId || String(b.id).split('_d')[0]);
+                let g = map.get(key);
+                if (!g) { g = { first: b, startDate: b.startDate, endDate: b.endDate || b.startDate }; map.set(key, g); out.push(g); }
+                else {
+                    if (b.startDate < g.startDate) { g.startDate = b.startDate; g.first = b; }
+                    const e = b.endDate || b.startDate;
+                    if (e > g.endDate) g.endDate = e;
+                    if (b.startDate > g.endDate) g.endDate = b.startDate;
+                }
+            });
+            return out;
+        }
+
         function toggleBookingsListModal() {
             const modal = document.getElementById('bookingsListModal');
             if (modal.classList.contains('hidden')) {
                 const tbody = document.getElementById('allBookingsTableBody');
                 const cardsBox = document.getElementById('allBookingsCards');
                 const today = new Date().toISOString().split('T')[0];
-                const sortedBookings = [...state.bookings]
+                const sortedBookings = _groupUpcomingForList([...state.bookings]
                     .filter(b => b.startDate >= today)
-                    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+                    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate)))
+                    .map(g => Object.assign({}, g.first, { startDate: g.startDate, endDate: g.endDate }));
 
                 if (sortedBookings.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-16 text-slate-400 font-bold bg-white"><div class="flex flex-col items-center justify-center"><i data-lucide="calendar-x" class="w-12 h-12 mb-3 text-slate-300"></i>لا توجد حجوزات قادمة مسجلة في النظام</div></td></tr>';
