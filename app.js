@@ -5161,6 +5161,7 @@ ${acknowledgmentHtml}
         // يمنع القائمة تخرج برا الشاشة (كانت بتعمل overflow أفقي وتزق الواجهة لليمين)
         function _hdrPlace(dd) {
             if (!dd || !dd.parentElement) return;
+            if (getComputedStyle(dd).position === 'fixed') { dd.style.right = ''; return; }   // موبايل: CSS هو اللي بيظبطها
             dd.style.right = '0px';
             const cr = dd.parentElement.getBoundingClientRect();
             const vw = document.documentElement.clientWidth;
