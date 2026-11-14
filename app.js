@@ -449,7 +449,6 @@
         }
 
         async function toggleEditedBookingsModal() {
-            if (isGuest()) return;
             const modal = document.getElementById('editedBookingsModal');
             if (!modal) return;
             if (modal.classList.contains('hidden')) {
@@ -5118,10 +5117,8 @@ ${acknowledgmentHtml}
                 exp.push({ action: 'triggerImportBackup()', icon: 'hard-drive-upload', bg: 'bg-amber-50', color: 'text-amber-600', label: 'استيراد نسخة احتياطية' });
             }
             const rec = [];
-            if (!guest) {
-                rec.push({ action: 'toggleDeletedBookingsModal()', icon: 'trash-2', bg: 'bg-red-50', color: 'text-red-600', label: 'الحجوزات المحذوفة' });
-                rec.push({ action: 'toggleEditedBookingsModal()', icon: 'history', bg: 'bg-amber-50', color: 'text-amber-600', label: 'سجل التعديلات' });
-            }
+            rec.push({ action: 'toggleDeletedBookingsModal()', icon: 'trash-2', bg: 'bg-red-50', color: 'text-red-600', label: 'الحجوزات المحذوفة' });
+            rec.push({ action: 'toggleEditedBookingsModal()', icon: 'history', bg: 'bg-amber-50', color: 'text-amber-600', label: 'سجل التعديلات' });
             rec.push({ action: 'toggleArchiveModal()', icon: 'archive', bg: 'bg-amber-50', color: 'text-[#A88A45]', label: 'الأرشيف' });
             const tools = [];
             if (!guest) tools.push({ action: 'toggleQuickCalcModal()', icon: 'gem', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'حاسبة باقة فرح سريعة' });
@@ -8002,7 +7999,6 @@ ${acknowledgmentHtml}
 
         // ─── الحجوزات المحذوفة (من الشيت المنفصل) ──────────────────────
         async function toggleDeletedBookingsModal() {
-            if (isGuest()) return;
             const modal = document.getElementById('deletedBookingsModal');
             if (modal.classList.contains('hidden')) {
                 modal.classList.remove('hidden');
