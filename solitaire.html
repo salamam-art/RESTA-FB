@@ -31,7 +31,7 @@ body::before{content:'';position:fixed;inset:0;background-image:repeating-linear
 .tbtn:active{transform:scale(.96);}
 
 /* game area */
-#game{position:relative;z-index:1;width:100%;height:calc(100vh - 46px);display:flex;flex-direction:column;align-items:center;padding:8px 6px 4px;}
+#game{position:relative;z-index:1;width:100%;height:calc(100vh - 46px);height:calc(100dvh - 46px);display:flex;flex-direction:column;align-items:center;padding:8px 6px 4px;}
 
 /* top zone */
 #top-zone{display:flex;align-items:flex-start;width:100%;max-width:760px;gap:7px;margin-bottom:8px;flex-shrink:0;}
@@ -77,6 +77,12 @@ body::before{content:'';position:fixed;inset:0;background-image:repeating-linear
 .wb{background:var(--gold);color:#1a1a00;border:none;border-radius:10px;padding:13px 34px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(201,168,76,.5);transition:transform .1s;}
 .wb:hover{transform:scale(1.05);}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:999;display:none;}
+
+.col{align-self:stretch;}
+.hintPulse{animation:hp .6s ease-in-out 3;z-index:50;}
+@keyframes hp{0%,100%{box-shadow:0 0 0 2.5px var(--gold)}50%{box-shadow:0 0 0 5px #fff,0 0 18px 6px var(--gold)}}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:9px 18px;border-radius:20px;font-size:14px;z-index:3000;opacity:0;pointer-events:none;transition:opacity .25s;}
+#toast.show{opacity:1;}
 </style>
 </head>
 <body>
@@ -88,6 +94,7 @@ body::before{content:'';position:fixed;inset:0;background-image:repeating-linear
     <div class="stat"><b id="sTime">0:00</b>وقت</div>
   </div>
   <div class="actions">
+    <button class="tbtn" id="btnHint" title="تلميح">💡</button>
     <button class="tbtn" id="btnUndo">↩ تراجع</button>
     <button class="tbtn" id="btnNew">لعبة جديدة</button>
   </div>
@@ -121,6 +128,7 @@ body::before{content:'';position:fixed;inset:0;background-image:repeating-linear
   <button class="wb" id="btnAgain">العب مرة أخرى</button>
 </div>
 <div id="dragGhost"></div>
+<div id="toast"></div>
 <canvas id="confetti"></canvas>
 
 <script>
@@ -166,10 +174,53 @@ function computeSizes(){
 }
 
 // ── render ──
+// ── card move animation (FLIP with fixed-position flyers) ──
+let pendingFrom=null;      // {cardKey: DOMRect} forced start positions (drag ghost, stock…)
+let skipAnim=true;         // no animation for new game / resize
+let flyers=[];
+const REDUCED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function snapshotCards(){
+  const m={};
+  document.querySelectorAll('.card[data-key]').forEach(e=>{
+    if(e.closest('#dragGhost')||e.classList.contains('flyer')) return;
+    m[e.dataset.key]=e.getBoundingClientRect();
+  });
+  return m;
+}
+
+function animateCards(before){
+  document.querySelectorAll('.card[data-key]').forEach(el=>{
+    if(el.closest('#dragGhost')||el.classList.contains('flyer')) return;
+    const b=before[el.dataset.key]; if(!b) return;
+    const r=el.getBoundingClientRect();
+    const dx=r.left-b.left, dy=r.top-b.top;
+    if(Math.abs(dx)<2&&Math.abs(dy)<2) return;
+    const fl=el.cloneNode(true);
+    fl.classList.remove('sel'); fl.classList.add('flyer');
+    fl.style.cssText=`position:fixed;left:${b.left}px;top:${b.top}px;width:${r.width}px;height:${r.height}px;margin:0;z-index:4000;pointer-events:none;`;
+    document.body.appendChild(fl);
+    flyers.push(fl);
+    el.style.visibility='hidden';
+    const dur=Math.max(160,Math.min(320,Math.hypot(dx,dy)*0.55));
+    const anim=fl.animate(
+      [{transform:'translate(0,0) scale(1)'},{transform:`translate(${dx*0.5}px,${dy*0.5}px) scale(1.06)`,offset:.5},{transform:`translate(${dx}px,${dy}px) scale(1)`}],
+      {duration:dur,easing:'cubic-bezier(.25,.8,.3,1)',fill:'forwards'});
+    const done=()=>{ el.style.visibility=''; fl.remove(); flyers=flyers.filter(x=>x!==fl); };
+    anim.onfinish=done; anim.oncancel=done;
+  });
+}
+
 function render(){
+  flyers.forEach(f=>f.remove()); flyers=[];
+  const animate=!skipAnim&&!REDUCED&&typeof Element.prototype.animate==='function';
+  let before=null;
+  if(animate){ before=snapshotCards(); if(pendingFrom) Object.assign(before,pendingFrom); }
+  pendingFrom=null; skipAnim=false;
   computeSizes();
   renderStock(); renderWaste(); renderFound(); renderTab();
   updateHUD();
+  if(before) animateCards(before);
 }
 
 function renderStock(){
@@ -214,7 +265,7 @@ function renderTab(){
       let fd=pile.filter(x=>!x.up).length, fu=pile.length-fd;
       h=CH+fd*OFD+Math.max(0,fu-1)*OFU;
     }
-    col.style.height=h+'px';
+    col.style.minHeight=h+'px';
     let top=0;
     for(let i=0;i<pile.length;i++){
       const cd=pile[i];
@@ -249,7 +300,7 @@ function mkFace(cd,loc,idx){
   const col=isRed(cd.s)?'red':'black';
   el.className='card '+col;
   el.style.width=CW+'px'; el.style.height=CH+'px';
-  el.dataset.loc=loc; el.dataset.idx=idx;
+  el.dataset.loc=loc; el.dataset.idx=idx; el.dataset.key=cd.s+cd.r;
   const fs=Math.max(11,Math.min(19,CW*0.25));
   el.innerHTML=`<div class="corner tl"><span class="rk" style="font-size:${fs}px">${cd.r}</span><span class="su" style="font-size:${fs*0.85}px">${cd.s}</span></div><div class="corner br"><span class="rk" style="font-size:${fs}px">${cd.r}</span><span class="su" style="font-size:${fs*0.85}px">${cd.s}</span></div><div class="cs" style="font-size:${CW*0.48}px">${cd.s}</div><img class="logoMark" src="${LOGO_DATA_URI}" alt="">`;
 
@@ -258,8 +309,7 @@ function mkFace(cd,loc,idx){
   // also highlight stack above selected
   if(sel && sel.loc===loc && idx>=sel.idx) el.classList.add('sel');
 
-  el.addEventListener('click', e=>{ e.stopPropagation(); onCardClick(loc,idx,cd); });
-  el.addEventListener('dblclick', e=>{ e.stopPropagation(); onCardDblClick(loc,idx,cd); });
+  el.addEventListener('click', e=>{ e.stopPropagation(); if(performance.now()<suppressClickUntil) return; onCardClick(loc,idx,cd); });
   // drag support (ghost is built lazily on first move)
   if (loc !== 'ghost') attachDrag(el, loc, idx);
   return el;
@@ -276,6 +326,7 @@ function flipTabTop(c){
 }
 
 function clickStock(){
+  if(stock.length){ const t=stock[stock.length-1]; pendingFrom={[t.s+t.r]:document.getElementById('stockSlot').getBoundingClientRect()}; }
   saveHist();
   if(!stock.length){
     stock=[...waste].reverse().map(c=>({...c,up:false}));
@@ -475,6 +526,12 @@ function getDropAt(x, y) {
     const col = document.getElementById('c' + c);
     if (col.contains(el)) return { type: 't', idx: c, el: col };
   }
+  // fallback: dropped in the gaps / below a short column → use column bounds
+  for (let c = 0; c < 7; c++) {
+    const col = document.getElementById('c' + c);
+    const r = col.getBoundingClientRect();
+    if (x >= r.left - 4 && x <= r.right + 4 && y >= r.top && y <= r.bottom) return { type: 't', idx: c, el: col };
+  }
   return null;
 }
 
@@ -557,11 +614,22 @@ function onDragEnd(e) {
     const loc = drag.loc, idx = drag.idx;
     const cd = drag.cards[0];
     drag = null;
+    const now = performance.now();
+    suppressClickUntil = now + 400;
+    const key = loc + ':' + idx + ':' + cd.s + cd.r;
+    if (lastTap.key === key && now - lastTap.t < 350) {
+      lastTap = { key: '', t: 0 };
+      smartMove(loc, idx);   // double tap → auto move if possible
+      return;
+    }
+    lastTap = { key, t: now };
     onCardClick(loc, idx, cd);
     return;
   }
 
   clearHighlights();
+  pendingFrom = {};
+  ghost.querySelectorAll('.card[data-key]').forEach(g => { pendingFrom[g.dataset.key] = g.getBoundingClientRect(); });
   ghost.style.display = 'none';
   ghost.innerHTML = '';
   markSourceFaded(drag.loc, drag.idx, false);
@@ -596,6 +664,8 @@ function onDragCancel(e) {
   if (!drag) return;
   cleanup(e.currentTarget);
   clearHighlights();
+  pendingFrom = {};
+  ghost.querySelectorAll('.card[data-key]').forEach(g => { pendingFrom[g.dataset.key] = g.getBoundingClientRect(); });
   ghost.style.display = 'none';
   ghost.innerHTML = '';
   markSourceFaded(drag.loc, drag.idx, false);
@@ -664,6 +734,95 @@ function updateHUD(){
   document.getElementById('sTime').textContent=`${m}:${s.toString().padStart(2,'0')}`;
 }
 
+// ── double-tap smart move + hint ──
+let lastTap = { key: '', t: 0 };
+let suppressClickUntil = 0;
+
+function findMove(loc, idx){
+  const cards = getCards(loc, idx);
+  if(!cards.length || loc.startsWith('f')) return null;
+  const card = cards[0];
+  if(cards.length === 1){
+    for(let i=0;i<4;i++) if(canFoundation(card,i)) return {type:'f', idx:i};
+  }
+  const srcCol = loc.startsWith('t') ? +loc[1] : -1;
+  // prefer non-empty columns
+  for(let c=0;c<7;c++){
+    if(c===srcCol || !tab[c].length) continue;
+    if(canTab(card,c)) return {type:'t', idx:c};
+  }
+  // king to an empty column (pointless if it's already at the column's bottom)
+  if(card.r==='K' && !(srcCol>=0 && idx===0)){
+    for(let c=0;c<7;c++) if(c!==srcCol && !tab[c].length) return {type:'t', idx:c};
+  }
+  return null;
+}
+
+function smartMove(loc, idx){
+  const mv = findMove(loc, idx);
+  if(!mv) return false;
+  const cards = getCards(loc, idx).map(c=>({...c}));
+  saveHist();
+  removeFrom(loc, idx);
+  if(mv.type==='f'){ found[mv.idx].push({...cards[0], up:true}); score+=15; }
+  else { for(const c of cards) tab[mv.idx].push({...c, up:true}); score+=3; }
+  moves++;
+  playPlaceSound();
+  sel=null; render();
+  if(mv.type==='f') checkWin();
+  return true;
+}
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+function findHint(){
+  // 1) anything to a foundation
+  const sources=[];
+  if(waste.length) sources.push({loc:'waste', idx:waste.length-1});
+  for(let c=0;c<7;c++) for(let i=0;i<tab[c].length;i++) if(tab[c][i].up) sources.push({loc:'t'+c, idx:i});
+  for(const s of sources){
+    const cards=getCards(s.loc,s.idx);
+    if(cards.length===1) for(let f=0;f<4;f++) if(canFoundation(cards[0],f)) return {...s, target:{type:'f',idx:f}};
+  }
+  // 2) useful tableau moves (reveal a card, empty a column, or come from the waste)
+  for(const s of sources){
+    if(s.loc.startsWith('t')){
+      const c=+s.loc[1];
+      if(s.idx>0 && tab[c][s.idx-1].up) continue; // already sitting on a valid card
+    }
+    const mv=findMove(s.loc,s.idx);
+    if(mv && mv.type==='t') return {...s, target:mv};
+  }
+  // 3) draw from the stock
+  if(stock.length || waste.length) return {loc:'stock'};
+  return null;
+}
+
+function showHint(){
+  render(); // clear old highlights
+  const h=findHint();
+  if(!h){ toast('لا توجد حركات متاحة'); return; }
+  const pulse=(els)=>els.forEach(e=>e.classList.add('hintPulse'));
+  if(h.loc==='stock'){
+    toast(stock.length ? 'اسحب كارت من المجموعة' : 'أعد قلب الكروت من المجموعة');
+    pulse(document.querySelectorAll('#stockSlot .card, #stockSlot'));
+    setTimeout(()=>document.querySelectorAll('.hintPulse').forEach(e=>e.classList.remove('hintPulse')),2000);
+    return;
+  }
+  let srcEls;
+  if(h.loc==='waste') srcEls=document.querySelectorAll('#wasteSlot .card');
+  else srcEls=[...document.querySelectorAll('#c'+h.loc[1]+' .card')].filter(e=>+e.dataset.idx>=h.idx);
+  pulse(srcEls);
+  const tgt=document.getElementById((h.target.type==='f'?'f':'c')+h.target.idx);
+  tgt.classList.add('hl');
+  setTimeout(()=>{ srcEls.forEach(e=>e.classList.remove('hintPulse')); tgt.classList.remove('hl'); },2000);
+}
+document.getElementById('btnHint').onclick=showHint;
+
 // ── buttons ──
 document.getElementById('btnUndo').onclick=undo;
 document.getElementById('btnNew').onclick=newGame;
@@ -674,7 +833,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape') clearSel();
 });
 
-window.addEventListener('resize',render);
+window.addEventListener('resize',()=>{skipAnim=true;render();});
 
 // ── confetti ──
 let confRaf=null;
@@ -755,7 +914,7 @@ function newGame(){
   stopConfetti();
   document.getElementById('win').style.display='none';
   sel=null;
-  deal(); render();
+  deal(); skipAnim=true; render();
 }
 
 newGame();
