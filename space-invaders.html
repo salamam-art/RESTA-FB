@@ -306,7 +306,7 @@ let W=0, H=0, scale=1;
 function resize(){
   const wrap = document.getElementById('gameWrap');
   const hud = document.getElementById('hud');
-  const maxW = Math.min(window.innerWidth, 520);
+  const maxW = window.innerWidth;
   const maxH = window.innerHeight;
   W = maxW;
   H = maxH;
@@ -322,7 +322,7 @@ function resize(){
   starCanvas.height = window.innerHeight*DPR;
   sctx.setTransform(DPR,0,0,DPR,0,0);
 
-  scale = W/380; // base design width reference
+  scale = Math.min(1.7, Math.max(0.6, Math.min(W/380, H/620))); // fit both width and height
   layoutGame();
 }
 window.addEventListener('resize', resize);
@@ -495,7 +495,6 @@ const FALLBACK_POOL = [
 
 function openUpgrade(){
   state = 'upgrade';
-  KEYS.fire = false;
   const pool = UPGRADE_POOL.filter(u=>u.ok());
   for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
   currentChoices = pool.slice(0,3);
@@ -1270,6 +1269,28 @@ function loop(t){
   }
   requestAnimationFrame(loop);
 }
+
+
+/* ---------------- Fullscreen ---------------- */
+function goFullscreen(){
+  const el = document.documentElement;
+  if(document.fullscreenElement || document.webkitFullscreenElement) return;
+  try{
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+    if(fn){ const r = fn.call(el); if(r && r.catch) r.catch(()=>{}); }
+  }catch(e){}
+}
+function toggleFullscreen(){
+  if(document.fullscreenElement || document.webkitFullscreenElement){
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else { goFullscreen(); }
+}
+document.addEventListener('fullscreenchange', ()=>setTimeout(resize,100));
+document.addEventListener('webkitfullscreenchange', ()=>setTimeout(resize,100));
+window.addEventListener('keydown', (e)=>{ if(e.key==='f' || e.key==='F') toggleFullscreen(); });
+// first click / tap anywhere (browsers only allow fullscreen after a user gesture)
+document.addEventListener('pointerdown', goFullscreen, {once:true});
+document.addEventListener('keydown', goFullscreen, {once:true});
 
 /* ---------------- Init ---------------- */
 resize();
