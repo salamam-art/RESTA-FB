@@ -4348,7 +4348,6 @@
                 ['التاريخ', dateRow],
                 ['الوقت', timeDisplay],
                 ['رقم الهاتف', b.phone || 'لا يوجد رقم'],
-                ['القائم بالحجز', (_empName(b) || '-').replace(/</g,'&lt;').replace(/>/g,'&gt;')],
                 ['تم الإنشاء بواسطة', (b.createdBy || '-').split('@')[0]],
                 ['تاريخ الإنشاء', createdAtDisplay],
             ];
@@ -4592,14 +4591,14 @@
             overflow-wrap: anywhere;
     }
     .menu-notes {
-        font-size: 10px;
+        font-size: 12.5px;
         color: #78350f;
-        font-weight: 600;
+        font-weight: 700;
         background: #fffbeb;
         border: 1px solid #fde68a;
         border-radius: 6px;
         padding: 4px 10px;
-        line-height: 1.3;
+        line-height: 1.4;
     }
     ${notesDisplay ? `
     .notes-box {
@@ -4609,8 +4608,8 @@
         border-radius: 8px;
         padding: 4px 12px;
     }
-    .notes-box .nb-title { font-size: 9.5px; font-weight: 900; color: #92400e; margin-bottom: 2px; }
-    .notes-box .nb-text { font-size: 10.5px; color: #78350f; font-weight: 600; line-height: 1.25; white-space: pre-wrap; }
+    .notes-box .nb-title { font-size: 12px; font-weight: 900; color: #92400e; margin-bottom: 3px; }
+    .notes-box .nb-text { font-size: 14px; color: #78350f; font-weight: 700; line-height: 1.4; white-space: pre-wrap; }
     ` : ''}
     ${acknowledgmentHtml ? `
     .ack-box {
@@ -8644,7 +8643,6 @@ ${acknowledgmentHtml}
                     <td class="hall">${escapeHtml(hallName)}</td>
                     <td class="date">${dateTxt}</td>
                     <td class="time">${escapeHtml(timeTxt)}</td>
-                    <td class="emp">${escapeHtml(_empName(b)) || '-'}</td>
                     <td class="notes">${escapeHtml(b.notes) || '—'}</td>
                 </tr>`;
             }).join('');
@@ -8683,7 +8681,7 @@ ${acknowledgmentHtml}
     td.hall { font-weight: 700; color: #475569; white-space: nowrap; }
     td.date, td.time { font-family: monospace; color: #334155; white-space: nowrap; font-size: 12px; }
     td.emp { color: #64748b; font-size: 12px; }
-    td.notes { color: #64748b; font-size: 11.5px; max-width: 180px; word-break: break-word; }
+    td.notes { color: #334155; font-size: 14px; font-weight: 700; line-height: 1.4; max-width: 260px; word-break: break-word; }
     .footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10.5px; color: #94a3b8; font-weight: 600; }
     @media print {
         body { padding: 0; }
@@ -8711,7 +8709,7 @@ ${acknowledgmentHtml}
 <table>
     <thead>
         <tr>
-            <th>#</th><th>الشركة / الجهة</th><th>الهاتف</th><th>القاعة</th><th>التاريخ</th><th>الوقت</th><th>الموظف</th><th>ملاحظات</th>
+            <th>#</th><th>الشركة / الجهة</th><th>الهاتف</th><th>القاعة</th><th>التاريخ</th><th>الوقت</th><th>ملاحظات</th>
         </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -8858,7 +8856,6 @@ ${acknowledgmentHtml}
                         <td class="hall">${hall.name}</td>
                         <td class="date">${dateDisplay}</td>
                         <td class="time">${timeDisplay}</td>
-                        <td class="emp">${employeeDisplay}</td>
                         <td class="notes">${notesDisplay || '—'}</td>
                     </tr>
                 `;
@@ -8947,7 +8944,7 @@ ${acknowledgmentHtml}
     td.date { font-family: monospace; color: #334155; white-space: nowrap; font-size: 12px; }
     td.time { font-family: monospace; color: #475569; white-space: nowrap; font-size: 12px; }
     td.emp  { color: #64748b; font-size: 12px; }
-    td.notes { color: #64748b; font-size: 11.5px; max-width: 180px; }
+    td.notes { color: #334155; font-size: 14px; font-weight: 700; line-height: 1.4; max-width: 260px; word-break: break-word; }
     .footer {
         margin-top: 20px;
         padding-top: 12px;
@@ -8990,7 +8987,6 @@ ${acknowledgmentHtml}
             <th>القاعة</th>
             <th>التاريخ</th>
             <th>الوقت</th>
-            <th>الموظف</th>
             <th>ملاحظات</th>
         </tr>
     </thead>
