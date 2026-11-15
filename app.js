@@ -6019,7 +6019,7 @@ ${acknowledgmentHtml}
             // إظهار قسم "نوع الحجز" للأدمن فقط
             const bookingTypeSection = document.getElementById('bookingTypeSection');
             if (bookingTypeSection) {
-                if (state.currentUserEmail === ADMIN_EMAIL) {
+                if (!isGuest()) {
                     bookingTypeSection.classList.remove('hidden');
                 } else {
                     bookingTypeSection.classList.add('hidden');
@@ -6696,7 +6696,7 @@ ${acknowledgmentHtml}
             // إظهار قسم "نوع الحجز" للأدمن فقط عند التعديل
             const bookingTypeSectionEdit = document.getElementById('bookingTypeSection');
             if (bookingTypeSectionEdit) {
-                if (state.currentUserEmail === ADMIN_EMAIL) {
+                if (!isGuest()) {
                     bookingTypeSectionEdit.classList.remove('hidden');
                 } else {
                     bookingTypeSectionEdit.classList.add('hidden');
@@ -6786,7 +6786,17 @@ ${acknowledgmentHtml}
                     renderWeddingPaymentsInputs();
                     onWeddingPackageChange();
                 }
+                {
+                    // لو السعر فاضي (حجز جديد) حمّل سعر الباقة المختارة
+                    const _pp = document.getElementById('weddingPricePerPerson');
+                    if (_pp && !_pp.value && !state.editingBookingId) onWeddingPackageChange();
+                }
                 applyWeddingFieldPermissions();
+                // المستخدم العادي: تفعيل كل الإضافات تلقائيًا لحجز فرح جديد (الكراسي تُحسب بعدد الأفراد في الحساب)
+                if (state.currentUserEmail !== ADMIN_EMAIL && section.dataset.autoApplied !== '1') {
+                    document.querySelectorAll('.wedding-extra-toggle').forEach(cb => { cb.checked = true; });
+                    section.dataset.autoApplied = '1';
+                }
                 recalcWeddingTotals();
             } else if (type === 'other') {
                 section.classList.add('hidden');
@@ -7251,6 +7261,13 @@ ${acknowledgmentHtml}
             const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
             const priceInput = document.getElementById('weddingPricePerPerson');
             if (priceInput) priceInput.disabled = !isAdmin;
+            // تفاصيل الإضافات (العنوان + زر الإضافة + الصفوف) تظهر للأدمن فقط؛ المستخدم العادي تتفعّل عنده الإضافات تلقائيًا
+            const _exBox = document.getElementById('weddingExtrasContainer');
+            if (_exBox) {
+                _exBox.classList.toggle('hidden', !isAdmin);
+                const _exHead = _exBox.previousElementSibling;
+                if (_exHead) _exHead.classList.toggle('hidden', !isAdmin);
+            }
             document.querySelectorAll('.wedding-extra-value').forEach(el => el.disabled = !isAdmin);
             document.querySelectorAll('.wedding-extra-perguest').forEach(el => el.disabled = !isAdmin);
         }
@@ -7292,7 +7309,7 @@ ${acknowledgmentHtml}
 
             box.innerHTML = `
                 <div class="flex justify-between text-slate-600"><span>إجمالي الأفراد (${guests} × ${fmtEGP(price)})</span><span class="font-bold">${fmtEGP(subtotal)}</span></div>
-                <div class="flex justify-between text-slate-600"><span>الإضافات</span><span class="font-bold">${fmtEGP(extrasTotal + chairTotal)}</span></div>
+                ${state.currentUserEmail === ADMIN_EMAIL ? `<div class="flex justify-between text-slate-600"><span>الإضافات</span><span class="font-bold">${fmtEGP(extrasTotal + chairTotal)}</span></div>` : ''}
                 <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(total)}</span></div>
                 <div class="flex justify-between text-emerald-700 font-bold"><span>المدفوع</span><span>${fmtEGP(paid)}</span></div>
                 <div class="flex justify-between font-black ${remaining > 0 ? 'text-red-600' : 'text-emerald-700'}"><span>المتبقي</span><span>${fmtEGP(remaining)}</span></div>
@@ -7329,6 +7346,9 @@ ${acknowledgmentHtml}
         }
 
         function fillWeddingFormFromBooking(w) {
+            // حجز فرح موجود = إضافاته كما حددها الأدمن (لا تُفعّل تلقائيًا)؛ حجز جديد = التفعيل التلقائي للمستخدم العادي
+            const _wSec = document.getElementById('weddingCalcSection');
+            if (_wSec) _wSec.dataset.autoApplied = w ? '1' : '';
             if (!document.getElementById('weddingPackageSelect').options.length) populateWeddingPackageSelect();
             // عناصر هذا الحجز التي لا توجد في كتالوج الإعدادات العام (أُضيفت يدويًا لهذا الحجز فقط) — لازم تُعرض كصفوف إضافية
             const catalogKeys = new Set(state.weddingSettings.extras.map(ex => ex.key));
@@ -7336,7 +7356,13 @@ ${acknowledgmentHtml}
             renderWeddingExtrasInputs(customExtras);
             renderWeddingPaymentsInputs();
             applyWeddingFieldPermissions();
-            if (!w) { recalcWeddingTotals(); return; }
+            if (!w) {
+                // حجز جديد: اختار أول باقة وحمّل سعرها ومنيو الباقة (بعد form.reset() السعر بيتفضّى)
+                const _sel = document.getElementById('weddingPackageSelect');
+                if (_sel && _sel.options.length && !_sel.value) _sel.selectedIndex = 0;
+                onWeddingPackageChange();
+                return;
+            }
 
             document.getElementById('weddingPackageSelect').value = w.packageId || '';
             document.getElementById('weddingGuests').value = w.guests || '';
@@ -7386,10 +7412,9 @@ ${acknowledgmentHtml}
             const guestsValue = (pricePerPerson && !excludePrices)
                 ? `${guestsCount} فرد × ${fmtEGP(pricePerPerson)} = ${fmtEGP(menuTotal)} (إجمالي المنيو)`
                 : `${guestsCount} فرد`;
-            rows.push(
-                ['عدد الأفراد', guestsValue],
-                ['الإضافات', extrasLine],
-            );
+            rows.push(['عدد الأفراد', guestsValue]);
+            // تفاصيل الإضافات للأدمن فقط
+            if (state.currentUserEmail === ADMIN_EMAIL) rows.push(['الإضافات', extrasLine]);
             if (!excludePrices) {
                 rows.push(
                     ['إجمالي الحجز', fmtEGP(w.total)],
