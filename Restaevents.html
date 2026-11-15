@@ -339,6 +339,9 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
+                    <button onclick="openPrintRangeModal()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all duration-300" title="طباعة تفاصيل حجوزات فترة">
+                        <i data-lucide="file-text" class="w-5 h-5"></i>
+                    </button>
                     <button onclick="printUpcomingBookings()" class="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all duration-300" title="طباعة الحجوزات القادمة">
                         <i data-lucide="printer" class="w-5 h-5"></i>
                     </button>
@@ -1047,6 +1050,54 @@
         </div>
     </div>
 
+    <!-- طباعة تفاصيل حجوزات فترة -->
+    <div id="printRangeModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center modal-backdrop p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-md max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in border border-slate-100">
+            <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex items-center gap-4">
+                <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20">
+                    <i data-lucide="file-text" class="w-6 h-6 text-yellow-300"></i>
+                </div>
+                <div>
+                    <h3 class="font-black text-xl tracking-wide">طباعة تفاصيل الحجوزات</h3>
+                    <p class="text-sm text-white/70 font-medium mt-0.5">كل حجز في صفحة مستقلة بتفاصيله الكاملة</p>
+                </div>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="setPrintRangePreset('today')" class="px-3 py-1.5 text-xs font-bold text-[#6E1418] bg-[#6E1418]/5 hover:bg-[#6E1418]/10 border border-[#6E1418]/10 rounded-lg transition-all">اليوم</button>
+                    <button type="button" onclick="setPrintRangePreset('tomorrow')" class="px-3 py-1.5 text-xs font-bold text-[#6E1418] bg-[#6E1418]/5 hover:bg-[#6E1418]/10 border border-[#6E1418]/10 rounded-lg transition-all">بكرة</button>
+                    <button type="button" onclick="setPrintRangePreset('week')" class="px-3 py-1.5 text-xs font-bold text-[#6E1418] bg-[#6E1418]/5 hover:bg-[#6E1418]/10 border border-[#6E1418]/10 rounded-lg transition-all">الأسبوع ده (7 أيام)</button>
+                    <button type="button" onclick="setPrintRangePreset('month')" class="px-3 py-1.5 text-xs font-bold text-[#6E1418] bg-[#6E1418]/5 hover:bg-[#6E1418]/10 border border-[#6E1418]/10 rounded-lg transition-all">باقي الشهر ده</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="input-group">
+                        <label class="required">من تاريخ</label>
+                        <input type="date" id="printRangeFrom" onchange="updatePrintRangePreview()" oninput="updatePrintRangePreview()">
+                    </div>
+                    <div class="input-group">
+                        <label class="required">إلى تاريخ</label>
+                        <input type="date" id="printRangeTo" onchange="updatePrintRangePreview()" oninput="updatePrintRangePreview()">
+                    </div>
+                </div>
+                <div id="printRangePreview" class="text-xs font-bold text-[#6E1418] bg-amber-50/60 rounded-lg px-3 py-2 border border-amber-100"></div>
+                <div id="printRangeListWrap" class="hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <button type="button" id="printRangeToggleAll" onclick="togglePrintRangeAll()" class="text-xs font-black text-[#6E1418] underline underline-offset-2">إلغاء الكل</button>
+                        <span id="printRangeSelCount" class="text-xs font-bold text-slate-500"></span>
+                    </div>
+                    <div id="printRangeList" class="max-h-60 overflow-y-auto space-y-2 border border-slate-100 rounded-xl p-2 bg-slate-50"></div>
+                </div>
+                <button type="button" id="printRangeConfirmBtn" onclick="confirmPrintRange()" class="w-full py-3.5 text-sm font-black text-white bg-[#6E1418] hover:bg-[#8a1c22] rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm">
+                    <i data-lucide="printer" class="w-5 h-5"></i>
+                    <span id="printRangeConfirmLabel">طباعة</span>
+                </button>
+                <button type="button" onclick="closePrintRangeModal()" class="w-full py-3 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center justify-center gap-2">
+                    إلغاء
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="deleteConfirmModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center modal-backdrop p-4">
         <div class="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-fade-in border border-slate-100">
             <div class="px-6 py-5 bg-gradient-to-l from-[#6E1418] to-[#8a1c22] text-white flex items-center gap-4">
@@ -1077,7 +1128,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261115e"></script>
+    <script src="app.js?v=20261115g"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">

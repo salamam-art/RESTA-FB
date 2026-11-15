@@ -4295,30 +4295,12 @@
             });
         })();
 
-        function printSingleBooking(bookingId) {
-            const b = state.bookings.find(x => x.id == bookingId || x.id === bookingId);
-            if (!b) {
-                showToast('لم يتم العثور على بيانات الحجز', 'error');
-                return;
-            }
-
+        // ─── طباعة تفاصيل الحجز: دوال مشتركة بين الحجز الواحد والطباعة المجمّعة ───
+        // بلوك واحد = البانر + جدول التفاصيل + المنيو + الملاحظات + التعهد (للأفراح)
+        function buildBookingPrintBlock(b) {
             const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف' };
 
-            // Determine actual range from group (similar logic to upcoming bookings print)
-            let startDate = b.startDate, endDate = b.endDate || b.startDate;
-            if (b.originalRange && b.originalRange.includes(' to ')) {
-                const p = b.originalRange.split(' to ');
-                startDate = p[0]; endDate = p[1];
-            } else {
-                const gKey = b.groupId || b.id.toString().split('_d')[0];
-                const groupDays = state.bookings
-                    .filter(x => (x.groupId === gKey) || (x.id === gKey))
-                    .map(x => x.startDate).sort();
-                if (groupDays.length > 0) {
-                    startDate = groupDays[0];
-                    endDate   = groupDays[groupDays.length - 1];
-                }
-            }
+            const { startDate, endDate } = getBookingGroupRange(b);
 
             const fmtDate = d => d ? d.split('-').reverse().join('/') : '-';
             const displayDateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -4332,10 +4314,6 @@
             const timeDisplay = (b.startTime && b.endTime)
                 ? `${b.startTime} – ${b.endTime}`
                 : (b.startTime || 'يوم كامل');
-
-            const printDate = new Date().toLocaleDateString('ar-EG', {
-                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-            });
 
             const notesDisplay = (b.notes || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const createdAtDisplay = b.createdAt
@@ -4479,13 +4457,28 @@
                 </tr>
             `).join('');
 
-            const printHtml = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<title>تفاصيل الحجز – ${(b.companyName || '').replace(/</g,'&lt;')}</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;700;900&display=swap" rel="stylesheet">
-<style>
+            const html = `
+<div class="company-banner">
+    <div class="cb-label">${b.eventType === 'wedding' ? 'الاسم' : 'الشركة / الجهة'}</div>
+    <div class="cb-value">${(b.companyName || '-').replace(/</g,'&lt;')}</div>
+    <div class="cb-hall">${hall.name}</div>
+</div>
+<table>
+    <tbody>${rowsHtml}</tbody>
+</table>
+${menuBoxHtml}
+${notesDisplay ? `
+<div class="notes-box">
+    <div class="nb-title">ملاحظات</div>
+    <div class="nb-text">${notesDisplay}</div>
+</div>
+` : ''}
+${acknowledgmentHtml}`;
+            return { html, hasNotes: !!notesDisplay, hasAck: !!acknowledgmentHtml };
+        }
+
+        function bookingPrintCss(hasNotes, hasAck) {
+            return `
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
         font-family: 'Noto Sans Arabic', sans-serif;
@@ -4621,7 +4614,7 @@
         padding: 4px 10px;
         line-height: 1.4;
     }
-    ${notesDisplay ? `
+    ${hasNotes ? `
     .notes-box {
         margin-top: 5px;
         background: #fffbeb;
@@ -4632,7 +4625,7 @@
     .notes-box .nb-title { font-size: 12px; font-weight: 900; color: #92400e; margin-bottom: 3px; }
     .notes-box .nb-text { font-size: 14px; color: #78350f; font-weight: 700; line-height: 1.4; white-space: pre-wrap; }
     ` : ''}
-    ${acknowledgmentHtml ? `
+    ${hasAck ? `
     .ack-box {
         margin-top: 5px;
         background: #fafafa;
@@ -4669,10 +4662,11 @@
         .company-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         td.label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
-</style>
-</head>
-<body>
-<div class="page-header">
+`;
+        }
+
+        function bookingPrintHeaderHtml(printDate) {
+            return `<div class="page-header">
     <div class="logo-area">
         <div class="logo-box">R</div>
         <div>
@@ -4684,28 +4678,225 @@
         <div class="print-date-label">تاريخ الطباعة</div>
         <div class="print-date-val">${printDate}</div>
     </div>
-</div>
-<div class="doc-title">تفاصيل الحجز</div>
-<div class="company-banner">
-    <div class="cb-label">${b.eventType === 'wedding' ? 'الاسم' : 'الشركة / الجهة'}</div>
-    <div class="cb-value">${(b.companyName || '-').replace(/</g,'&lt;')}</div>
-    <div class="cb-hall">${hall.name}</div>
-</div>
-<table>
-    <tbody>${rowsHtml}</tbody>
-</table>
-${menuBoxHtml}
-${notesDisplay ? `
-<div class="notes-box">
-    <div class="nb-title">ملاحظات</div>
-    <div class="nb-text">${notesDisplay}</div>
-</div>
-` : ''}
-${acknowledgmentHtml}
-<div class="footer">
+</div>`;
+        }
+
+        function bookingPrintFooterHtml(printDate) {
+            return `<div class="footer">
     <span>نظام إدارة حجوزات رستا – Resta Events Booking System</span>
     <span>${printDate}</span>
-</div>
+</div>`;
+        }
+
+        function bookingPrintDateLabel() {
+            return new Date().toLocaleDateString('ar-EG', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
+        }
+
+        function printSingleBooking(bookingId) {
+            const b = state.bookings.find(x => x.id == bookingId || x.id === bookingId);
+            if (!b) {
+                showToast('لم يتم العثور على بيانات الحجز', 'error');
+                return;
+            }
+
+            const blk = buildBookingPrintBlock(b);
+            const printDate = bookingPrintDateLabel();
+
+            const printHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تفاصيل الحجز – ${(b.companyName || '').replace(/</g,'&lt;')}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+${bookingPrintCss(blk.hasNotes, blk.hasAck)}
+</style>
+</head>
+<body>
+${bookingPrintHeaderHtml(printDate)}
+<div class="doc-title">تفاصيل الحجز</div>
+${blk.html}
+${bookingPrintFooterHtml(printDate)}
+<script>
+    window.onload = function() {
+        setTimeout(function() { window.print(); }, 600);
+    };
+<\/script>
+</body>
+</html>`;
+
+            const win = window.open('', '_blank', 'width=900,height=750,scrollbars=yes');
+            if (!win) {
+                showToast('يرجى السماح بفتح النوافذ المنبثقة في المتصفح', 'error');
+                return;
+            }
+            win.document.write(printHtml);
+            win.document.close();
+        }
+
+        // ─── طباعة تفاصيل حجوزات فترة (عدة أيام) — كل حجز في صفحة مستقلة ───
+        function localTodayStr() {
+            const t = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+        }
+
+        function getBookingsForPrintRange(from, to) {
+            const isAdmin = state.currentUserEmail === ADMIN_EMAIL;
+            const sorted = [...state.bookings].sort((a, b) => {
+                if (a.startDate !== b.startDate) return (a.startDate || '').localeCompare(b.startDate || '');
+                return (a.startTime || '').localeCompare(b.startTime || '');
+            });
+            const seen = new Set();
+            const list = [];
+            let skippedHidden = 0;
+            sorted.forEach(b => {
+                const key = b.groupId || b.id.toString().split('_d')[0];
+                if (seen.has(key)) return;
+                const r = getBookingGroupRange(b);
+                if (!r.startDate || r.endDate < from || r.startDate > to) return;
+                seen.add(key);
+                // الحجوزات المخفية تفاصيلها لا تظهر لغير الأدمن (نفس قاعدة الشاشة)
+                if (b.detailsHidden && !isAdmin) { skippedHidden++; return; }
+                list.push(b);
+            });
+            return { list, skippedHidden };
+        }
+
+        function openPrintRangeModal() {
+            const today = localTodayStr();
+            document.getElementById('printRangeFrom').value = today;
+            document.getElementById('printRangeTo').value = today;
+            updatePrintRangePreview();
+            document.getElementById('printRangeModal').classList.remove('hidden');
+            if (typeof lucide !== "undefined") refreshIcons('printRangeModal');
+        }
+
+        function closePrintRangeModal() {
+            document.getElementById('printRangeModal').classList.add('hidden');
+        }
+
+        function setPrintRangePreset(kind) {
+            const today = localTodayStr();
+            let from = today, to = today;
+            if (kind === 'tomorrow') { from = to = addDaysToDateStr(today, 1); }
+            else if (kind === 'week') { to = addDaysToDateStr(today, 6); }
+            else if (kind === 'month') {
+                const t = new Date();
+                const last = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+                to = today.slice(0, 8) + String(last).padStart(2, '0');
+            }
+            document.getElementById('printRangeFrom').value = from;
+            document.getElementById('printRangeTo').value = to;
+            updatePrintRangePreview();
+        }
+
+        let printRangeCurrent = []; // الحجوزات المعروضة حالياً في قايمة الاختيار
+
+        function updatePrintRangePreview() {
+            const from = document.getElementById('printRangeFrom').value;
+            const to = document.getElementById('printRangeTo').value;
+            const prev = document.getElementById('printRangePreview');
+            const wrap = document.getElementById('printRangeListWrap');
+            const listBox = document.getElementById('printRangeList');
+            printRangeCurrent = [];
+            listBox.innerHTML = '';
+            wrap.classList.add('hidden');
+            if (!from || !to) { prev.textContent = 'اختر تاريخ البداية والنهاية'; updatePrintRangeSelection(); return; }
+            if (to < from) { prev.textContent = 'تاريخ النهاية قبل تاريخ البداية'; updatePrintRangeSelection(); return; }
+            const { list, skippedHidden } = getBookingsForPrintRange(from, to);
+            printRangeCurrent = list;
+            let msg = list.length ? ('عدد الحجوزات في الفترة: ' + list.length) : 'لا توجد حجوزات في هذه الفترة';
+            if (skippedHidden) msg += ' (تم استبعاد ' + skippedHidden + ' حجز مخفي التفاصيل)';
+            prev.textContent = msg;
+            if (list.length) {
+                const fmt = d => d ? d.split('-').reverse().join('/') : '-';
+                listBox.innerHTML = list.map((b, i) => {
+                    const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف' };
+                    const r = getBookingGroupRange(b);
+                    const dateTxt = r.startDate === r.endDate ? fmt(r.startDate) : (fmt(r.startDate) + ' ← ' + fmt(r.endDate));
+                    const timeTxt = (b.startTime && b.endTime) ? (b.startTime + ' – ' + b.endTime) : (b.startTime || 'يوم كامل');
+                    return `<label class="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 cursor-pointer">
+                        <input type="checkbox" value="${i}" checked onchange="updatePrintRangeSelection()">
+                        <div class="min-w-0 flex-1">
+                            <div class="font-black text-[#6E1418] text-sm leading-snug break-words">${escapeHtml(b.companyName) || '-'}</div>
+                            <div class="text-[11px] font-bold text-slate-500 mt-0.5 break-words">${escapeHtml(hall.name)} • ${dateTxt} • ${escapeHtml(timeTxt)}</div>
+                        </div>
+                    </label>`;
+                }).join('');
+                wrap.classList.remove('hidden');
+            }
+            updatePrintRangeSelection();
+        }
+
+        function getPrintRangeSelected() {
+            const boxes = Array.from(document.querySelectorAll('#printRangeList input[type="checkbox"]'));
+            return boxes.filter(x => x.checked).map(x => printRangeCurrent[Number(x.value)]).filter(Boolean);
+        }
+
+        function updatePrintRangeSelection() {
+            const boxes = Array.from(document.querySelectorAll('#printRangeList input[type="checkbox"]'));
+            const n = boxes.filter(x => x.checked).length;
+            const btn = document.getElementById('printRangeConfirmBtn');
+            document.getElementById('printRangeConfirmLabel').textContent = boxes.length ? ('طباعة المحدد (' + n + ')') : 'طباعة';
+            document.getElementById('printRangeSelCount').textContent = boxes.length ? ('محدد ' + n + ' من ' + boxes.length) : '';
+            document.getElementById('printRangeToggleAll').textContent = (boxes.length && n === boxes.length) ? 'إلغاء الكل' : 'تحديد الكل';
+            btn.disabled = n === 0;
+            btn.classList.toggle('opacity-50', n === 0);
+            btn.classList.toggle('cursor-not-allowed', n === 0);
+        }
+
+        function togglePrintRangeAll() {
+            const boxes = Array.from(document.querySelectorAll('#printRangeList input[type="checkbox"]'));
+            const allChecked = boxes.length > 0 && boxes.every(x => x.checked);
+            boxes.forEach(x => { x.checked = !allChecked; });
+            updatePrintRangeSelection();
+        }
+
+        function confirmPrintRange() {
+            const from = document.getElementById('printRangeFrom').value;
+            const to = document.getElementById('printRangeTo').value;
+            if (!from || !to || to < from) { showToast('تأكد من اختيار فترة صحيحة', 'error'); return; }
+            const selected = getPrintRangeSelected();
+            if (!selected.length) { showToast('اختر حجزاً واحداً على الأقل', 'error'); return; }
+            closePrintRangeModal();
+            printBookingsRange(selected, from, to);
+        }
+
+        function printBookingsRange(list, from, to) {
+            const printDate = bookingPrintDateLabel();
+            const fmtDate = d => d ? d.split('-').reverse().join('/') : '-';
+            const rangeTxt = from === to ? fmtDate(from) : (fmtDate(from) + ' ← ' + fmtDate(to));
+            let anyNotes = false, anyAck = false;
+
+            const pages = list.map((b, i) => {
+                const blk = buildBookingPrintBlock(b);
+                if (blk.hasNotes) anyNotes = true;
+                if (blk.hasAck) anyAck = true;
+                return `<section class="bk-page">
+${bookingPrintHeaderHtml(printDate)}
+<div class="doc-title">تفاصيل الحجز <span class="doc-sub">(${i + 1} من ${list.length}) • الفترة: ${rangeTxt}</span></div>
+${blk.html}
+${bookingPrintFooterHtml(printDate)}
+</section>`;
+            }).join('\n');
+
+            const printHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تفاصيل الحجوزات ${rangeTxt}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+${bookingPrintCss(anyNotes, anyAck)}
+    .doc-title .doc-sub { font-size: 10px; color: #94a3b8; font-weight: 700; }
+    .bk-page + .bk-page { page-break-before: always; break-before: page; }
+</style>
+</head>
+<body>
+${pages}
 <script>
     window.onload = function() {
         setTimeout(function() { window.print(); }, 600);
@@ -9351,6 +9542,7 @@ ${acknowledgmentHtml}
             const CLOSERS = {
                 detailsModal: 'closeDetailsModalAnimated',
                 copyBookingModal: 'closeCopyBookingModal',
+                printRangeModal: 'closePrintRangeModal',
                 deleteConfirmModal: 'closeDeleteConfirmModal',
                 imageLightbox: 'closeImageLightbox'
             };
