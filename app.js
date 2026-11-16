@@ -660,6 +660,8 @@
             currentMonth: new Date().getMonth(),
             currentYear: new Date().getFullYear(),
             selectedDay: new Date().toISOString().split('T')[0], // اليوم المحدد (عرض الموبايل)
+            calView: (function () { try { return localStorage.getItem('resta_cal_view') === 'week' ? 'week' : 'month'; } catch (e) { return 'month'; } })(), // عرض الموبايل: 'month' | 'week'
+            weekStart: null, // أول يوم (سبت) في الأسبوع المعروض YYYY-MM-DD
             editingBookingId: null,
             isSyncing: false,
             // --- Race condition fix ---
@@ -5179,6 +5181,110 @@ ${pages}
             render();
         }
 
+
+        // ─── عرض الأسبوع (موبايل): قائمة رأسية من السبت إلى الجمعة ─────────
+        function parseDateStr(s) { const p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+        function fmtDateStr(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+        function addDaysStr(s, n) { const d = parseDateStr(s); d.setDate(d.getDate() + n); return fmtDateStr(d); }
+        // بداية الأسبوع = السبت (السبت=6 → 0، الأحد=0 → 1 ... الجمعة=5 → 6)
+        function weekStartOf(s) { const d = parseDateStr(s); return addDaysStr(s, -((d.getDay() + 1) % 7)); }
+        function isWeekMode() { return state.calView === 'week' && isMobileCalendar(); }
+
+        function weekRangeLabel() {
+            if (!state.weekStart) state.weekStart = weekStartOf(state.selectedDay || new Date().toISOString().split('T')[0]);
+            const s = parseDateStr(state.weekStart), e = parseDateStr(addDaysStr(state.weekStart, 6));
+            const dm = d => d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' });
+            const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+            const startTxt = sameMonth ? s.toLocaleDateString('ar-EG', { day: 'numeric' }) : dm(s);
+            return startTxt + ' – ' + dm(e) + ' ' + e.toLocaleDateString('ar-EG', { year: 'numeric' });
+        }
+
+        function setCalView(mode) {
+            if (mode === state.calView) return;
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (mode === 'week') {
+                const monthPrefix = state.currentYear + '-' + String(state.currentMonth + 1).padStart(2, '0');
+                const base = (state.selectedDay && state.selectedDay.startsWith(monthPrefix)) ? state.selectedDay
+                           : (todayStr.startsWith(monthPrefix) ? todayStr : monthPrefix + '-01');
+                state.weekStart = weekStartOf(base);
+            } else {
+                // نرجع للشهر اللي فيه أغلب أيام الأسبوع المعروض (اليوم الرابع = الثلاثاء)
+                const mid = parseDateStr(addDaysStr(state.weekStart || weekStartOf(todayStr), 3));
+                state.currentMonth = mid.getMonth();
+                state.currentYear = mid.getFullYear();
+                const prefix = state.currentYear + '-' + String(state.currentMonth + 1).padStart(2, '0');
+                if (!state.selectedDay || !state.selectedDay.startsWith(prefix)) {
+                    state.selectedDay = todayStr.startsWith(prefix) ? todayStr : null;
+                }
+            }
+            state.calView = mode;
+            try { localStorage.setItem('resta_cal_view', mode); } catch (e) {}
+            render();
+        }
+
+        function changeWeek(delta) {
+            if (!state.weekStart) state.weekStart = weekStartOf(new Date().toISOString().split('T')[0]);
+            state.weekStart = addDaysStr(state.weekStart, 7 * delta);
+            render();
+        }
+
+        function renderWeekViewHtml() {
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (!state.weekStart) state.weekStart = weekStartOf(state.selectedDay || todayStr);
+            const isAdm = state.currentUserEmail === ADMIN_EMAIL;
+            const blocks = [];
+            for (let i = 0; i < 7; i++) {
+                const dateStr = addDaysStr(state.weekStart, i);
+                const d = parseDateStr(dateStr);
+                const dayName = d.toLocaleDateString('ar-EG', { weekday: 'long' });
+                const dateLbl = d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' });
+                const isToday = dateStr === todayStr;
+                const isPast = isPastDateStr(dateStr);
+                const bookings = state.bookings.filter(b => b.startDate === dateStr).sort((x, y) => {
+                    if (!x.startTime) return -1;
+                    if (!y.startTime) return 1;
+                    return x.startTime.localeCompare(y.startTime);
+                });
+                const hasNote = !!getDayNote(dateStr);
+                const canAdd = !isGuest() && (isAdm || !isPast);
+                const addBtn = canAdd ? `
+                    <button onclick="openNewBookingForDate('${dateStr}')" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                        <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i><span>حجز جديد</span>
+                    </button>` : '';
+                const psBtn = canAdd ? `
+                    <button onclick="openPhotoshootModal({date:'${dateStr}'})" title="فوتوسيشن" class="shrink-0 flex items-center bg-pink-50 text-pink-700 border border-pink-200 text-xs font-black rounded-lg px-2 py-1.5 active:scale-95 transition-transform">📷</button>` : '';
+                const noteBtn = (isAdm && !hasNote) ? `
+                    <button type="button" onclick="openDayNoteEditor('${dateStr}')" title="إضافة ملاحظة لهذا اليوم" class="shrink-0 text-xs px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 active:scale-95 transition-transform">📌</button>` : '';
+                const items = bookings.map(b => {
+                    const hall = findHall(b.hallId) || { name: '' };
+                    const time = b.startTime ? (b.startTime + (b.endTime ? ' – ' + b.endTime : '')) : 'طوال اليوم';
+                    return `
+                        <div onclick="showDayDetails('${dateStr}', '${b.id}')"
+                             style="border-right:4px solid ${hallDotColor(b.hallId)};"
+                             class="agenda-item flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm active:bg-slate-50">
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-black text-slate-800 truncate">${evEmoji(b)}${escapeHtml(b.companyName)}</div>
+                                <div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>
+                            </div>
+                            <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
+                        </div>`;
+                }).join('');
+                blocks.push(`
+                    <div class="week-day bg-white border border-slate-200 rounded-2xl p-2.5 ${isToday ? 'week-day-today' : ''} ${isPast ? 'past-day' : ''}" data-date="${dateStr}">
+                        <div class="flex items-center justify-between gap-2 ${(bookings.length || hasNote) ? 'mb-2' : ''}">
+                            <div class="min-w-0">
+                                <div class="text-sm font-black truncate ${isToday ? 'text-[#6E1418]' : 'text-slate-700'}">${dayName} <span class="text-xs font-bold text-slate-400">${dateLbl}</span>${isToday ? ' <span class="text-[10px] font-black text-white bg-[#6E1418] rounded-md px-1.5 py-0.5 align-middle">اليوم</span>' : ''}</div>
+                                <div class="text-[11px] font-bold text-slate-400">${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات'}</div>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">${noteBtn}${psBtn}${addBtn}</div>
+                        </div>
+                        ${dayNoteBoxHtml(dateStr, false)}
+                        ${bookings.length ? `<div class="flex flex-col gap-1.5">${items}</div>` : ''}
+                    </div>`);
+            }
+            return `<div class="week-view-wrapper"><div class="flex flex-col gap-2">${blocks.join('')}</div></div>`;
+        }
+
         // ─── Calendar mobile: نقط + قائمة اليوم + سحب بين الشهور ─────────
 
         function isMobileCalendar() {
@@ -5268,17 +5374,18 @@ ${pages}
             let sx = 0, sy = 0, tracking = false, animating = false;
 
             // أنيميشن: الشهر الحالي يخرج، وبعده الجديد يدخل من الاتجاه المعاكس
+            function stepCal(next) { if (isWeekMode()) changeWeek(next ? 1 : -1); else changeMonth(next ? 1 : -1); }
             function swipeToMonth(next) {
-                const w = document.querySelector('.calendar-scroll-wrapper');
+                const w = document.querySelector('.calendar-scroll-wrapper, .week-view-wrapper');
                 if (!w || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                    changeMonth(next ? 1 : -1);
+                    stepCal(next);
                     return;
                 }
                 animating = true;
                 w.classList.add(next ? 'cal-out-right' : 'cal-out-left');
                 setTimeout(function () {
-                    changeMonth(next ? 1 : -1);
-                    const nw = document.querySelector('.calendar-scroll-wrapper');
+                    stepCal(next);
+                    const nw = document.querySelector('.calendar-scroll-wrapper, .week-view-wrapper');
                     if (nw) {
                         const cls = next ? 'cal-in-from-left' : 'cal-in-from-right';
                         nw.classList.add(cls);
@@ -5291,7 +5398,7 @@ ${pages}
             document.addEventListener('touchstart', function (e) {
                 tracking = false;
                 if (animating || !isMobileCalendar() || e.touches.length !== 1) return;
-                if (!e.target.closest || !e.target.closest('.calendar-scroll-wrapper')) return;
+                if (!e.target.closest || !e.target.closest('.calendar-scroll-wrapper, .week-view-wrapper')) return;
                 sx = e.touches[0].clientX;
                 sy = e.touches[0].clientY;
                 tracking = true;
@@ -6026,15 +6133,21 @@ ${pages}
                             </div>
                         </div>
                         <div class="flex bg-slate-50 border border-slate-200 rounded-lg md:rounded-xl p-0.5 md:p-1.5 shadow-sm">
-                            <button onclick="changeMonth(-1)" ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="-1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4 md:w-5 md:h-5"></i></button>
+                            <button onclick="${isWeekMode() ? 'changeWeek(-1)' : 'changeMonth(-1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="-1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4 md:w-5 md:h-5"></i></button>
                             <span class="px-2 py-0.5 md:px-6 md:py-2 text-xs md:text-base font-black text-[#6E1418] flex items-center md:min-w-[140px] justify-center tracking-wide">
-                                ${new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' })} (شهر ${state.currentMonth + 1})
+                                ${isWeekMode() ? weekRangeLabel() : new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) + ' (شهر ' + (state.currentMonth + 1) + ')'}
                             </span>
-                            <button onclick="changeMonth(1)" ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)" data-month-nav="1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-4 h-4 md:w-5 md:h-5"></i></button>
+                            <button onclick="${isWeekMode() ? 'changeWeek(1)' : 'changeMonth(1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-4 h-4 md:w-5 md:h-5"></i></button>
                         </div>
                     </div>
-                    ${renderCalendar(true)}
-                    <div id="dayAgenda" class="day-agenda">${renderDayAgendaHtml()}</div>
+                    <div class="md:hidden flex justify-center mb-1.5">
+                        <div class="inline-flex bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-sm text-[11px] font-black">
+                            <button onclick="setCalView('month')" class="px-3.5 py-1 rounded-md transition-all ${isWeekMode() ? 'text-slate-500' : 'bg-white shadow-sm text-[#6E1418]'}">شهر</button>
+                            <button onclick="setCalView('week')" class="px-3.5 py-1 rounded-md transition-all ${isWeekMode() ? 'bg-white shadow-sm text-[#6E1418]' : 'text-slate-500'}">أسبوع</button>
+                        </div>
+                    </div>
+                    ${isWeekMode() ? renderWeekViewHtml() : `${renderCalendar(true)}
+                    <div id="dayAgenda" class="day-agenda">${renderDayAgendaHtml()}</div>`}
                 </div>
             `;
         }

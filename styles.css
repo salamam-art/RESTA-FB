@@ -1102,6 +1102,11 @@ html.touch-edge-right::after { right: 0; background: linear-gradient(to left, rg
 /* الأيام اللي عدّت تبقى أخف */
 .day-cell.past-day:not(.selected-day):not(.drag-over) { opacity: 0.55; }
 
+/* عرض الأسبوع (موبايل): قائمة رأسية سبت → جمعة */
+.week-day.past-day { opacity: 0.6; }
+.week-day-today { border-color: #6E1418 !important; box-shadow: inset 0 0 0 1px #6E1418; }
+html.dark .week-day-today { border-color: #A88A45 !important; box-shadow: inset 0 0 0 1px #A88A45; }
+
 /* ظهور قائمة اليوم */
 @keyframes agendaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .agenda-anim { animation: agendaIn .22s ease-out; }
