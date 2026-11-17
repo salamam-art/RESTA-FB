@@ -5269,20 +5269,27 @@ ${pages}
                             <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
                         </div>`;
                 }).join('');
+                const dayNum = d.toLocaleDateString('ar-EG', { day: 'numeric' });
+                const monthName = d.toLocaleDateString('ar-EG', { month: 'long' });
                 blocks.push(`
-                    <div class="week-day bg-white border border-slate-200 rounded-2xl p-2.5 ${isToday ? 'week-day-today' : ''} ${isPast ? 'past-day' : ''}" data-date="${dateStr}">
-                        <div class="flex items-center justify-between gap-2 ${(bookings.length || hasNote) ? 'mb-2' : ''}">
-                            <div class="min-w-0">
-                                <div class="text-sm font-black truncate ${isToday ? 'text-[#6E1418]' : 'text-slate-700'}">${dayName} <span class="text-xs font-bold text-slate-400">${dateLbl}</span>${isToday ? ' <span class="text-[10px] font-black text-white bg-[#6E1418] rounded-md px-1.5 py-0.5 align-middle">اليوم</span>' : ''}</div>
-                                <div class="text-[11px] font-bold text-slate-400">${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات'}</div>
+                    <div class="week-day ${isToday ? 'week-day-today' : ''} ${isPast ? 'past-day' : ''}" data-date="${dateStr}">
+                        <div class="week-day-head flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="week-day-num">${dayNum}</div>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-black truncate ${isToday ? 'text-[#6E1418]' : 'text-slate-800'}">${dayName}${isToday ? ' <span class="text-[10px] font-black text-white bg-[#6E1418] rounded-md px-1.5 py-0.5 align-middle">اليوم</span>' : ''}</div>
+                                    <div class="text-[11px] font-bold text-slate-500">${monthName} · ${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات'}</div>
+                                </div>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">${noteBtn}${psBtn}${addBtn}</div>
                         </div>
-                        ${dayNoteBoxHtml(dateStr, false)}
-                        ${bookings.length ? `<div class="flex flex-col gap-1.5">${items}</div>` : ''}
+                        ${(bookings.length || hasNote) ? `<div class="week-day-body">
+                            ${dayNoteBoxHtml(dateStr, false)}
+                            ${bookings.length ? `<div class="flex flex-col gap-1.5">${items}</div>` : ''}
+                        </div>` : ''}
                     </div>`);
             }
-            return `<div class="week-view-wrapper"><div class="flex flex-col gap-2">${blocks.join('')}</div></div>`;
+            return `<div class="week-view-wrapper"><div class="flex flex-col gap-3">${blocks.join('')}</div></div>`;
         }
 
         // ─── Calendar mobile: نقط + قائمة اليوم + سحب بين الشهور ─────────

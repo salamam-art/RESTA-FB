@@ -1103,9 +1103,22 @@ html.touch-edge-right::after { right: 0; background: linear-gradient(to left, rg
 .day-cell.past-day:not(.selected-day):not(.drag-over) { opacity: 0.55; }
 
 /* عرض الأسبوع (موبايل): قائمة رأسية سبت → جمعة */
-.week-day.past-day { opacity: 0.6; }
-.week-day-today { border-color: #6E1418 !important; box-shadow: inset 0 0 0 1px #6E1418; }
-html.dark .week-day-today { border-color: #A88A45 !important; box-shadow: inset 0 0 0 1px #A88A45; }
+.week-day { background: #fff; border: 1.5px solid #D8CCB0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 4px rgba(60, 40, 20, 0.10); }
+.week-day-head { background: #F3EBDA; padding: 8px 10px; }
+.week-day-body { padding: 8px 10px 10px; border-top: 1.5px solid #D8CCB0; }
+.week-day-num { width: 40px; height: 40px; border-radius: 12px; background: #A88A45; color: #fff; font-size: 19px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.week-day.past-day { opacity: 0.62; }
+.week-day-today { border-color: #6E1418; box-shadow: 0 0 0 1px #6E1418, 0 3px 10px rgba(110, 20, 24, 0.22); }
+.week-day-today .week-day-head { background: #F5DEE0; }
+.week-day-today .week-day-num { background: #6E1418; }
+.week-day-today .week-day-body { border-top-color: #6E1418; }
+html.dark .week-day { background: var(--d-surface, #1D1816); border-color: var(--d-border, #3A312E); box-shadow: none; }
+html.dark .week-day-head { background: var(--d-surface-3, #302827); }
+html.dark .week-day-body { border-top-color: var(--d-border, #3A312E); }
+html.dark .week-day-today { border-color: #A88A45; box-shadow: 0 0 0 1px #A88A45; }
+html.dark .week-day-today .week-day-head { background: rgba(168, 138, 69, 0.22); }
+html.dark .week-day-today .week-day-num { background: #A88A45; }
+html.dark .week-day-today .week-day-body { border-top-color: #A88A45; }
 
 /* ظهور قائمة اليوم */
 @keyframes agendaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
