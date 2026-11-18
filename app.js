@@ -880,7 +880,7 @@
         }
         // حفظ/حذف ملاحظة حجز (أدمن بس). النص الفاضي = حذف الملاحظة.
         async function saveAdminNote(key, text) {
-            if (!CLOUD_ENABLED || !isNotesAdmin() || !key) return;
+            if (!CLOUD_ENABLED || !isNotesAdmin() || !key) return false;
             const t = String(text || '').trim().slice(0, ADMIN_NOTE_MAX);
             try {
                 if (!t) {
@@ -891,11 +891,13 @@
                     ADMIN_NOTES[key] = val;
                     await db.ref('adminNotes/' + key).set(val);
                 }
+                return true;
             } catch (err) {
                 console.warn('saveAdminNote failed:', err);
                 showToast(err && err.code === 'PERMISSION_DENIED'
                     ? 'تعذر حفظ الملاحظة الخاصة — تأكد من نشر قواعد Firebase الجديدة (adminNotes).'
                     : 'تعذر حفظ الملاحظة الخاصة: ' + ((err && err.message) || ''), 'error');
+                return false;
             }
         }
         // لما الحجز يتحذف بالكامل (مفيش أيام تانية بنفس المفتاح) تتحذف ملاحظته معاه.
@@ -908,6 +910,69 @@
             delete ADMIN_NOTES[key];
             try { db.ref('adminNotes/' + key).remove().catch(() => {}); } catch (e) {}
         }
+
+        // لقطة من قيم كل حقول الفورم (ما عدا حقول الملاحظة الخاصة) — بنستخدمها نعرف لو اللي اتغيّر الملاحظة الخاصة بس
+        function formSnapshot(root, extra) {
+            if (!root) return '';
+            const parts = [];
+            root.querySelectorAll('input, select, textarea').forEach(el => {
+                if (el.name === 'adminNote' || el.name === 'psAdminNote' || el.type === 'file' || el.type === 'button' || el.type === 'submit') return;
+                parts.push((el.type === 'checkbox' || el.type === 'radio') ? (el.checked ? '1' : '0') : String(el.value));
+            });
+            return parts.join('\u0001') + '\u0002' + (extra || '');
+        }
+        // محرر مباشر للملاحظة الخاصة من تفاصيل الحجز: بيكتب في adminNotes بس، من غير ما يلمس الحجز ولا يعمل إشعار
+        function openBookingNoteEditor(bookingId) {
+            if (!isNotesAdmin()) return;
+            const b = state.bookings.find(x => String(x.id) === String(bookingId));
+            if (!b) return;
+            const key = bookingNoteKey(b);
+            const old = document.getElementById('bookingNoteOverlay');
+            if (old) old.remove();
+            const cur = getAdminNote(b);
+            const wrap = document.createElement('div');
+            wrap.id = 'bookingNoteOverlay';
+            wrap.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.6)');
+            wrap.innerHTML = `
+                <form class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl" style="direction:rtl" autocomplete="off">
+                    <h3 class="text-lg font-black text-violet-800 mb-1">🔒 ملاحظة خاصة</h3>
+                    <p class="text-sm text-slate-500 mb-3 font-bold">${escapeHtml(b.companyName || '')} — للأدمن فقط، ولا يوصل بيها أي إشعار</p>
+                    <textarea id="bookingNoteInput" rows="4" maxlength="${ADMIN_NOTE_MAX}" oninput="autoGrowTextarea(this)" placeholder="اكتب الملاحظة... سطر واحد أو أكثر"
+                        class="w-full px-4 py-3 rounded-xl border border-violet-200 bg-violet-50 text-slate-800 font-bold outline-none focus:border-violet-500" style="resize:vertical;max-height:420px"></textarea>
+                    <div class="flex gap-2 mt-5">
+                        <button type="submit" id="bookingNoteSave" class="flex-1 bg-violet-700 text-white font-bold py-3 rounded-xl">حفظ</button>
+                        ${cur ? '<button type="button" id="bookingNoteDel" class="px-4 bg-red-50 text-red-600 font-bold py-3 rounded-xl">حذف</button>' : ''}
+                        <button type="button" id="bookingNoteCancel" class="px-4 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>
+                    </div>
+                </form>`;
+            document.body.appendChild(wrap);
+            const input = wrap.querySelector('#bookingNoteInput');
+            input.value = cur;
+            const close = () => wrap.remove();
+            const refresh = () => {
+                const dm = document.getElementById('detailsModal');
+                if (dm && !dm.classList.contains('hidden')) {
+                    const d = document.getElementById('modalDateTitle').dataset.date;
+                    if (d) refreshDayDetails(d);
+                }
+            };
+            wrap.querySelector('#bookingNoteCancel').addEventListener('click', close);
+            const delBtn = wrap.querySelector('#bookingNoteDel');
+            if (delBtn) delBtn.addEventListener('click', async () => {
+                if (!confirm('حذف الملاحظة الخاصة بهذا الحجز؟')) return;
+                if (await saveAdminNote(key, '')) { close(); refresh(); showToast('تم حذف الملاحظة الخاصة', 'success'); }
+            });
+            wrap.querySelector('form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = wrap.querySelector('#bookingNoteSave');
+                btn.disabled = true; btn.textContent = 'جاري الحفظ...';
+                const ok = await saveAdminNote(key, input.value);
+                if (ok) { close(); refresh(); showToast('تم حفظ الملاحظة الخاصة', 'success'); }
+                else { btn.disabled = false; btn.textContent = 'حفظ'; }
+            });
+            setTimeout(() => { try { input.focus(); autoGrowTextarea(input); } catch (e) {} }, 50);
+        }
+
         function autoGrowTextarea(el) {
             if (!el) return;
             el.style.height = 'auto';
@@ -4061,11 +4126,15 @@
                                 ${(isAdmin && getAdminNote(b)) ? `
                                 <div class="mt-3 p-3 bg-violet-50 rounded-xl text-sm text-violet-900 border border-violet-200 flex items-start gap-2">
                                     <i data-lucide="lock" class="w-4 h-4 mt-0.5 text-violet-600 shrink-0"></i>
-                                    <div class="min-w-0">
+                                    <div class="min-w-0 flex-1">
                                         <div class="text-[11px] font-black text-violet-600 mb-0.5">ملاحظة خاصة — للأدمن فقط</div>
                                         <p class="leading-relaxed font-medium whitespace-pre-wrap break-words">${escapeHtml(getAdminNote(b))}</p>
                                     </div>
-                                </div>` : ''}
+                                    <button type="button" onclick="event.stopPropagation(); openBookingNoteEditor('${b.id}')" class="shrink-0 p-1.5 rounded-lg text-violet-700 hover:bg-violet-100" title="تعديل الملاحظة الخاصة"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                                </div>` : (isAdmin ? `
+                                <button type="button" onclick="event.stopPropagation(); openBookingNoteEditor('${b.id}')" class="mt-3 w-full text-xs font-black text-violet-700 bg-violet-50 border border-dashed border-violet-200 rounded-xl py-2 flex items-center justify-center gap-1.5">
+                                    <i data-lucide="lock" class="w-3.5 h-3.5"></i> إضافة ملاحظة خاصة (للأدمن فقط)
+                                </button>` : '')}
 
                                 ${(() => {
                                     if (b.eventType !== 'wedding' || !b.wedding) return '';
@@ -7068,6 +7137,7 @@ ${pages}
             f.psLink.value  = isBooking ? (getBookingLinks(src)[0] || '') : '';
             f.psNotes.value = isBooking ? (src.notes || '') : '';
             applyAdminNoteField(f, (isBooking && !copyOpts) ? getAdminNote(src) : '', 'psAdminNoteGroup', 'psAdminNote');
+            delete f.dataset.snapBase;
             document.getElementById('photoshootTitle').textContent = window._psEditId ? 'تعديل حجز فوتوسيشن' : (copyOpts ? 'نسخ حجز فوتوسيشن' : 'حجز فوتوسيشن جديد');
             f.psRoom.value = (ph.sub === 'prep' && ph.room) ? ph.room : '';
             psSetKind(ph.sub === 'prep' ? 'prep' : 'floor');
@@ -7078,6 +7148,7 @@ ${pages}
             document.getElementById('detailsModal').classList.add('hidden');
             document.getElementById('photoshootModal').classList.remove('hidden');
             if (typeof lucide !== "undefined") refreshIcons('photoshootModal');
+            if (window._psEditId) { const _eid = window._psEditId; setTimeout(() => { if (window._psEditId === _eid) f.dataset.snapBase = formSnapshot(f, JSON.stringify(psImages.map(i => i.data))); }, 500); }
         }
         function closePhotoshootModal(saved) {
             const m = document.getElementById('photoshootModal');
@@ -7107,6 +7178,17 @@ ${pages}
             const editId = window._psEditId;
             const old = editId ? state.bookings.find(b => b.id === editId) : null;
             if (editId && !old) { closePhotoshootModal(); return; }
+            // الملاحظة الخاصة بس اتغيّرت: نحفظها لوحدها من غير تعديل الحجز أو إشعارات
+            if (old && isNotesAdmin() && f.psAdminNote && f.dataset.snapBase !== undefined) {
+                const _pNow = f.psAdminNote.value.trim();
+                const _pOrig = (f.dataset.psAdminNoteOrig || '').trim();
+                if (_pNow !== _pOrig && formSnapshot(f, JSON.stringify(psImages.map(i => i.data))) === f.dataset.snapBase) {
+                    saveAdminNote(bookingNoteKey(old), _pNow);
+                    closePhotoshootModal(true);
+                    showToast('تم حفظ الملاحظة الخاصة (بدون تعديل الحجز)', 'success');
+                    return;
+                }
+            }
             if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(date) && (!old || old.startDate !== date)) {
                 alert('عذراً، لا يمكنك إضافة حجز في يوم منصرم. هذه الصلاحية للأدمن فقط.');
                 return;
@@ -7221,6 +7303,8 @@ ${pages}
             form.querySelector('input[name="employee"]').value   = booking.employee   || '';
             form.querySelector('textarea[name="notes"]').value   = booking.notes      || '';
             applyAdminNoteField(form, copyOpts ? '' : getAdminNote(booking), 'adminNoteGroup', 'adminNote'); // النسخ بيبدأ بدون ملاحظة خاصة
+            delete form.dataset.snapBase;
+            if (!copyOpts) setTimeout(() => { if (state.editingBookingId === resolvedGroupId) form.dataset.snapBase = formSnapshot(form, JSON.stringify(formImages)); }, 500);
             setLinksInForm(getBookingLinks(booking));
             setFormImages(getBookingImages(booking));
 
@@ -7282,6 +7366,7 @@ ${pages}
                 form.querySelector('input[name="dateTo"]').value   = today;
                 form.querySelector('input[name="employee"]').value = getDefaultEmployeeName();
                 applyAdminNoteField(form, '', 'adminNoteGroup', 'adminNote');
+                delete form.dataset.snapBase;
                 setLinksInForm([]);
                 setFormImages([]);
                 document.getElementById('globalEventType').value = 'normal';
@@ -8395,6 +8480,21 @@ ${pages}
             if (!hall) { alert('الرجاء اختيار القاعة أولاً'); return; }
 
             const isEditing = !!state.editingBookingId;
+
+            // لو الأدمن غيّر الملاحظة الخاصة بس (ومفيش أي تعديل تاني): نحفظ الملاحظة لوحدها
+            // من غير ما نلمس الحجز ولا نسجّل نشاط ولا نبعت إشعار لأي مستخدم
+            if (isEditing && isNotesAdmin() && form.adminNote && form.dataset.snapBase !== undefined) {
+                const _nNow = form.adminNote.value.trim();
+                const _nOrig = (form.dataset.adminNoteOrig || '').trim();
+                if (_nNow !== _nOrig && formSnapshot(form, JSON.stringify(formImages)) === form.dataset.snapBase) {
+                    saveAdminNote(state.editingBookingId, _nNow);
+                    state.editingBookingId = null;
+                    toggleGlobalBookingModal();
+                    showToast('تم حفظ الملاحظة الخاصة (بدون تعديل الحجز)', 'success');
+                    return;
+                }
+            }
+
             const bookingData = {
                 hallId:      hall.id,
                 hallName:    hall.name,
