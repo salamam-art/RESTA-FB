@@ -67,7 +67,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20261116b">
+    <link rel="stylesheet" href="styles.css?v=20261118c">
 </head>
 <body>
     <script>window.__restaSplashStart = Date.now();</script>
@@ -690,6 +690,10 @@
                         <label>ملاحظات</label>
                         <textarea name="psNotes" rows="2" maxlength="500" placeholder="اختياري"></textarea>
                     </div>
+                    <div class="input-group admin-note-field hidden" id="psAdminNoteGroup">
+                        <label>🔒 ملاحظة خاصة (للأدمن فقط)</label>
+                        <textarea name="psAdminNote" rows="2" maxlength="5000" oninput="autoGrowTextarea(this)" placeholder="اختياري — لا يراها غيرك"></textarea>
+                    </div>
                     <button type="submit" class="w-full bg-[#6E1418] hover:bg-[#5a1013] text-white font-black py-3.5 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
                         <i data-lucide="check-circle" class="w-5 h-5 text-[#A88A45]"></i><span>حفظ الحجز</span>
                     </button>
@@ -883,6 +887,10 @@
                         <div class="input-group">
                             <label>ملاحظات إضافية</label>
                             <textarea name="notes" rows="3" placeholder="أضف أي تفاصيل، تجهيزات خاصة، أو متطلبات..."></textarea>
+                        </div>
+                        <div class="input-group admin-note-field hidden" id="adminNoteGroup">
+                            <label>🔒 ملاحظة خاصة (للأدمن فقط — لا يراها غيرك ولا تظهر في أي إشعار)</label>
+                            <textarea name="adminNote" rows="2" maxlength="5000" oninput="autoGrowTextarea(this)" placeholder="اكتب ملاحظتك الخاصة هنا... سطر واحد أو أكثر"></textarea>
                         </div>
                         <div class="input-group">
                             <label>روابط المرفقات (Google Drive / URL)</label>
@@ -1128,7 +1136,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261116b"></script>
+    <script src="app.js?v=20261118d"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">

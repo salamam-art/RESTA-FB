@@ -2515,3 +2515,46 @@ html body header.glass-panel { padding-top: 0 !important; }
         transform-origin: top left;
     }
 }
+
+/* ===================== الأيام الفاضية لقاعة (موبايل) ===================== */
+.free-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 9999px; border: 1.5px solid #D8CCB0; background: #fff; color: #475569; transition: all .15s; }
+.free-chip-dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
+.free-chip-on { background: #065f46; border-color: #065f46; color: #fff; box-shadow: 0 2px 6px rgba(6, 95, 70, .3); }
+.free-chip-on .free-chip-dot { box-shadow: 0 0 0 1.5px #fff; }
+.free-summary { background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 14px; padding: 8px 10px; margin: 6px 0 8px; }
+.free-day-chip { font-size: 11px; font-weight: 800; color: #065f46; background: #fff; border: 1px solid #a7f3d0; border-radius: 8px; padding: 2px 7px; }
+.week-free-pill { color: #047857; font-weight: 900; }
+.week-day-free { border-color: #34d399; background: #f0fdf4; }
+.week-day-free .week-day-head { background: #d1fae5; }
+.week-day-free .week-day-num { background: #059669; }
+.day-cell.free-day:not(.today-active):not(.drag-over) { background-color: #d1fae5 !important; }
+.free-mark { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: 900; color: #047857; line-height: 1; pointer-events: none; }
+@media (min-width: 768px) {
+    .free-mark { bottom: 6px; font-size: 15px; }
+    .free-chip { font-size: 13px; padding: 6px 14px; cursor: pointer; }
+    .free-chip:hover:not(.free-chip-on) { border-color: #059669; color: #065f46; }
+    .free-summary { padding: 12px 16px; margin: 14px 0 6px; }
+    .free-day-chip { font-size: 13px; padding: 3px 10px; }
+}
+html.dark .free-chip { background: var(--d-surface, #1D1816); border-color: var(--d-border, #3A312E); color: #cbd5e1; }
+html.dark .free-chip-on { background: #059669; border-color: #059669; color: #fff; }
+html.dark .free-summary { background: rgba(5, 150, 105, .14); border-color: rgba(52, 211, 153, .35); }
+html.dark .free-summary .text-emerald-800 { color: #6ee7b7; }
+html.dark .free-day-chip { background: transparent; color: #6ee7b7; border-color: rgba(52, 211, 153, .4); }
+html.dark .week-day-free { background: rgba(5, 150, 105, .12); border-color: #059669; }
+html.dark .week-day-free .week-day-head { background: rgba(5, 150, 105, .25); }
+html.dark .day-cell.free-day:not(.today-active):not(.drag-over) { background-color: rgba(5, 150, 105, .28) !important; }
+html.dark .week-free-pill { color: #6ee7b7; }
+
+
+/* ملاحظة الأدمن الخاصة داخل فورم الحجز */
+.input-group.admin-note-field > label { color: #6d28d9; }
+.input-group.admin-note-field textarea {
+    background: #faf5ff;
+    border-color: #ddd6fe;
+    min-height: 64px;
+    max-height: 420px;
+    resize: vertical;
+    overflow-y: auto;
+}
+.input-group.admin-note-field textarea:focus { border-color: #8b5cf6; }

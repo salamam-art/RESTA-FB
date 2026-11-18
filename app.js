@@ -662,6 +662,7 @@
             selectedDay: new Date().toISOString().split('T')[0], // اليوم المحدد (عرض الموبايل)
             calView: (function () { try { return localStorage.getItem('resta_cal_view') === 'week' ? 'week' : 'month'; } catch (e) { return 'month'; } })(), // عرض الموبايل: 'month' | 'week'
             weekStart: null, // أول يوم (سبت) في الأسبوع المعروض YYYY-MM-DD
+            freeHallId: null, // موبايل: قاعة مختارة لتمييز أيامها الفاضية (عرض فقط — لا يُحفظ)
             editingBookingId: null,
             isSyncing: false,
             // --- Race condition fix ---
@@ -786,6 +787,8 @@
         // القراءة تحتاج جلسة Firebase صالحة (زائر أو موظف)، فنشغّل/نوقف الاشتراك مع حالة الدخول
         auth.onAuthStateChanged((u) => {
             if (u) { setupWeddingSettingsListener(); setupHallsListener(); setupDayNotesListener(); } else { teardownWeddingSettingsListener(); teardownHallsListener(); teardownDayNotesListener(); }
+            // ملاحظات الحجوزات الخاصة: بتتحمّل للأدمن بس (بالإيميل وكلمة المرور، مش الزائر)
+            if (u && !u.isAnonymous && u.email === ADMIN_EMAIL) { setupAdminNotesListener(); } else { teardownAdminNotesListener(); }
         });
         function setupHallsListener() {
             if (!CLOUD_ENABLED) return;
@@ -836,6 +839,90 @@
         }
         function teardownDayNotesListener() {
             try { db.ref('dayNotes').off('value'); } catch (e) {}
+        }
+
+        // ─── ملاحظات الحجوزات الخاصة بالأدمن ──────────────────────────────────
+        // مخزّنة في عقدة منفصلة adminNotes/<مفتاح الحجز> (مش جوه الحجز نفسه) عشان:
+        //  1) القواعد تمنع أي حد غير الأدمن من قراءتها (قراءة bookings مفتوحة للموظفين والزوار).
+        //  2) تغييرها مبيعدّلش عقدة bookings ولا meta/updatedAt، فمفيش أي إشعار بيتولّد.
+        // المفتاح = groupId (أو id للحجوزات القديمة) → ملاحظة واحدة لكل حجز حتى لو متعدد الأيام.
+        let ADMIN_NOTES = {};
+        const ADMIN_NOTE_MAX = 5000;
+        function isNotesAdmin() { return state.currentUserEmail === ADMIN_EMAIL; }
+        function bookingNoteKey(b) {
+            return b ? String(b.groupId || b.id || '').replace(/[.#$\[\]\/]/g, '_') : '';
+        }
+        function getAdminNoteByKey(key) {
+            const n = key && ADMIN_NOTES && ADMIN_NOTES[key];
+            return (n && typeof n.text === 'string') ? n.text : '';
+        }
+        function getAdminNote(b) { return getAdminNoteByKey(bookingNoteKey(b)); }
+        function setupAdminNotesListener() {
+            if (!CLOUD_ENABLED) return;
+            teardownAdminNotesListener();
+            db.ref('adminNotes').on('value', (snap) => {
+                try {
+                    const v = snap.val() || {};
+                    const changed = JSON.stringify(v) !== JSON.stringify(ADMIN_NOTES);
+                    ADMIN_NOTES = v;
+                    if (!changed) return;
+                    const dm = document.getElementById('detailsModal');
+                    if (dm && !dm.classList.contains('hidden')) {
+                        const d = document.getElementById('modalDateTitle').dataset.date;
+                        if (d) refreshDayDetails(d);
+                    }
+                } catch (e) { console.warn('adminNotes update failed:', e); }
+            }, (err) => { console.warn('adminNotes listener cancelled:', err && err.code); });
+        }
+        function teardownAdminNotesListener() {
+            try { db.ref('adminNotes').off('value'); } catch (e) {}
+            ADMIN_NOTES = {};
+        }
+        // حفظ/حذف ملاحظة حجز (أدمن بس). النص الفاضي = حذف الملاحظة.
+        async function saveAdminNote(key, text) {
+            if (!CLOUD_ENABLED || !isNotesAdmin() || !key) return;
+            const t = String(text || '').trim().slice(0, ADMIN_NOTE_MAX);
+            try {
+                if (!t) {
+                    delete ADMIN_NOTES[key];
+                    await db.ref('adminNotes/' + key).remove();
+                } else {
+                    const val = { text: t, updatedAt: new Date().toISOString() };
+                    ADMIN_NOTES[key] = val;
+                    await db.ref('adminNotes/' + key).set(val);
+                }
+            } catch (err) {
+                console.warn('saveAdminNote failed:', err);
+                showToast(err && err.code === 'PERMISSION_DENIED'
+                    ? 'تعذر حفظ الملاحظة الخاصة — تأكد من نشر قواعد Firebase الجديدة (adminNotes).'
+                    : 'تعذر حفظ الملاحظة الخاصة: ' + ((err && err.message) || ''), 'error');
+            }
+        }
+        // لما الحجز يتحذف بالكامل (مفيش أيام تانية بنفس المفتاح) تتحذف ملاحظته معاه.
+        // الموظف مسموحله بالحذف بس (القواعد)، فنحاول من أي مستخدم ونتجاهل الفشل.
+        function removeAdminNoteIfOrphan(booking) {
+            if (!CLOUD_ENABLED || !booking) return;
+            const key = bookingNoteKey(booking);
+            if (!key) return;
+            if (state.bookings.some(b => bookingNoteKey(b) === key)) return; // لسه فيه أيام تانية للحجز
+            delete ADMIN_NOTES[key];
+            try { db.ref('adminNotes/' + key).remove().catch(() => {}); } catch (e) {}
+        }
+        function autoGrowTextarea(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight + 2, 420) + 'px';
+        }
+        // إظهار/إخفاء حقل الملاحظة الخاصة في الفورم وتعبئته (للأدمن بس)
+        function applyAdminNoteField(form, text, groupId, fieldName) {
+            const grp = document.getElementById(groupId);
+            const ta = form && form[fieldName];
+            if (!grp || !ta) return;
+            const adm = isNotesAdmin();
+            grp.classList.toggle('hidden', !adm);
+            ta.value = adm ? (text || '') : '';
+            form.dataset[fieldName + 'Orig'] = adm ? (text || '') : '';
+            setTimeout(() => autoGrowTextarea(ta), 60);
         }
 
         // صندوق الملاحظة (للقائمة/التفاصيل): الكل يشوف النص، والأدمن يشوف أزرار تعديل/حذف
@@ -2110,11 +2197,12 @@
                                  margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 } }
                 });
 
+                const _withAdminNote = state.currentUserEmail === ADMIN_EMAIL;
                 const cols = [
                     ['م', 6], ['اسم الشركة / الجهة', 32], ['القاعة', 20], ['من تاريخ', 14], ['إلى تاريخ', 14],
                     ['من وقت', 10], ['إلى وقت', 10], ['رقم الهاتف', 17], ['القائم بالحجز', 18],
                     ['ملاحظات', 42], ['روابط المرفقات', 30], ['تم الإنشاء بواسطة', 24], ['تاريخ الإنشاء', 14], ['الرقم المرجعي', 22]
-                ];
+                ].concat(_withAdminNote ? [['ملاحظات خاصة (الأدمن)', 42]] : []);
                 ws.columns = cols.map(c => ({ width: c[1] }));
                 const N = cols.length;
                 const border = { style: 'thin', color: { argb: 'FFE2E8F0' } };
@@ -2170,6 +2258,7 @@
                         toDate(b.createdAt ? String(b.createdAt).split('T')[0] : ''),
                         String(b.id || '')
                     ];
+                    if (_withAdminNote) vals.push(getAdminNote(b));
                     const zebra = i % 2 === 1 ? 'FFF8FAFC' : 'FFFFFFFF';
                     vals.forEach((v, k) => {
                         const cell = row.getCell(k + 1);
@@ -2183,12 +2272,13 @@
                         if (k === 3 || k === 4 || k === 12) cell.numFmt = 'dd/mm/yyyy';
                         if (k === 7) { cell.numFmt = '@'; cell.alignment = { horizontal: 'center', vertical: 'middle' }; }
                         if (k === 13) cell.font = { name: 'Arial', size: 9, color: { argb: 'FF94A3B8' } };
+                        if (k === 14) cell.font = { name: 'Arial', size: 10.5, color: { argb: 'FF5B21B6' } };
                     });
                     const hc = tint(hall && hall.dot);
                     if (hc) row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hc } };
                     row.getCell(3).font = { name: 'Arial', size: 10.5, bold: true, color: { argb: 'FF334155' } };
                     // ارتفاع الصف حسب طول الملاحظات
-                    const lines = Math.max(1, Math.ceil(String(b.notes || '').length / 45), getBookingLinks(b).length);
+                    const lines = Math.max(1, Math.ceil(String(b.notes || '').length / 45), _withAdminNote ? Math.ceil(String(getAdminNote(b)).length / 45) : 0, getBookingLinks(b).length);
                     row.height = Math.min(120, Math.max(22, lines * 15 + 6));
                 });
 
@@ -2222,10 +2312,11 @@
             }
             const bookings = [...state.bookings].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
+            const _adm = state.currentUserEmail === ADMIN_EMAIL;
             const wsData = [
                 ["الرقم المرجعي", "اسم الشركة/الجهة", "القاعة", "من تاريخ", "إلى تاريخ",
                  "من وقت", "إلى وقت", "رقم الهاتف", "القائم بالحجز",
-                 "ملاحظات", "روابط المرفقات", "تم الإنشاء بواسطة", "تاريخ الإنشاء"],
+                 "ملاحظات", "روابط المرفقات", "تم الإنشاء بواسطة", "تاريخ الإنشاء", ...(_adm ? ["ملاحظات خاصة (الأدمن)"] : [])],
                 ...bookings.map(b => [
                     b.id        || '',
                     b.companyName || '',
@@ -2239,7 +2330,8 @@
                     (b.notes    || '').replace(/\n/g, ' '),
                     getBookingLinks(b).join(' | '),
                     b.createdBy || '',
-                    b.createdAt ? b.createdAt.split('T')[0] : ''
+                    b.createdAt ? b.createdAt.split('T')[0] : '',
+                    ...(_adm ? [getAdminNote(b).replace(/\n/g, ' ')] : [])
                 ])
             ];
 
@@ -2251,6 +2343,7 @@
                 {wch:10},{wch:10},{wch:15},{wch:18},
                 {wch:30},{wch:30},{wch:25},{wch:13}
             ];
+            if (_adm) ws['!cols'].push({wch:30});
 
             XLSX.utils.book_append_sheet(wb, ws, 'الحجوزات');
             XLSX.writeFile(wb, 'Resta_Bookings_' + new Date().toISOString().slice(0,10) + '.xlsx');
@@ -3711,6 +3804,7 @@
 
             state.pendingDeletions.push(id);
             state.bookings = state.bookings.filter(b => b.id !== id);
+            removeAdminNoteIfOrphan(booking); // لو ده كان آخر يوم في الحجز تتحذف ملاحظته
 
             // تسجيل الحجز المحذوف على جوجل شيت منفصل
             logDeletedBookingToCloud(booking, 'يوم واحد');
@@ -3757,6 +3851,7 @@
             const toDeleteIds = groupDays.map(b => b.id);
             toDeleteIds.forEach(did => state.pendingDeletions.push(did));
             state.bookings = state.bookings.filter(b => b.groupId !== groupId && b.id !== groupId);
+            removeAdminNoteIfOrphan(booking);
 
             // تسجيل كل يوم من الحجز المحذوف بالكامل على جوجل شيت منفصل
             groupDays.forEach(gb => logDeletedBookingToCloud(gb, 'الحجز بالكامل'));
@@ -3961,6 +4056,15 @@
                                 <div class="mt-4 p-3 bg-amber-50/50 rounded-xl text-sm text-amber-900 border border-amber-100/50 flex items-start gap-2">
                                     <i data-lucide="info" class="w-4 h-4 mt-0.5 text-amber-600 shrink-0"></i>
                                     <p class="leading-relaxed font-medium">${escapeHtml(b.notes)}</p>
+                                </div>` : ''}
+
+                                ${(isAdmin && getAdminNote(b)) ? `
+                                <div class="mt-3 p-3 bg-violet-50 rounded-xl text-sm text-violet-900 border border-violet-200 flex items-start gap-2">
+                                    <i data-lucide="lock" class="w-4 h-4 mt-0.5 text-violet-600 shrink-0"></i>
+                                    <div class="min-w-0">
+                                        <div class="text-[11px] font-black text-violet-600 mb-0.5">ملاحظة خاصة — للأدمن فقط</div>
+                                        <p class="leading-relaxed font-medium whitespace-pre-wrap break-words">${escapeHtml(getAdminNote(b))}</p>
+                                    </div>
                                 </div>` : ''}
 
                                 ${(() => {
@@ -5248,9 +5352,10 @@ ${pages}
                 const hasNote = !!getDayNote(dateStr);
                 const canAdd = !isGuest() && (isAdm || !isPast);
                 const addBtn = canAdd ? `
-                    <button onclick="openNewBookingForDate('${dateStr}')" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                    <button onclick="${_newBookingCall(dateStr)}" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
                         <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i><span>حجز جديد</span>
                     </button>` : '';
+                const isFreeDay = freeDaysModeOn() && isHallFreeOn(state.freeHallId, dateStr);
                 const psBtn = canAdd ? `
                     <button onclick="openPhotoshootModal({date:'${dateStr}'})" title="فوتوسيشن" class="shrink-0 flex items-center bg-pink-50 text-pink-700 border border-pink-200 text-xs font-black rounded-lg px-2 py-1.5 active:scale-95 transition-transform">📷</button>` : '';
                 const noteBtn = (isAdm && !hasNote) ? `
@@ -5272,13 +5377,13 @@ ${pages}
                 const dayNum = d.toLocaleDateString('ar-EG', { day: 'numeric' });
                 const monthName = d.toLocaleDateString('ar-EG', { month: 'long' });
                 blocks.push(`
-                    <div class="week-day ${isToday ? 'week-day-today' : ''} ${isPast ? 'past-day' : ''}" data-date="${dateStr}">
+                    <div class="week-day ${isToday ? 'week-day-today' : ''} ${isPast ? 'past-day' : ''} ${isFreeDay ? 'week-day-free' : ''}" data-date="${dateStr}">
                         <div class="week-day-head flex items-center justify-between gap-2">
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <div class="week-day-num">${dayNum}</div>
                                 <div class="min-w-0">
                                     <div class="text-sm font-black truncate ${isToday ? 'text-[#6E1418]' : 'text-slate-800'}">${dayName}${isToday ? ' <span class="text-[10px] font-black text-white bg-[#6E1418] rounded-md px-1.5 py-0.5 align-middle">اليوم</span>' : ''}</div>
-                                    <div class="text-[11px] font-bold text-slate-500">${monthName} · ${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات'}</div>
+                                    <div class="text-[11px] font-bold text-slate-500">${monthName} · ${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات'}${isFreeDay ? ' · <span class="week-free-pill">فاضية ✓</span>' : ''}</div>
                                 </div>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">${noteBtn}${psBtn}${addBtn}</div>
@@ -5290,6 +5395,102 @@ ${pages}
                     </div>`);
             }
             return `<div class="week-view-wrapper"><div class="flex flex-col gap-3">${blocks.join('')}</div></div>`;
+        }
+
+        // ─── الأيام الفاضية لقاعة (موبايل فقط، عرض فقط — لا يكتب أي بيانات) ─────────
+        // اليوم "فاضي" = لا يوجد أي حجز في القاعة دي في اليوم ده، وكل يوم لحجز المؤتمر متعدد الأيام يُعتبر محجوزًا
+        // (لأن كل يوم له سجل). الأيام اللي عدّت تتجاهل. الفوتوسيشن مالوش قاعة فمايأثرش.
+        function freeDaysModeOn() { return !!state.freeHallId && !!findHall(state.freeHallId); }
+        function isHallFreeOn(hallId, dateStr) {
+            if (isPastDateStr(dateStr)) return false;
+            return !state.bookings.some(b => b.hallId === hallId && b.startDate === dateStr);
+        }
+        function setFreeHall(id) {
+            state.freeHallId = (state.freeHallId === id) ? null : id;
+            render();
+        }
+        // أرقام يتبعها اسم القاعة لو الوضع شغال، عشان "حجز جديد" يختار القاعة تلقائيًا
+        function _newBookingCall(dateStr) {
+            return freeDaysModeOn() ? `openNewBookingForDate('${dateStr}','${state.freeHallId}')` : `openNewBookingForDate('${dateStr}')`;
+        }
+        function _freeRange() {
+            if (isWeekMode()) {
+                const from = state.weekStart || weekStartOf(new Date().toISOString().split('T')[0]);
+                return { from, to: addDaysStr(from, 6), label: weekRangeLabel() };
+            }
+            const y = state.currentYear, m = state.currentMonth;
+            const last = new Date(y, m + 1, 0).getDate();
+            const p = y + '-' + String(m + 1).padStart(2, '0') + '-';
+            return { from: p + '01', to: p + String(last).padStart(2, '0'),
+                     label: new Date(y, m).toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) };
+        }
+        function freeDaysList() {
+            const r = _freeRange();
+            const out = [];
+            for (let d = r.from, n = 0; d <= r.to && n < 400; d = addDaysStr(d, 1), n++) {
+                if (isHallFreeOn(state.freeHallId, d)) out.push(d);
+            }
+            return out;
+        }
+        function freeDaysText() {
+            const hall = findHall(state.freeHallId);
+            const r = _freeRange();
+            const days = freeDaysList();
+            if (!hall) return '';
+            if (!days.length) return 'لا توجد أيام فاضية في ' + hall.name + ' خلال ' + r.label;
+            return 'الأيام المتاحة في ' + hall.name + ' خلال ' + r.label + ':\n' +
+                days.map(d => '• ' + parseDateStr(d).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })).join('\n');
+        }
+        function copyFreeDays() {
+            const text = freeDaysText();
+            if (!text) return;
+            const ok = () => showToast('تم نسخ الأيام الفاضية، يمكنك لصقها في واتساب', 'success');
+            const fallback = () => {
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                    document.body.appendChild(ta); ta.focus(); ta.select();
+                    const done = document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    if (done) ok(); else showToast('تعذّر نسخ النص على هذا المتصفح', 'error');
+                } catch (e) { showToast('تعذّر نسخ النص على هذا المتصفح', 'error'); }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok).catch(fallback);
+            else fallback();
+        }
+        function renderFreeDaysChipsHtml() {
+            const chips = HALLS.map(h => {
+                const on = state.freeHallId === h.id;
+                return `<button type="button" onclick="setFreeHall('${h.id}')" class="free-chip ${on ? 'free-chip-on' : ''}">
+                            <span class="free-chip-dot" style="background:${h.dot};"></span>${escapeHtml(h.name)}
+                        </button>`;
+            }).join('');
+            return `<div class="free-chips-row mb-1.5 md:mb-4">
+                        <div class="text-[10px] md:text-2xl font-black text-slate-400 text-center mb-1 md:mb-2">اختر القاعة لمعرفة الأيام المتاحة</div>
+                        <div class="flex flex-wrap justify-center gap-1">${chips}</div>
+                    </div>`;
+        }
+        function renderFreeDaysSummaryHtml() {
+            if (!freeDaysModeOn()) return '';
+            const hall = findHall(state.freeHallId);
+            const r = _freeRange();
+            const days = freeDaysList();
+            const chips = days.map(d => {
+                const dt = parseDateStr(d);
+                return `<span class="free-day-chip">${dt.toLocaleDateString('ar-EG', { weekday: 'short' })} ${dt.toLocaleDateString('ar-EG', { day: 'numeric' })}</span>`;
+            }).join('');
+            return `
+                <div class="free-summary">
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <div class="min-w-0">
+                            <div class="text-xs font-black text-emerald-800 truncate">الأيام الفاضية في ${escapeHtml(hall.name)}</div>
+                            <div class="text-[11px] font-bold text-slate-500 truncate">${r.label}${days.length ? ' · ' + days.length + ' يوم' : ''}</div>
+                        </div>
+                        ${days.length ? `<button type="button" onclick="copyFreeDays()" class="shrink-0 flex items-center gap-1 bg-white text-emerald-800 border border-emerald-300 text-[11px] font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i><span>نسخ</span></button>` : ''}
+                    </div>
+                    ${days.length ? `<div class="flex flex-wrap gap-1">${chips}</div>` : '<div class="text-xs font-bold text-slate-500 py-1">لا توجد أيام فاضية في هذه الفترة</div>'}
+                </div>`;
         }
 
         // ─── Calendar mobile: نقط + قائمة اليوم + سحب بين الشهور ─────────
@@ -5311,7 +5512,7 @@ ${pages}
             const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
             const canAdd = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr));
             const addBtn = canAdd ? `
-                <button onclick="openNewBookingForDate('${dateStr}')" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                <button onclick="${_newBookingCall(dateStr)}" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
                     <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i><span>حجز جديد</span>
                 </button>` : '';
 
@@ -6153,7 +6354,9 @@ ${pages}
                             <button onclick="setCalView('week')" class="px-3.5 py-1 rounded-md transition-all ${isWeekMode() ? 'bg-white shadow-sm text-[#6E1418]' : 'text-slate-500'}">أسبوع</button>
                         </div>
                     </div>
-                    ${isWeekMode() ? renderWeekViewHtml() : `${renderCalendar(true)}
+                    ${renderFreeDaysChipsHtml()}
+                    ${isWeekMode() ? renderFreeDaysSummaryHtml() + renderWeekViewHtml() : `${renderCalendar(true)}
+                    ${renderFreeDaysSummaryHtml()}
                     <div id="dayAgenda" class="day-agenda">${renderDayAgendaHtml()}</div>`}
                 </div>
             `;
@@ -6219,6 +6422,7 @@ ${pages}
 
                 const isToday = new Date().toISOString().split('T')[0] === dateStr;
                 const isPast = isPastDateStr(dateStr);
+                const isFreeCell = isDashboard && freeDaysModeOn() && isHallFreeOn(state.freeHallId, dateStr);
                 const heat = totalCount === 0 ? 0 : totalCount === 1 ? 1 : totalCount === 2 ? 2 : totalCount <= 4 ? 3 : 4;
                 const dotsHtml = dayBookings.slice(0, 8).map(b =>
                     `<span class="day-dot" style="background:${hallDotColor(b.hallId)};"></span>`
@@ -6229,7 +6433,8 @@ ${pages}
                          ondragleave="handleDayDragLeave(event)"
                          ondrop="handleDayDrop(event, '${dateStr}')"
                          data-date="${dateStr}"
-                         class="day-cell ${isToday ? 'today-active z-10' : ''} ${heat ? 'heat-' + heat : ''} ${state.selectedDay === dateStr ? 'selected-day' : ''} ${isPast ? 'past-day' : ''} cursor-pointer group">
+                         class="day-cell ${isToday ? 'today-active z-10' : ''} ${heat ? 'heat-' + heat : ''} ${state.selectedDay === dateStr ? 'selected-day' : ''} ${isPast ? 'past-day' : ''} ${isFreeCell ? 'free-day' : ''} cursor-pointer group">
+                        ${isFreeCell ? '<span class="free-mark">✓</span>' : ''}
                         <div class="flex items-center justify-between mb-1" style="flex-shrink:0;">
                             <span class="text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg ${isToday ? 'bg-[#6E1418] text-white' : 'text-slate-500 group-hover:bg-slate-100 transition-colors'}">${i}</span>
                             ${state.currentUserEmail === ADMIN_EMAIL ? `<button type="button" class="day-note-btn" onclick="event.stopPropagation(); openDayNoteEditor('${dateStr}')" title="${getDayNote(dateStr) ? 'تعديل ملاحظة اليوم' : 'إضافة ملاحظة لهذا اليوم'}">📌</button>` : ''}
@@ -6276,6 +6481,11 @@ ${pages}
         // ─── Calendar Day Click Handler ───────────────────────────────────
         function handleDayClick(dateStr) {
             if (isMobileCalendar()) { selectCalendarDay(dateStr); return; }
+            // وضع "الأيام الفاضية" (كمبيوتر): الضغط على يوم فاضي في القاعة المختارة يفتح حجز جديد بالقاعة جاهزة
+            if (!isGuest() && freeDaysModeOn() && isHallFreeOn(state.freeHallId, dateStr)) {
+                openNewBookingForDate(dateStr, state.freeHallId);
+                return;
+            }
             let dayBookings = state.bookings.filter(b => b.startDate === dateStr);
             if (state.view !== 'dashboard' && state.selectedHall) {
                 dayBookings = dayBookings.filter(b => b.hallId === state.selectedHall.id);
@@ -6288,7 +6498,7 @@ ${pages}
         }
 
         // ─── Open New Booking Modal Pre-filled for a Specific Date ───────
-        function openNewBookingForDate(dateStr) {
+        function openNewBookingForDate(dateStr, preHallId) {
             if (isGuest()) return;
             if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(dateStr)) {
                 showToast('لا يمكن إضافة حجوزات في الأيام المنصرمة.', 'error');
@@ -6318,6 +6528,8 @@ ${pages}
 
             form.reset();
             select.value = '';
+            // لو جاي من وضع "الأيام الفاضية": نختار القاعة المطلوبة تلقائيًا (لو لسه متاحة)
+            if (preHallId && availableHalls.some(h => h.id === preHallId)) select.value = preHallId;
             form.querySelector('input[name="dateFrom"]').value = dateStr;
             form.querySelector('input[name="dateTo"]').value   = dateStr;
             form.querySelector('input[name="employee"]').value = getDefaultEmployeeName();
@@ -6855,6 +7067,7 @@ ${pages}
             f.psPaid.value  = (isBooking && !copyOpts && ph.paid) ? ph.paid : '';
             f.psLink.value  = isBooking ? (getBookingLinks(src)[0] || '') : '';
             f.psNotes.value = isBooking ? (src.notes || '') : '';
+            applyAdminNoteField(f, (isBooking && !copyOpts) ? getAdminNote(src) : '', 'psAdminNoteGroup', 'psAdminNote');
             document.getElementById('photoshootTitle').textContent = window._psEditId ? 'تعديل حجز فوتوسيشن' : (copyOpts ? 'نسخ حجز فوتوسيشن' : 'حجز فوتوسيشن جديد');
             f.psRoom.value = (ph.sub === 'prep' && ph.room) ? ph.room : '';
             psSetKind(ph.sub === 'prep' ? 'prep' : 'floor');
@@ -6908,6 +7121,7 @@ ${pages}
             };
             const fmtD = d => d ? d.split('-').reverse().join('/') : '';
             let logType, logMsg;
+            let _psNoteKey = old ? bookingNoteKey(old) : null;
             if (old) {
                 const moved = old.startDate !== date;
                 state.bookings = state.bookings.map(b => b.id === editId
@@ -6919,6 +7133,7 @@ ${pages}
                     : 'تم تعديل حجز - ' + name + ' - بتاريخ ' + fmtD(date);
             } else {
                 const groupId = String(Date.now()) + '_' + Math.random().toString(36).slice(2);
+                _psNoteKey = groupId;
                 state.bookings.push({
                     ...base, id: groupId + '_d0', groupId: groupId,
                     employee: getDefaultEmployeeName(), images: psImgs,
@@ -6940,6 +7155,10 @@ ${pages}
             if (old) {
                 const _psNew = state.bookings.find(b => b.id === editId);
                 if (_psNew) logEditedBookingToCloud([old], [_psNew], logType);
+            }
+            if (isNotesAdmin() && f.psAdminNote && _psNoteKey) {
+                const _pn = f.psAdminNote.value.trim();
+                if (_pn !== (f.dataset.psAdminNoteOrig || '').trim()) saveAdminNote(_psNoteKey, _pn);
             }
             // صور اتشالت أثناء التعديل: نمسحها من Storage بعد الحفظ
             _psOrigUrls.forEach(u => { if (!psImgs.some(i => i.data === u)) deleteStorageImageSilently(u); });
@@ -7001,6 +7220,7 @@ ${pages}
             form.querySelector('input[name="phone"]').value      = booking.phone      || '';
             form.querySelector('input[name="employee"]').value   = booking.employee   || '';
             form.querySelector('textarea[name="notes"]').value   = booking.notes      || '';
+            applyAdminNoteField(form, copyOpts ? '' : getAdminNote(booking), 'adminNoteGroup', 'adminNote'); // النسخ بيبدأ بدون ملاحظة خاصة
             setLinksInForm(getBookingLinks(booking));
             setFormImages(getBookingImages(booking));
 
@@ -7061,6 +7281,7 @@ ${pages}
                 form.querySelector('input[name="dateFrom"]').value = today;
                 form.querySelector('input[name="dateTo"]').value   = today;
                 form.querySelector('input[name="employee"]').value = getDefaultEmployeeName();
+                applyAdminNoteField(form, '', 'adminNoteGroup', 'adminNote');
                 setLinksInForm([]);
                 setFormImages([]);
                 document.getElementById('globalEventType').value = 'normal';
@@ -8346,6 +8567,13 @@ ${pages}
                 logEditedBookingToCloud(_editOldDays, state.bookings.filter(b => b.groupId === groupId || b.id === groupId), 'تعديل');
             }
 
+            // الملاحظة الخاصة (أدمن بس): بتتحفظ في عقدة منفصلة ومش بتدخل في الحجز ولا الإشعارات
+            if (isNotesAdmin() && form.adminNote) {
+                const _noteNow = form.adminNote.value.trim();
+                const _noteOrig = (form.dataset.adminNoteOrig || '').trim();
+                if (_noteNow !== _noteOrig) saveAdminNote(groupId, _noteNow);
+            }
+
             state.editingBookingId = null;
             saveLocal();
             toggleGlobalBookingModal();
@@ -8797,9 +9025,15 @@ ${pages}
                 };
                 // نكتب أولاً نسخة الأرشيف الكاملة، ثم فهرس خفيف منفصل يُستخدم لعرض
                 // قائمة الأشهر المؤرشفة دون الحاجة لتحميل كل تفاصيل الحجوزات
+                // ملاحظات الأدمن الخاصة: بتتنقل لعقدة أرشيف خاصة (adminNotesArchive) عشان متبانش لغير الأدمن
+                const _allNotesSnap = await db.ref('adminNotes').once('value');
+                const _allNotes = _allNotesSnap.val() || {};
+                const _archNotes = {};
+                toArchive.forEach(b => { const k = bookingNoteKey(b); if (k && _allNotes[k]) _archNotes[k] = _allNotes[k]; });
                 await Promise.all([
                     db.ref('archive/' + monthKey).set(toArchive),
-                    db.ref('archiveIndex/' + monthKey).set(meta)
+                    db.ref('archiveIndex/' + monthKey).set(meta),
+                    Object.keys(_archNotes).length ? db.ref('adminNotesArchive/' + monthKey).set(_archNotes) : Promise.resolve()
                 ]);
                 _writeArchiveEvent('archive', monthKey, label, toArchive.length);
 
@@ -8808,6 +9042,13 @@ ${pages}
                 // القديمة لعقدة bookings، لأنها لسه موجودة هناك ولم تُعتبر "معدّلة محليًا"
                 toArchive.forEach(b => state.pendingDeletions.push(b.id));
                 state.bookings = state.bookings.filter(b => monthKeyOf(b.startDate) !== monthKey);
+                // الملاحظة تتشال من النشطة بس لو مفيش أيام تانية من نفس الحجز لسه نشطة (حجز بيعدّي على شهرين)
+                Object.keys(_archNotes).forEach(k => {
+                    if (!state.bookings.some(b => bookingNoteKey(b) === k)) {
+                        delete ADMIN_NOTES[k];
+                        db.ref('adminNotes/' + k).remove().catch(() => {});
+                    }
+                });
                 saveLocal();
 
                 showToast(`تمت أرشفة ${toArchive.length} حجز من شهر ${label} ✓`, 'success');
@@ -8924,6 +9165,13 @@ ${pages}
                 records = [];
             }
             records.sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+            window._archiveDetailNotes = {};
+            if (isNotesAdmin()) {
+                try {
+                    const ns = await db.ref('adminNotesArchive/' + monthKey).once('value');
+                    window._archiveDetailNotes = ns.val() || {};
+                } catch (e) { /* مفيش ملاحظات أو القواعد لسه متنشرتش */ }
+            }
             renderArchiveDetailTable(records);
         }
 
@@ -8973,6 +9221,11 @@ ${pages}
                     ${phoneHtml}
                     ${_empName(b) ? `<div class="text-xs font-bold text-slate-400 mt-1">الموظف: ${escapeHtml(_empName(b))}</div>` : ''}
                     ${b.notes ? `<div class="mt-2 text-sm text-slate-600 bg-amber-50/60 border border-amber-100/50 rounded-xl px-3 py-2 break-words whitespace-pre-wrap">${escapeHtml(b.notes)}</div>` : ''}
+                    ${(() => {
+                        if (!isNotesAdmin()) return '';
+                        const an = (window._archiveDetailNotes || {})[bookingNoteKey(b)];
+                        return (an && an.text) ? `<div class="mt-2 text-sm text-violet-900 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2 break-words whitespace-pre-wrap"><div class="text-[11px] font-black text-violet-600 mb-0.5">🔒 ملاحظة خاصة — للأدمن فقط</div>${escapeHtml(an.text)}</div>` : '';
+                    })()}
                 </div>`;
             }).join('');
 
@@ -9107,9 +9360,20 @@ ${pages}
                 const existingIds = new Set(state.bookings.map(b => String(b.id)));
                 records.forEach(r => { if (!existingIds.has(String(r.id))) state.bookings.push({ ...r, _isDirty: true }); });
 
+                // رجّع ملاحظات الأدمن الخاصة بالشهر ده (من عقدة الأرشيف الخاصة) للنشطة
+                let _notesRestored = true;
+                try {
+                    const nSnap = await db.ref('adminNotesArchive/' + monthKey).once('value');
+                    const archNotes = nSnap.val() || {};
+                    const nw = [];
+                    Object.keys(archNotes).forEach(k => { if (!ADMIN_NOTES[k]) { nw.push(db.ref('adminNotes/' + k).set(archNotes[k])); ADMIN_NOTES[k] = archNotes[k]; } });
+                    await Promise.all(nw);
+                } catch (e) { _notesRestored = false; console.warn('restore adminNotes failed:', e); }
+
                 await Promise.all([
                     db.ref('archive/' + monthKey).remove(),
-                    db.ref('archiveIndex/' + monthKey).remove()
+                    db.ref('archiveIndex/' + monthKey).remove(),
+                    _notesRestored ? db.ref('adminNotesArchive/' + monthKey).remove() : Promise.resolve()
                 ]);
                 _writeArchiveEvent('restore', monthKey, label, records.length);
 
@@ -9136,7 +9400,8 @@ ${pages}
             try {
                 await Promise.all([
                     db.ref('archive/' + monthKey).remove(),
-                    db.ref('archiveIndex/' + monthKey).remove()
+                    db.ref('archiveIndex/' + monthKey).remove(),
+                    db.ref('adminNotesArchive/' + monthKey).remove()
                 ]);
                 showToast(`تم حذف أرشيف شهر ${label} نهائياً`, 'success');
                 await loadArchiveIndex();
@@ -9447,6 +9712,16 @@ ${pages}
                     });
                 }
 
+                // ملاحظات الأدمن الخاصة (النشطة + الخاصة بالأرشيف) تدخل النسخة الكاملة
+                let _adminNotesData, _adminNotesArchiveData;
+                if (isNotesAdmin()) {
+                    try {
+                        const [_a, _b] = await Promise.all([db.ref('adminNotes').once('value'), db.ref('adminNotesArchive').once('value')]);
+                        _adminNotesData = _a.val() || {};
+                        _adminNotesArchiveData = _b.val() || {};
+                    } catch (e) { console.warn('backup adminNotes failed:', e); }
+                }
+
                 const backup = {
                     _backupMeta: {
                         exportedAt: new Date().toISOString(),
@@ -9459,7 +9734,9 @@ ${pages}
                     logs: snapshot.logs || [],
                     updatedAt: snapshot.updatedAt || null,
                     archive: archiveData,
-                    archiveIndex: archiveIndexVal
+                    archiveIndex: archiveIndexVal,
+                    adminNotes: _adminNotesData,
+                    adminNotesArchive: _adminNotesArchiveData
                 };
 
                 const json = JSON.stringify(backup, null, 2);
@@ -9613,6 +9890,16 @@ ${pages}
                 if (hasArchiveData) {
                     restoreWrites.push(db.ref('archive').set(restoredArchive));
                     restoreWrites.push(db.ref('archiveIndex').set(restoredArchiveIndex || null));
+                }
+
+                // ملاحظات الأدمن الخاصة: بتتستعاد بس لو الملف فيه ومن حساب الأدمن
+                if (isNotesAdmin() && backup.adminNotes !== undefined) {
+                    const _n = backup.adminNotes || {};
+                    restoreWrites.push(db.ref('adminNotes').set(Object.keys(_n).length ? _n : null));
+                }
+                if (isNotesAdmin() && hasArchiveData && backup.adminNotesArchive !== undefined) {
+                    const _na = backup.adminNotesArchive || {};
+                    restoreWrites.push(db.ref('adminNotesArchive').set(Object.keys(_na).length ? _na : null));
                 }
 
                 await Promise.all(restoreWrites);
