@@ -159,7 +159,6 @@
         }
 
         const ADMIN_EMAIL = "salama.m@gmail.com";
-        const RESTA_LOGO_URL = 'https://salamam-art.github.io/RESTA-FB/001.png'; // شعار الفندق
 
         // منع تغيير قيمة حقول الأرقام (input type="number") بالخطأ عن طريق سكرول
         // عجلة الماوس أثناء التركيز عليها — الحقول لسه بتتعدل عادي بالكيبورد أو
@@ -4870,7 +4869,7 @@ ${acknowledgmentHtml}`;
         function bookingPrintHeaderHtml(printDate) {
             return `<div class="page-header">
     <div class="logo-area">
-        <img src="${RESTA_LOGO_URL}" alt="Resta" style="height:36px;width:auto;max-width:130px;object-fit:contain;display:block" onerror="this.style.display='none'">
+        <div class="logo-box">R</div>
         <div>
             <div class="hotel-name">رستا بورسعيد</div>
             <div class="hotel-sub">Resta Port Said Hotel</div>
@@ -5554,6 +5553,18 @@ ${pages}
             if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok).catch(fallback);
             else fallback();
         }
+        // الموبايل: قائمة منسدلة صغيرة بجانب زر (شهر/أسبوع) بدل شرائح القاعات (توفير مساحة)
+        function setFreeHallSel(id) {
+            state.freeHallId = id ? id : null;
+            render();
+        }
+        function renderFreeHallSelectHtml() {
+            const opts = HALLS.map(h => `<option value="${escapeHtml(h.id)}" ${state.freeHallId === h.id ? 'selected' : ''}>${escapeHtml(h.name)}</option>`).join('');
+            const on = !!state.freeHallId;
+            return `<select id="freeHallSelect" onchange="setFreeHallSel(this.value)" aria-label="اختر القاعة لمعرفة الأيام المتاحة" class="free-hall-select ${on ? 'free-hall-select-on' : ''}">
+                        <option value="">اختر القاعة لمعرفة الأيام المتاحة</option>${opts}
+                    </select>`;
+        }
         function renderFreeDaysChipsHtml() {
             const chips = HALLS.map(h => {
                 const on = state.freeHallId === h.id;
@@ -5561,7 +5572,7 @@ ${pages}
                             <span class="free-chip-dot" style="background:${h.dot};"></span>${escapeHtml(h.name)}
                         </button>`;
             }).join('');
-            return `<div class="free-chips-row mb-1.5 md:mb-4">
+            return `<div class="free-chips-row hidden md:block md:mb-4">
                         <div class="text-[10px] md:text-2xl font-black text-slate-400 text-center mb-1 md:mb-2">اختر القاعة لمعرفة الأيام المتاحة</div>
                         <div class="flex flex-wrap justify-center gap-1">${chips}</div>
                     </div>`;
@@ -6181,7 +6192,7 @@ ${pages}
                 <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
                     <div class="bg-gradient-to-br from-[#6E1418] to-[#8a1c22] text-white p-5 flex items-center justify-between">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center"><i data-lucide="info" class="w-5 h-5 text-[#A88A45]"></i></div>
+                            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center overflow-hidden"><img src="001.png" alt="Resta" class="w-full h-full object-contain p-0.5" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');"><i data-lucide="info" class="w-5 h-5 text-[#A88A45] hidden"></i></div>
                             <div>
                                 <h3 class="font-black text-lg leading-tight">عن التطبيق</h3>
                                 <p class="text-xs text-white/70 font-bold">About</p>
@@ -6191,7 +6202,6 @@ ${pages}
                     </div>
                     <div class="p-5 overflow-y-auto space-y-4">
                         <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <img src="${RESTA_LOGO_URL}" alt="شعار رستا" decoding="async" class="h-16 w-auto max-w-[180px] object-contain mb-3" onerror="this.style.display='none'">
                             <h4 class="font-black text-[#6E1418] text-base mb-1">Resta Events Booking</h4>
                             <p class="text-sm text-slate-600 font-bold leading-relaxed">نظام لإدارة حجوزات القاعات والمناسبات (أفراح، مناسبات، فوتوسيشن) في فندق ريستا بورسعيد، مع تقويم لكل قاعة ومتابعة المدفوعات والإشعارات والمحادثات ومزامنة لحظية بين المستخدمين.</p>
                             <p class="text-xs text-slate-500 mt-2 leading-relaxed" dir="ltr">A booking management system for halls and events at Resta Port Said Hotel, with per-hall calendars, payments, notifications, chat and real-time sync.</p>
@@ -6756,16 +6766,17 @@ ${pages}
                         <div class="flex bg-slate-50 border border-slate-200 rounded-lg md:rounded-xl p-0.5 md:p-1.5 shadow-sm">
                             <button onclick="${isWeekMode() ? 'changeWeek(-1)' : 'changeMonth(-1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="-1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4 md:w-5 md:h-5"></i></button>
                             <span class="px-2 py-0.5 md:px-6 md:py-2 text-xs md:text-base font-black text-[#6E1418] flex items-center md:min-w-[140px] justify-center tracking-wide">
-                                ${isWeekMode() ? weekRangeLabel() : new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) + ' (شهر ' + (state.currentMonth + 1) + ')'}
+                                ${isWeekMode() ? weekRangeLabel() : new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) + '<span class="hidden md:inline">&nbsp;(شهر ' + (state.currentMonth + 1) + ')</span>'}
                             </span>
                             <button onclick="${isWeekMode() ? 'changeWeek(1)' : 'changeMonth(1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-4 h-4 md:w-5 md:h-5"></i></button>
                         </div>
                     </div>
-                    <div class="md:hidden flex justify-center mb-1.5">
-                        <div class="inline-flex bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-sm text-[11px] font-black">
+                    <div class="md:hidden flex items-center justify-center gap-1.5 mb-1.5">
+                        <div class="inline-flex shrink-0 bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-sm text-[11px] font-black">
                             <button onclick="setCalView('month')" class="px-3.5 py-1 rounded-md transition-all ${isWeekMode() ? 'text-slate-500' : 'bg-white shadow-sm text-[#6E1418]'}">شهر</button>
                             <button onclick="setCalView('week')" class="px-3.5 py-1 rounded-md transition-all ${isWeekMode() ? 'bg-white shadow-sm text-[#6E1418]' : 'text-slate-500'}">أسبوع</button>
                         </div>
+                        ${renderFreeHallSelectHtml()}
                     </div>
                     ${renderFreeDaysChipsHtml()}
                     ${isWeekMode() ? renderFreeDaysSummaryHtml() + renderWeekViewHtml() : `${renderCalendar(true)}
@@ -9747,7 +9758,7 @@ ${pages}
 <body>
 <div class="page-header">
     <div class="logo-area">
-        <img src="${RESTA_LOGO_URL}" alt="Resta" style="height:52px;width:auto;max-width:130px;object-fit:contain;display:block" onerror="this.style.display='none'">
+        <div class="logo-box">R</div>
         <div>
             <div class="hotel-name">رستا بورسعيد</div>
             <div class="hotel-sub">Resta Port Said Hotel</div>
@@ -10032,7 +10043,7 @@ ${pages}
 <body>
 <div class="page-header">
     <div class="logo-area">
-        <img src="${RESTA_LOGO_URL}" alt="Resta" style="height:52px;width:auto;max-width:130px;object-fit:contain;display:block" onerror="this.style.display='none'">
+        <div class="logo-box">R</div>
         <div>
             <div class="hotel-name">رستا بورسعيد</div>
             <div class="hotel-sub">Resta Port Said Hotel</div>
