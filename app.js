@@ -7764,8 +7764,8 @@ ${pages}
                     if (_pp && !_pp.value && !state.editingBookingId) onWeddingPackageChange();
                 }
                 applyWeddingFieldPermissions();
-                // المستخدم العادي: تفعيل كل الإضافات تلقائيًا لحجز فرح جديد (الكراسي تُحسب بعدد الأفراد في الحساب)
-                if (state.currentUserEmail !== ADMIN_EMAIL && section.dataset.autoApplied !== '1') {
+                // تفعيل كل الإضافات تلقائيًا لحجز فرح جديد (للأدمن والمستخدم؛ الكراسي تُحسب بعدد الأفراد في الحساب)
+                if (section.dataset.autoApplied !== '1') {
                     document.querySelectorAll('.wedding-extra-toggle').forEach(cb => { cb.checked = true; });
                     section.dataset.autoApplied = '1';
                 }
@@ -8446,7 +8446,7 @@ ${pages}
                     ${state.weddingSettings.extras.map(ex => `
                         <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
                             <label class="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2 cursor-pointer">
-                                <input type="checkbox" class="qc-extra-toggle" data-extra="${ex.key}" onchange="recalcQuickCalc()">
+                                <input type="checkbox" class="qc-extra-toggle" data-extra="${ex.key}" checked onchange="recalcQuickCalc()">
                                 ${ex.name} ${ex.perGuest ? '<span class="text-[10px] text-slate-400 font-normal">(× عدد الأفراد)</span>' : ''}
                             </label>
                             <div class="flex items-center gap-2">
