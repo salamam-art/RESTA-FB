@@ -2521,7 +2521,7 @@ html body header.glass-panel { padding-top: 0 !important; }
 .free-chip-dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
 .free-chip-on { background: #065f46; border-color: #065f46; color: #fff; box-shadow: 0 2px 6px rgba(6, 95, 70, .3); }
 .free-chip-on .free-chip-dot { box-shadow: 0 0 0 1.5px #fff; }
-.free-hall-select { flex: 1 1 0; min-width: 0; max-width: 260px; font-size: 11px; font-weight: 800; padding: 5px 8px; border-radius: 8px; border: 1.5px solid #D8CCB0; background: #fff; color: #475569; }
+.free-hall-select { flex: 1 1 0; width: 0; min-width: 0; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 800; padding: 5px 8px; border-radius: 8px; border: 1.5px solid #D8CCB0; background: #fff; color: #475569; }
 .free-hall-select-on { background: #065f46; border-color: #065f46; color: #fff; }
 html.dark .free-hall-select { background: var(--d-surface, #1D1816); border-color: var(--d-border, #3A312E); color: #cbd5e1; }
 html.dark .free-hall-select-on { background: #059669; border-color: #059669; color: #fff; }
@@ -2562,3 +2562,16 @@ html.dark .week-free-pill { color: #6ee7b7; }
     overflow-y: auto;
 }
 .input-group.admin-note-field textarea:focus { border-color: #8b5cf6; }
+
+/* ===================== تمييز أيام الكاليندر: ماضي / قادم محجوز / فاضي ===================== */
+/* الماضي: رمادي باهت (مع إبقاء رقم اليوم والحجوزات مقروءة) */
+html:not(.dark) .day-cell.past-day:not(.today-active):not(.drag-over) { background-color: #E9E9EC !important; border-color: #D9D9DE; opacity: .62; filter: grayscale(.9); box-shadow: none; }
+html.dark .day-cell.past-day:not(.today-active):not(.drag-over) { background-color: rgba(255, 255, 255, .03) !important; opacity: .5; filter: grayscale(.8); }
+/* القادم المحجوز: دفء ذهبي + حافة ذهبية علوية، وتزيد الدرجة بعدد الحجوزات */
+html:not(.dark) .day-cell.heat-1:not(.past-day):not(.today-active):not(.drag-over):not(.free-day) { background-color: #F6E7BD; border-color: #D2B25F; }
+html:not(.dark) .day-cell.heat-2:not(.past-day):not(.today-active):not(.drag-over):not(.free-day) { background-color: #F0D98E; border-color: #C9A445; }
+html:not(.dark) .day-cell.heat-3:not(.past-day):not(.today-active):not(.drag-over):not(.free-day),
+html:not(.dark) .day-cell.heat-4:not(.past-day):not(.today-active):not(.drag-over):not(.free-day) { background-color: #E8C86A; border-color: #BE9530; }
+html:not(.dark) .day-cell[class*="heat-"]:not(.past-day):not(.today-active):not(.selected-day):not(.free-day) { box-shadow: inset 0 3px 0 #A88A45; }
+/* الفاضي القادم: أبيض نقي */
+html:not(.dark) .day-cell:not(.past-day):not([class*="heat-"]):not(.today-active):not(.drag-over):not(.free-day) { background-color: #FFFFFF; border-color: #EADFC6; }
