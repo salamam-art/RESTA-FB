@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>تتريس</title>
+<style>
+:root{--bg:#10121f;--fg:#f2f4ff;--mut:#8f93c9;--panel:#1a1e38;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10121f;--fg:#f2f4ff;--mut:#8f93c9;--panel:#1a1e38}}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:Tahoma,Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none}
+#wrap{display:flex;gap:12px;align-items:flex-start;direction:ltr}
+#board{height:min(56vh,600px);height:min(calc(100dvh - 190px),600px,calc((94vw - 120px)*2));aspect-ratio:1/2;background:#000;border-radius:6px;border:2px solid #2b3070}
+#side{display:flex;flex-direction:column;gap:8px;direction:rtl;min-width:92px}
+.box{background:var(--panel);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--mut)}
+.box b{display:block;font-size:20px;color:var(--fg)}
+#next{width:72px;height:72px;display:block;margin:4px auto 0}
+#msg{min-height:20px;font-size:14px;color:var(--mut);text-align:center}
+#pad{display:flex;gap:8px;direction:ltr;width:min(94vw,420px)}
+#pad button,#mt{height:64px;flex:1;font-size:26px;border:0;border-radius:14px;background:#252a63;color:var(--fg);cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}
+#pad button:active{background:#3b43b5}
+#pad button:focus-visible,#mt:focus-visible{outline:2px solid var(--fg)}
+#mt{height:44px;font-size:20px;flex:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+ <canvas id="board" width="300" height="600"></canvas>
+ <div id="side">
+  <div class="box">النقاط<b id="sc">0</b></div>
+  <div class="box">الخطوط<b id="ln">0</b></div>
+  <div class="box">المستوى<b id="lv">1</b></div>
+  <div class="box">الجاي<canvas id="next" width="72" height="72"></canvas></div>
+  <button id="mt" onclick="toggleMute()" aria-label="كتم الصوت">🔊</button>
+ </div>
+</div>
+<div id="msg">اضغط أي زرار للبدء</div>
+<div id="pad">
+ <button data-a="L">◀</button><button data-a="R">▶</button><button data-a="D">▼</button><span style="flex:.35"></span><button data-a="T" aria-label="لف">⟳</button><button data-a="H" aria-label="إسقاط">⤓</button>
+</div>
+<script>
+const C=30,W=10,H=20,cv=document.getElementById('board'),x=cv.getContext('2d'),nx=document.getElementById('next').getContext('2d');
+const SH={I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],O:[[1,1],[1,1]],T:[[0,1,0],[1,1,1],[0,0,0]],S:[[0,1,1],[1,1,0],[0,0,0]],Z:[[1,1,0],[0,1,1],[0,0,0]],J:[[1,0,0],[1,1,1],[0,0,0]],L:[[0,0,1],[1,1,1],[0,0,0]]};
+const COL={I:'#3bf0ff',O:'#ffe94d',T:'#c05bff',S:'#4cd964',Z:'#ff4b4b',J:'#4b6bff',L:'#ffa63b'};
+const KEYS=Object.keys(SH);
+let b,p,nxt,score,lines,level,over,started,acc,last,bag=[];
+function rnd(){if(!bag.length){bag=KEYS.slice();for(let i=bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]]}}return bag.pop()}
+function mk(k){const m=SH[k].map(r=>r.slice());return{k,m,x:Math.floor((W-m[0].length)/2),y:0}}
+function init(){b=Array.from({length:H},()=>Array(W).fill(0));score=0;lines=0;level=1;over=false;acc=0;nxt=mk(rnd());spawn();ui()}
+function spawn(){p=nxt;nxt=mk(rnd());if(hit(p.m,p.x,p.y)){over=true;started=false;msg('خلصت! اضغط أي زرار للعب تاني');sfx('over')}drawNext()}
+function ui(){sc.textContent=score;ln.textContent=lines;lv.textContent=level}
+function msg(t){document.getElementById('msg').textContent=t}
+function hit(m,px,py){for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++)if(m[r][c]){const X=px+c,Y=py+r;if(X<0||X>=W||Y>=H||(Y>=0&&b[Y][X]))return true}return false}
+function move(dx){if(!hit(p.m,p.x+dx,p.y)){p.x+=dx;sfx('move');return true}return false}
+function rot(){const m=p.m[0].map((_,i)=>p.m.map(r=>r[i]).reverse());for(const k of[0,-1,1,-2,2])if(!hit(m,p.x+k,p.y)){p.m=m;p.x+=k;sfx('rot');return}}
+function down(){if(!hit(p.m,p.x,p.y+1)){p.y++;return true}lock();return false}
+function soft(){if(down())score+=1;ui()}
+function hard(){let n=0;while(!hit(p.m,p.x,p.y+1)){p.y++;n++}score+=n*2;sfx('drop');lock();ui()}
+function lock(){
+ p.m.forEach((row,r)=>row.forEach((v,c)=>{if(v&&p.y+r>=0)b[p.y+r][p.x+c]=p.k}));
+ let n=0;
+ for(let y=H-1;y>=0;y--){if(b[y].every(v=>v)){b.splice(y,1);b.unshift(Array(W).fill(0));n++;y++}}
+ if(n){score+=[0,100,300,500,800][n]*level;lines+=n;level=1+Math.floor(lines/10);sfx('line')}
+ ui();spawn();
+}
+function act(a){
+ if(over){init();started=true;msg('');return}
+ if(!started){started=true;msg('');ac()}
+ ac();
+ if(a=='L')move(-1);else if(a=='R')move(1);else if(a=='D')soft();else if(a=='T')rot();else if(a=='H')hard();
+}
+function cell(g,px,py,k,s,a){g.globalAlpha=a||1;g.fillStyle=COL[k];g.fillRect(px*s+1,py*s+1,s-2,s-2);g.fillStyle='rgba(255,255,255,.25)';g.fillRect(px*s+1,py*s+1,s-2,4);g.globalAlpha=1}
+function drawNext(){nx.clearRect(0,0,72,72);const m=nxt.m,s=16,ox=(72-m[0].length*s)/2/s,oy=(72-m.length*s)/2/s;m.forEach((row,r)=>row.forEach((v,c)=>{if(v)cell(nx,c+ox,r+oy,nxt.k,s)}))}
+function draw(){
+ x.fillStyle='#000';x.fillRect(0,0,300,600);
+ x.strokeStyle='#14173a';x.lineWidth=1;
+ for(let i=1;i<W;i++){x.beginPath();x.moveTo(i*C,0);x.lineTo(i*C,600);x.stroke()}
+ for(let i=1;i<H;i++){x.beginPath();x.moveTo(0,i*C);x.lineTo(300,i*C);x.stroke()}
+ for(let y=0;y<H;y++)for(let c=0;c<W;c++)if(b[y][c])cell(x,c,y,b[y][c],C);
+ if(!over){
+  let gy=p.y;while(!hit(p.m,p.x,gy+1))gy++;
+  p.m.forEach((row,r)=>row.forEach((v,c)=>{if(v)cell(x,p.x+c,gy+r,p.k,C,.2)}));
+  p.m.forEach((row,r)=>row.forEach((v,c)=>{if(v&&p.y+r>=0)cell(x,p.x+c,p.y+r,p.k,C)}));
+ }
+}
+function loop(t){
+ const dt=Math.min(t-last,100);last=t;
+ if(started&&!over){acc+=dt;const iv=Math.max(90,800-(level-1)*70);while(acc>=iv){acc-=iv;down()}}
+ draw();requestAnimationFrame(loop);
+}
+let AC=null,muted=false;
+function ac(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state=='suspended')AC.resume()}catch(e){}}
+function tone(f,d,type,v,f2,at){
+ if(!AC||muted)return;
+ const t=AC.currentTime+(at||0),o=AC.createOscillator(),gn=AC.createGain();
+ o.type=type||'square';o.frequency.setValueAtTime(f,t);
+ if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+ gn.gain.setValueAtTime(v||.06,t);gn.gain.exponentialRampToValueAtTime(.001,t+d);
+ o.connect(gn);gn.connect(AC.destination);o.start(t);o.stop(t+d);
+}
+function sfx(n){
+ if(n=='move')tone(220,.04,'square',.025);
+ else if(n=='rot')tone(440,.06,'square',.04,660);
+ else if(n=='drop')tone(160,.12,'triangle',.1,60);
+ else if(n=='line')[523,659,784,1047].forEach((f,i)=>tone(f,.12,'square',.06,0,i*.07));
+ else if(n=='over')tone(500,.9,'sawtooth',.08,50);
+}
+function toggleMute(){muted=!muted;document.getElementById('mt').textContent=muted?'🔇':'🔊'}
+addEventListener('keydown',e=>{
+ const a={ArrowLeft:'L',ArrowRight:'R',ArrowDown:'D',ArrowUp:'T',' ':'H',a:'L',d:'R',s:'D',w:'T'}[e.key];
+ if(a){e.preventDefault();act(a)}
+});
+document.querySelectorAll('#pad button').forEach(btn=>{
+ let tm;const a=btn.dataset.a,rep=a=='L'||a=='R'||a=='D';
+ const stop=()=>{clearInterval(tm)};
+ btn.addEventListener('pointerdown',e=>{e.preventDefault();act(a);if(rep&&started&&!over){stop();tm=setInterval(()=>act(a),110)}});
+ ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop));
+});
+addEventListener('contextmenu',e=>e.preventDefault());
+init();started=false;last=performance.now();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>أركانويد</title>
+<style>
+:root{--bg:#0c1022;--fg:#f2f4ff;--mut:#8f93c9;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1022;--fg:#f2f4ff;--mut:#8f93c9}}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:Tahoma,Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none}
+#hud{display:flex;justify-content:space-between;align-items:center;width:min(94vw,480px,calc(76vh*.75));width:min(94vw,480px,calc((100dvh - 190px)*.75));font-size:16px}
+#mt{border:0;background:none;font-size:20px;cursor:pointer;color:var(--fg);min-width:44px;min-height:44px}
+#mt:focus-visible{outline:2px solid var(--fg)}
+canvas{width:min(94vw,480px,calc(76vh*.75));width:min(94vw,480px,calc((100dvh - 190px)*.75));height:auto;aspect-ratio:3/4;background:#000;border-radius:8px;touch-action:none;cursor:none}
+#msg{min-height:20px;font-size:14px;color:var(--mut);text-align:center}
+#sl{-webkit-appearance:none;appearance:none;direction:ltr;width:min(94vw,480px);height:64px;background:transparent;touch-action:none;margin:0}
+#sl::-webkit-slider-runnable-track{height:18px;border-radius:9px;background:#252a63}
+#sl::-moz-range-track{height:18px;border-radius:9px;background:#252a63}
+#sl::-webkit-slider-thumb{-webkit-appearance:none;width:84px;height:52px;margin-top:-17px;border-radius:14px;background:#e8ebff;border:3px solid #4b6bff}
+#sl::-moz-range-thumb{width:78px;height:46px;border-radius:14px;background:#e8ebff;border:3px solid #4b6bff}
+#sl:focus-visible{outline:2px solid var(--fg);outline-offset:4px}
+
+
+</style>
+</head>
+<body>
+<div id="hud"><span>النقاط: <b id="sc">0</b></span><span>المرحلة: <b id="lv">1</b></span><span>الأرواح: <b id="li">3</b></span><button id="mt" onclick="toggleMute()" aria-label="كتم الصوت">🔊</button></div>
+<canvas id="c" width="480" height="640"></canvas>
+<div id="msg"></div>
+<input id="sl" type="range" min="0" max="1000" value="500" aria-label="تحريك المضرب">
+<script>
+const CW=480,CH=640,BW=48,BH=20,R=7,cv=document.getElementById('c'),x=cv.getContext('2d');
+const LV=[
+["1111111111","1111111111","2222222222","2222222222","1111111111"],
+["1212121212","2121212121","1212121212","2121212121","3333333333"],
+["...1111...","..122221..",".12333321.","1233333321",".12333321."]];
+const BC={1:'#3bf0ff',2:'#ffe94d',3:'#ff4b4b'};
+const PU={W:['#4cd964','عريض'],M:['#c05bff','كور'],L:['#ff8ad8','+']};
+let bricks,balls,pups,score,lives,level,over,pad,wideT,keyL,keyR,last=0,acc=0;
+function speed(){return Math.min(9,5+.6*(level-1))}
+function nb(){return{x:pad.x+pad.w/2,y:pad.y-R-1,vx:0,vy:0,stuck:true}}
+function load(){
+ bricks=[];LV[(level-1)%LV.length].forEach((row,r)=>[...row].forEach((ch,c)=>{if(ch!='.')bricks.push({x:c*BW,y:60+r*(BH+4),h:+ch,alive:true})}));
+ pups=[];wideT=0;pad.w=80;balls=[nb()];msg('اضغط أو مسافة للإطلاق');
+}
+function init(){pad={x:200,w:80,h:12,y:CH-36};score=0;lives=3;level=1;over=false;load();ui()}
+function ui(){sc.textContent=score;lv.textContent=level;li.textContent=lives}
+function msg(t){document.getElementById('msg').textContent=t}
+function movePad(cx){pad.x=Math.max(0,Math.min(CW-pad.w,cx-pad.w/2))}
+function launch(){
+ ac();
+ if(over){init();return}
+ let any=false;
+ balls.forEach(b=>{if(b.stuck){const a=-Math.PI/2+(Math.random()*.6-.3),s=speed();b.vx=s*Math.cos(a);b.vy=s*Math.sin(a);b.stuck=false;any=true}});
+ if(any){msg('');sfx('launch')}
+}
+function hitBrick(br){
+ br.h--;score+=10;
+ if(br.h<=0){br.alive=false;score+=10;sfx('brick');
+  if(Math.random()<.16){const k='WML'[Math.floor(Math.random()*3)];pups.push({x:br.x+BW/2,y:br.y,k})}
+ }else sfx('tap');
+ ui();
+}
+function apply(k){
+ sfx('pow');
+ if(k=='W'){pad.w=130;wideT=600;movePad(pad.x+pad.w/2)}
+ else if(k=='L'){lives=Math.min(5,lives+1);ui()}
+ else if(k=='M'){
+  const add=[];
+  balls.forEach(b=>{if(!b.stuck&&balls.length+add.length<6){const s=Math.hypot(b.vx,b.vy),a=Math.atan2(b.vy,b.vx);
+   [-.4,.4].forEach(d=>add.push({x:b.x,y:b.y,vx:s*Math.cos(a+d),vy:s*Math.sin(a+d),stuck:false}))}});
+  balls=balls.concat(add).slice(0,6);
+ }
+}
+function step(){
+ if(over)return;
+ if(keyL)movePad(pad.x+pad.w/2-8);
+ if(keyR)movePad(pad.x+pad.w/2+8);
+ if(wideT>0&&--wideT==0){pad.w=80;movePad(pad.x+pad.w/2)}
+ for(const b of balls){
+  if(b.stuck){b.x=pad.x+pad.w/2;b.y=pad.y-R-1;continue}
+  b.x+=b.vx;b.y+=b.vy;
+  if(b.x<R){b.x=R;b.vx=-b.vx;sfx('wall')}
+  if(b.x>CW-R){b.x=CW-R;b.vx=-b.vx;sfx('wall')}
+  if(b.y<R){b.y=R;b.vy=-b.vy;sfx('wall')}
+  if(b.vy>0&&b.y+R>=pad.y&&b.y+R<=pad.y+pad.h+8&&b.x>=pad.x-R&&b.x<=pad.x+pad.w+R){
+   const rel=(b.x-(pad.x+pad.w/2))/(pad.w/2),a=Math.max(-1,Math.min(1,rel))*1.05,s=Math.hypot(b.vx,b.vy);
+   b.vx=s*Math.sin(a);b.vy=-s*Math.cos(a);b.y=pad.y-R;sfx('pad');
+  }
+  for(const br of bricks){
+   if(!br.alive)continue;
+   const cx=Math.max(br.x,Math.min(br.x+BW,b.x)),cy=Math.max(br.y,Math.min(br.y+BH,b.y));
+   if(Math.hypot(b.x-cx,b.y-cy)<R){
+    const px=b.x-b.vx;
+    if(px+R<=br.x||px-R>=br.x+BW)b.vx=-b.vx;else b.vy=-b.vy;
+    hitBrick(br);break;
+   }
+  }
+ }
+ balls=balls.filter(b=>b.y<CH+20);
+ if(!balls.length){
+  lives--;ui();pups=[];
+  if(lives<=0){over=true;msg('خلصت! اضغط للعب تاني');sfx('over')}
+  else{pad.w=80;wideT=0;balls=[nb()];msg('اضغط للإطلاق');sfx('lose')}
+ }
+ for(const p of pups){
+  p.y+=2.5;
+  if(p.y>pad.y-4&&p.y<pad.y+pad.h+10&&p.x>pad.x-10&&p.x<pad.x+pad.w+10){p.dead=true;apply(p.k)}
+  if(p.y>CH+20)p.dead=true;
+ }
+ pups=pups.filter(p=>!p.dead);
+ if(bricks.every(br=>!br.alive)){level++;score+=100;ui();load();sfx('level')}
+}
+function draw(){
+ sl.value=Math.round(pad.x/(CW-pad.w)*1000);
+ x.fillStyle='#000';x.fillRect(0,0,CW,CH);
+ for(const br of bricks){
+  if(!br.alive)continue;
+  x.fillStyle=BC[br.h];x.fillRect(br.x+1,br.y+1,BW-2,BH-2);
+  x.fillStyle='rgba(255,255,255,.3)';x.fillRect(br.x+1,br.y+1,BW-2,3);
+ }
+ for(const p of pups){
+  x.fillStyle=PU[p.k][0];x.beginPath();x.roundRect(p.x-16,p.y-8,32,16,8);x.fill();
+  x.fillStyle='#000';x.font='bold 11px Tahoma';x.textAlign='center';x.fillText(PU[p.k][1],p.x,p.y+4);
+ }
+ x.fillStyle='#e8ebff';x.beginPath();x.roundRect(pad.x,pad.y,pad.w,pad.h,6);x.fill();
+ x.fillStyle='#4b6bff';x.fillRect(pad.x+6,pad.y+3,pad.w-12,3);
+ x.fillStyle='#fff';
+ for(const b of balls){x.beginPath();x.arc(b.x,b.y,R,0,7);x.fill()}
+}
+function loop(t){acc+=Math.min(t-last,50);last=t;while(acc>=16){step();acc-=16}draw();requestAnimationFrame(loop)}
+let AC=null,muted=false;
+function ac(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state=='suspended')AC.resume()}catch(e){}}
+function tone(f,d,type,v,f2,at){
+ if(!AC||muted)return;
+ const t=AC.currentTime+(at||0),o=AC.createOscillator(),gn=AC.createGain();
+ o.type=type||'square';o.frequency.setValueAtTime(f,t);
+ if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+ gn.gain.setValueAtTime(v||.06,t);gn.gain.exponentialRampToValueAtTime(.001,t+d);
+ o.connect(gn);gn.connect(AC.destination);o.start(t);o.stop(t+d);
+}
+function sfx(n){
+ if(n=='pad')tone(300,.07,'square',.06);
+ else if(n=='wall')tone(200,.05,'square',.04);
+ else if(n=='tap')tone(520,.05,'square',.05);
+ else if(n=='brick')tone(700+Math.random()*200,.08,'square',.06);
+ else if(n=='launch')tone(300,.15,'triangle',.07,700);
+ else if(n=='pow')[600,800,1000].forEach((f,i)=>tone(f,.08,'square',.05,0,i*.06));
+ else if(n=='lose')tone(500,.6,'sawtooth',.08,70);
+ else if(n=='level')[523,659,784,1047].forEach((f,i)=>tone(f,.14,'square',.06,0,i*.1));
+ else if(n=='over')tone(400,1,'sawtooth',.08,40);
+}
+function toggleMute(){muted=!muted;document.getElementById('mt').textContent=muted?'🔇':'🔊'}
+function px(e){const r=cv.getBoundingClientRect();return(e.clientX-r.left)*CW/r.width}
+cv.addEventListener('pointermove',e=>movePad(px(e)));
+cv.addEventListener('pointerdown',e=>{movePad(px(e));launch()});
+addEventListener('keydown',e=>{
+ if(e.key=='ArrowLeft'||e.key=='a'){keyL=true;e.preventDefault()}
+ else if(e.key=='ArrowRight'||e.key=='d'){keyR=true;e.preventDefault()}
+ else if(e.key==' '||e.key=='ArrowUp'){e.preventDefault();launch()}
+});
+addEventListener('keyup',e=>{
+ if(e.key=='ArrowLeft'||e.key=='a')keyL=false;
+ if(e.key=='ArrowRight'||e.key=='d')keyR=false;
+});
+addEventListener('contextmenu',e=>e.preventDefault());
+const sl=document.getElementById('sl');
+sl.addEventListener('input',()=>{ac();pad.x=sl.value/1000*(CW-pad.w)});
+init();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
