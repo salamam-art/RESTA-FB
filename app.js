@@ -1,3 +1,29 @@
+        // ===== 🔖 رقم إصدار النسخة الشغالة =====
+        // بيتقرأ تلقائيًا من رقم ?v= في رابط app.js داخل Restaevents.html، فبيتغير لوحده مع كل رفع (مفيش رقم تاني لازم يتغير بالإيد).
+        const APP_VERSION = (function () {
+            try {
+                let src = document.currentScript && document.currentScript.src;
+                if (!src) {
+                    const sc = Array.prototype.slice.call(document.scripts).filter(s => /app\.js(\?|$)/.test(s.src || ''));
+                    src = sc.length ? sc[sc.length - 1].src : '';
+                }
+                const m = /[?&]v=([^&#]+)/.exec(src || '');
+                return m ? decodeURIComponent(m[1]) : '';
+            } catch (e) { return ''; }
+        })();
+        function getStylesVersion() {
+            try {
+                const l = document.querySelector('link[rel="stylesheet"][href*="styles.css"]');
+                const m = l && /[?&]v=([^&#]+)/.exec(l.getAttribute('href') || '');
+                return m ? decodeURIComponent(m[1]) : '';
+            } catch (e) { return ''; }
+        }
+        // 20261119a → "19/11/2026 — تعديل a"
+        function prettyAppVersion(v) {
+            const m = /^(\d{4})(\d{2})(\d{2})([a-z0-9]*)$/i.exec(v || '');
+            return m ? (m[3] + '/' + m[2] + '/' + m[1] + (m[4] ? ' — تعديل ' + m[4] : '')) : '';
+        }
+
         // ===== 🌙 الوضع الداكن (Dark Mode) =====
         // تطبيق الوضع المحفوظ فوراً قبل أي كود آخر. الافتراضي: الوضع الفاتح كما كان.
         (function applySavedTheme() {
@@ -5768,7 +5794,11 @@ ${pages}
                 { url: 'https://salamam-art.github.io/RESTA-FB/pong.html', icon: 'circle-dot', bg: 'bg-blue-50', color: 'text-blue-600', label: 'Pong' },
                 { url: 'https://salamam-art.github.io/RESTA-FB/snake.html', icon: 'dot', bg: 'bg-green-50', color: 'text-green-600', label: 'Snake' },
                 { url: 'https://salamam-art.github.io/RESTA-FB/space-invaders.html', icon: 'rocket', bg: 'bg-purple-50', color: 'text-purple-600', label: 'Space Invaders' },
-                { url: 'https://salamam-art.github.io/RESTA-FB/solitaire.html', icon: 'spade', bg: 'bg-red-50', color: 'text-red-600', label: 'Solitaire' }
+                { url: 'https://salamam-art.github.io/RESTA-FB/solitaire.html', icon: 'spade', bg: 'bg-red-50', color: 'text-red-600', label: 'Solitaire' },
+                { url: 'https://salamam-art.github.io/RESTA-FB/Arkanoid.html', icon: 'brick-wall', bg: 'bg-orange-50', color: 'text-orange-600', label: 'Arkanoid' },
+                { url: 'https://salamam-art.github.io/RESTA-FB/Pac-Man.html', icon: 'ghost', bg: 'bg-yellow-50', color: 'text-yellow-600', label: 'Pac-Man' },
+                { url: 'https://salamam-art.github.io/RESTA-FB/Tetris.html', icon: 'blocks', bg: 'bg-cyan-50', color: 'text-cyan-600', label: 'Tetris' },
+                { url: 'https://salamam-art.github.io/RESTA-FB/roadrush.html', icon: 'car', bg: 'bg-slate-100', color: 'text-slate-600', label: 'Road Rush' }
             ];
             const gamesHtml = `<button type="button" class="hdr-acc-head" data-acc="games" onclick="toggleHdrAcc('games', event)">
                         <span class="flex items-center gap-2"><i data-lucide="gamepad-2" class="w-4 h-4"></i>الألعاب</span>
@@ -5893,6 +5923,14 @@ ${pages}
                                 <a href="tel:${ABOUT_DESIGNER.phoneIntl}" class="mt-1 text-sm font-bold text-[#6E1418] hover:underline flex items-center gap-1.5" dir="ltr"><i data-lucide="phone" class="w-4 h-4 shrink-0"></i>${ABOUT_DESIGNER.phone}</a>
                             </div>
                         </div>
+                        <div class="rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-[11px] font-black text-[#A88A45] mb-0.5">رقم الإصدار · Version</p>
+                                <p class="font-black text-slate-800 text-lg tracking-wide" dir="ltr">${escapeHtml(APP_VERSION || '—')}</p>
+                                ${prettyAppVersion(APP_VERSION) ? `<p class="text-xs text-slate-500 font-bold mt-0.5">${prettyAppVersion(APP_VERSION)}</p>` : ''}
+                            </div>
+                            ${getStylesVersion() ? `<div class="shrink-0 text-left"><p class="text-[10px] font-bold text-slate-400">التصميم · styles</p><p class="text-xs font-black text-slate-500" dir="ltr">${escapeHtml(getStylesVersion())}</p></div>` : ''}
+                        </div>
                         <button onclick="downloadAboutTxt()" class="w-full py-3.5 rounded-xl bg-[#6E1418] hover:bg-[#5a1013] text-white font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
                             <i data-lucide="file-text" class="w-5 h-5"></i> تحميل شرح المميزات وطريقة العمل (TXT)
                         </button>
@@ -6005,6 +6043,30 @@ ${pages}
                                             <i data-lucide="spade" class="w-4 h-4 text-red-600"></i>
                                         </span>
                                         Solitaire
+                                    </a>
+                                    <a href="https://salamam-art.github.io/RESTA-FB/Arkanoid.html" target="_blank" rel="noopener">
+                                        <span class="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="brick-wall" class="w-4 h-4 text-orange-600"></i>
+                                        </span>
+                                        Arkanoid
+                                    </a>
+                                    <a href="https://salamam-art.github.io/RESTA-FB/Pac-Man.html" target="_blank" rel="noopener">
+                                        <span class="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="ghost" class="w-4 h-4 text-yellow-600"></i>
+                                        </span>
+                                        Pac-Man
+                                    </a>
+                                    <a href="https://salamam-art.github.io/RESTA-FB/Tetris.html" target="_blank" rel="noopener">
+                                        <span class="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0">
+                                            <i data-lucide="blocks" class="w-4 h-4 text-cyan-600"></i>
+                                        </span>
+                                        Tetris
+                                    </a>
+                                    <a href="https://salamam-art.github.io/RESTA-FB/roadrush.html" target="_blank" rel="noopener">
+                                        <span class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                                            <i data-lucide="car" class="w-4 h-4 text-slate-600"></i>
+                                        </span>
+                                        Road Rush
                                     </a>
                                 </div>
                             </div>
