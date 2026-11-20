@@ -139,6 +139,25 @@
             background-color: #fff; border-color: var(--brand-gold) !important;
             box-shadow: 0 0 0 4px rgba(168,138,69,.15) !important;
         }
+        /* الإضافات: كل بند في كارت مع سعره واضح */
+        #weddingSettingsBody .ws-extra-card {
+            border: 1px solid #E6DFD3; border-radius: 1rem; padding: 0.6rem;
+            background: #fff; display: flex; flex-direction: column; gap: 0.5rem;
+        }
+        #weddingSettingsBody textarea.ws-extra-name {
+            width: 100%; resize: none; overflow: hidden; line-height: 1.6; min-height: 2.6rem;
+            padding: 0.5rem 0.85rem; border-radius: 0.75rem; border: 1px solid #E6DFD3;
+            background-color: #F6F2EB; outline: none; color: #2E2823;
+        }
+        #weddingSettingsBody textarea.ws-extra-name:focus {
+            background-color: #fff; border-color: var(--brand-gold) !important;
+            box-shadow: 0 0 0 4px rgba(168,138,69,.15) !important;
+        }
+        #weddingSettingsBody .ws-extra-price-row { display: flex; align-items: center; gap: 0.6rem; }
+        #weddingSettingsBody .ws-extra-price-label {
+            flex: 1 1 0%; font-size: 0.75rem; font-weight: 800; color: #6E1418; white-space: nowrap;
+        }
+        #weddingSettingsBody input.ws-extra-value { width: 7.5rem; flex: 0 0 7.5rem; text-align: center; font-weight: 800; }
         /* إصلاح: حقل السعر كان ياخد 100% من العرض ويضغط اسم الباقة */
         #weddingSettingsBody input.ws-package-price { width: 7.5rem; flex: 0 0 7.5rem; text-align: center; }
         #weddingSettingsBody .ws-package-name { flex: 1 1 0%; min-width: 0; white-space: normal; word-break: normal; overflow-wrap: break-word; }

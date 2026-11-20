@@ -8763,11 +8763,13 @@ ${pages}
                     <div class="font-bold text-[#6E1418] mb-3">الإضافات</div>
                     <div class="space-y-2.5">
                         ${state.weddingSettings.extras.map((ex, i) => `
-                            <div class="space-y-1.5">
-                                <input type="text" class="ws-extra-name w-full text-sm font-bold text-slate-600" data-idx="${i}" value="${String(ex.name || '').replace(/"/g, '&quot;')}" placeholder="اسم الإضافة">
-                                <div class="flex items-center gap-2">
-                                    <input type="number" class="ws-extra-value flex-1" data-idx="${i}" value="${ex.value || ''}" min="0" step="any">
-                                    ${ex.perGuest ? '<span class="text-[10px] text-slate-400 shrink-0">(جنيه/فرد)</span>' : ''}
+                            <div class="ws-extra-card">
+                                <textarea rows="1" class="ws-extra-name text-sm font-bold text-slate-700" data-idx="${i}"
+                                    oninput="autosizeMenuItem(this)" onkeydown="if(event.key==='Enter')event.preventDefault()"
+                                    placeholder="اسم الإضافة">${escapeHtml(String(ex.name || ''))}</textarea>
+                                <div class="ws-extra-price-row">
+                                    <span class="ws-extra-price-label">السعر${ex.perGuest ? ' (جنيه/فرد)' : ' (جنيه)'}</span>
+                                    <input type="number" class="ws-extra-value" data-idx="${i}" value="${ex.value || ''}" min="0" step="any">
                                 </div>
                             </div>
                         `).join('')}
@@ -8778,6 +8780,7 @@ ${pages}
                 </button>
             `;
             if (typeof lucide !== "undefined") refreshIcons('weddingSettingsModal');
+            document.querySelectorAll('#weddingSettingsBody .ws-extra-name').forEach(autosizeMenuItem);
         }
 
         function autosizeMenuItem(el) {
