@@ -2663,5 +2663,8 @@ html select.free-hall-select { min-height: 32px; height: 32px; font-size: 11px; 
 
 
 /* شريط الإجمالي الثابت للموبايل (مناسبة خاصة أخرى) */
-#otherStickyTotalBar { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -6px 16px rgba(0,0,0,.18); }
+#otherStickyTotalBar { padding-top: .5rem; padding-bottom: .5rem; box-shadow: 0 -6px 16px rgba(0,0,0,.18); }
+/* إصلاح: الـ safe-area كان بيتضاف مرتين (على الشيت وعلى الشريط) فيطلع الشريط عريض ومساحة فاضية تحته.
+   في تطبيق الأندرويد الـ WebView بيعمل padding للنافدة بنفسه، فبنصفّر هنا. */
+html #globalBookingModal > div:first-child { padding-bottom: 0 !important; }
 @media (min-width: 768px) { #otherStickyTotalBar { display: none !important; } }

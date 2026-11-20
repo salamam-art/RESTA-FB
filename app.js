@@ -8613,7 +8613,7 @@ ${pages}
             const bar = document.getElementById('otherStickyTotalBar');
             if (!bar) return;
             const typeEl = document.getElementById('globalEventType');
-            const isOther = !!typeEl && typeEl.value === 'other';
+            const isOther = !!typeEl && (typeEl.value === 'other' || typeEl.value === 'wedding');
             bar.classList.toggle('hidden', !isOther);
             const val = document.getElementById('otherStickyTotalVal');
             if (val && isOther) val.textContent = Math.round(Number(total) || 0).toLocaleString('en-US');
@@ -8621,6 +8621,7 @@ ${pages}
         function syncOtherStickyBar() {
             const typeEl = document.getElementById('globalEventType');
             if (typeEl && typeEl.value === 'other') recalcOtherPayments();
+            else if (typeEl && typeEl.value === 'wedding') recalcWeddingTotals();
             else { const bar = document.getElementById('otherStickyTotalBar'); if (bar) bar.classList.add('hidden'); }
         }
 
@@ -8831,6 +8832,7 @@ ${pages}
             const { guests, extrasTotal, chairTotal } = getWeddingExtrasBreakdown();
             const subtotal = price * guests;
             const total = subtotal + extrasTotal + chairTotal;
+            updateOtherStickyTotal(total);
 
             let paid = 0;
             document.querySelectorAll('.wedding-payment-input').forEach(inp => { paid += parseFloat(inp.value) || 0; });
