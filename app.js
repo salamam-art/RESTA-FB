@@ -5729,6 +5729,47 @@ ${pages}
             }, { passive: true });
         })();
 
+        // ─── نافذة الحجز على اللمس: الحقول لا تمسك اللمس إلا لما تتفعّل ───
+        // السكرول اللي بيبدأ فوق حقل كتابة كان بيقف لحظة (المتصفح بيحاول يفهم: كتابة/تحريك مؤشر/سكرول).
+        // الحل: على شاشات اللمس الحقل "شفاف للمس" (pointer-events:none في CSS) طول ما هو مش متفعّل،
+        // والضغطة العادية بتتحوّل لـ focus على الحقل اللي تحت الإصبع، وبعدها الحقل يشتغل عادي.
+        (function () {
+            let coarse = false;
+            try { coarse = window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) {}
+            if (!coarse) return;
+            const SEL = 'input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea';
+            const modalOf = () => document.getElementById('globalBookingModal');
+            document.addEventListener('click', function (e) {
+                const modal = modalOf();
+                if (!modal || modal.classList.contains('hidden') || !e.target || !modal.contains(e.target)) return;
+                if (e.target.closest && e.target.closest(SEL + ', button, select, a')) return;
+                const x = e.clientX, y = e.clientY;
+                const fields = modal.querySelectorAll(SEL);
+                for (let i = 0; i < fields.length; i++) {
+                    const f = fields[i];
+                    if (f.disabled) continue;
+                    const r = f.getBoundingClientRect();
+                    if (!r.width || !r.height) continue;
+                    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+                        f.classList.add('rs-field-live');
+                        try { f.focus(); } catch (err) {}
+                        try { if (/^(date|time|datetime-local|month|week)$/.test(f.type) && f.showPicker) f.showPicker(); } catch (err) {}
+                        try { const n = (f.value || '').length; f.setSelectionRange(n, n); } catch (err) {}
+                        return;
+                    }
+                }
+            }, true);
+            // أي تركيز (باللمس أو برمجياً زي إضافة صنف جديد) يفعّل الحقل، وفقدان التركيز يرجّعه شفاف
+            document.addEventListener('focusin', function (e) {
+                const t = e.target;
+                if (t && t.matches && t.matches(SEL) && t.closest('#globalBookingModal')) t.classList.add('rs-field-live');
+            });
+            document.addEventListener('focusout', function (e) {
+                const t = e.target;
+                if (t && t.classList && t.classList.contains('rs-field-live')) t.classList.remove('rs-field-live');
+            });
+        })();
+
         function render() {
             const app = document.getElementById('app');
             app.innerHTML = `
