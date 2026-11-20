@@ -249,7 +249,7 @@
             return Array.isArray(s) ? s : [];
         }
         function setMenuOptionsHtml(selectedId) {
-            return '<option value="">-- منيو مخصص (بدون Set) --</option>' + getSetMenus().map(s =>
+            return '<option value="">Set menu</option>' + getSetMenus().map(s =>
                 `<option value="${escapeHtml(s.id)}" ${selectedId === s.id ? 'selected' : ''}>${escapeHtml(s.name)} — ${fmtEGP(s.price)}/فرد</option>`
             ).join('');
         }
