@@ -1032,6 +1032,7 @@
             if (!grp || !ta) return;
             const adm = isNotesAdmin();
             grp.classList.toggle('hidden', !adm);
+            grp.style.display = adm ? '' : 'none'; // حماية إضافية: الحقل مايظهرش لغير الأدمن مهما حصل
             ta.value = adm ? (text || '') : '';
             form.dataset[fieldName + 'Orig'] = adm ? (text || '') : '';
             setTimeout(() => autoGrowTextarea(ta), 60);

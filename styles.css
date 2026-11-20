@@ -2668,3 +2668,6 @@ html select.free-hall-select { min-height: 32px; height: 32px; font-size: 11px; 
    في تطبيق الأندرويد الـ WebView بيعمل padding للنافدة بنفسه، فبنصفّر هنا. */
 html #globalBookingModal > div:first-child { padding-bottom: 0 !important; }
 @media (min-width: 768px) { #otherStickyTotalBar { display: none !important; } }
+
+/* حقل الملاحظة الخاصة: مخفي دايمًا لغير الأدمن */
+.admin-note-field.hidden { display: none !important; }
