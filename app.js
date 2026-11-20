@@ -8934,19 +8934,21 @@ ${pages}
                 const items = (s.items && s.items.length) ? s.items : [];
                 return `
                 <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm" data-set-card="${i}">
-                    <button type="button" onclick="toggleSetMenuCard(${i})" class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
-                        <span class="font-bold text-sm text-slate-700 flex items-center gap-2 flex-wrap">
-                            <i data-lucide="chef-hat" class="w-4 h-4 text-[#A88A45]"></i>
-                            ${escapeHtml(s.name)}
-                            <span class="text-[10px] font-normal text-slate-400">(${fmtEGP(s.price)}/فرد — ${items.filter(x => String(x).trim()).length} صنف)</span>
-                        </span>
-                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 sm-chevron-${i} transition-transform" style="${open ? 'transform:rotate(180deg)' : ''}"></i>
-                    </button>
-                    <div id="setMenuBody_${i}" class="${open ? '' : 'hidden'} p-4 space-y-3 bg-white">
-                        <div class="flex items-center gap-3">
-                            <span class="text-sm font-bold text-slate-600">سعر الفرد (جنيه)</span>
-                            <input type="number" class="sm-price w-32" data-set="${i}" value="${s.price || ''}" min="0" step="any">
+                    <div class="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+                        <button type="button" onclick="toggleSetMenuCard(${i})" class="flex-1 min-w-0 flex items-center justify-between gap-2 text-right hover:opacity-80 transition-opacity">
+                            <span class="font-bold text-sm text-slate-700 flex items-center gap-2 flex-wrap">
+                                <i data-lucide="chef-hat" class="w-4 h-4 text-[#A88A45]"></i>
+                                ${escapeHtml(s.name)}
+                                <span class="text-[10px] font-normal text-slate-400">(${items.filter(x => String(x).trim()).length} صنف)</span>
+                            </span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 sm-chevron-${i} transition-transform shrink-0" style="${open ? 'transform:rotate(180deg)' : ''}"></i>
+                        </button>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <input type="number" class="sm-price" style="width:6.5rem" data-set="${i}" value="${s.price || ''}" min="0" step="any" placeholder="سعر الفرد">
+                            <span class="text-[10px] font-bold text-slate-500">جنيه/فرد</span>
                         </div>
+                    </div>
+                    <div id="setMenuBody_${i}" class="${open ? '' : 'hidden'} p-4 space-y-3 bg-white">
                         <div class="space-y-2">
                             ${items.map((item, j) => `
                                 <div class="flex items-start gap-2">
