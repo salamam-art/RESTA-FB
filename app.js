@@ -11583,31 +11583,50 @@ window.openFromNotification = function (date, bookingId) {
 // ===== إصلاح: شريط الإجمالي الثابت يفضل فوق الكيبورد دايمًا (نافذة الحجز) =====
 // بعض المتصفحات/WebView بتفتح الكيبورد فوق الصفحة من غير ما تصغّر مساحتها، فالشريط اللي في آخر النافذة بيستخبى وراه.
 // بنقيس المساحة المرئية الفعلية (visualViewport) ونضبط ارتفاع النافذة عليها بس وقت ظهور الكيبورد.
+// (من غير أي scroll تلقائي جوه الحلقة، وبنكتب القيم بس لو اتغيرت — عشان ما يحصلش اهتزاز)
 (function () {
     const vv = window.visualViewport;
     if (!vv) return;
-    function sync() {
+    let last = '';
+    let raf = 0;
+    function apply() {
+        raf = 0;
         try {
             const modal = document.getElementById('globalBookingModal');
             if (!modal) return;
             const panel = modal.firstElementChild;
             const kbOpen = !modal.classList.contains('hidden') && (window.innerHeight - vv.height) > 120;
+            const key = kbOpen ? Math.round(vv.offsetTop) + '|' + Math.round(vv.height) : 'off';
+            if (key === last) return;
+            last = key;
             if (kbOpen) {
                 modal.style.setProperty('bottom', 'auto', 'important');
-                modal.style.setProperty('top', vv.offsetTop + 'px', 'important');
-                modal.style.setProperty('height', vv.height + 'px', 'important');
-                if (panel) panel.style.setProperty('max-height', Math.max(200, vv.height - 20) + 'px', 'important');
-                const el = document.activeElement;
-                if (el && modal.contains(el) && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
-                    setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 60);
-                }
+                modal.style.setProperty('top', Math.round(vv.offsetTop) + 'px', 'important');
+                modal.style.setProperty('height', Math.round(vv.height) + 'px', 'important');
+                if (panel) panel.style.setProperty('max-height', Math.max(200, Math.round(vv.height) - 20) + 'px', 'important');
             } else {
                 ['bottom', 'top', 'height'].forEach(p => modal.style.removeProperty(p));
                 if (panel) panel.style.removeProperty('max-height');
             }
         } catch (e) {}
     }
+    function sync() { if (!raf) raf = requestAnimationFrame(apply); }
     vv.addEventListener('resize', sync);
     vv.addEventListener('scroll', sync);
-    document.addEventListener('focusout', () => setTimeout(sync, 150));
+    document.addEventListener('focusout', () => setTimeout(sync, 200));
+    // تمرير الحقل لمنتصف الشاشة مرة واحدة بعد استقرار الكيبورد (مش مع كل تغيير)
+    let focusTimer = 0;
+    document.addEventListener('focusin', (e) => {
+        const el = e.target;
+        const modal = document.getElementById('globalBookingModal');
+        if (!modal || !el || !modal.contains(el) || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+        clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+            try {
+                if (window.innerHeight - vv.height <= 120) return;
+                const r = el.getBoundingClientRect();
+                if (r.top < vv.offsetTop + 60 || r.bottom > vv.offsetTop + vv.height - 70) el.scrollIntoView({ block: 'center' });
+            } catch (err) {}
+        }, 450);
+    });
 })();
