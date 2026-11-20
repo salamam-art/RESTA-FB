@@ -129,6 +129,19 @@
             border-color: var(--brand-gold) !important;
             box-shadow: 0 0 0 4px rgba(168, 138, 69, 0.15) !important;
         }
+        /* أصناف المنيو داخل فورمة الحجز (مناسبات + أفراح): تلتف على أكثر من سطر بدل ما الكلام يختفي */
+        html textarea.other-menu-item, html textarea.wedding-menu-item {
+            padding: 0.6rem 0.85rem; border-radius: 0.85rem; border: 1px solid #E6DFD3;
+            background-color: #F6F2EB; outline: none; font-size: 0.9rem; color: #2E2823;
+            width: 100%; resize: none; overflow: hidden; line-height: 1.6; min-height: 2.6rem;
+        }
+        html textarea.other-menu-item:focus, html textarea.wedding-menu-item:focus {
+            background-color: #fff; border-color: var(--brand-gold) !important;
+            box-shadow: 0 0 0 4px rgba(168,138,69,.15) !important;
+        }
+        html.dark textarea.other-menu-item, html.dark textarea.wedding-menu-item {
+            background-color: #334155; border-color: #475569; color: #f1f5f9;
+        }
         /* حقول أصناف المنيو: تلتف على أكثر من سطر بدل ما الكلام يختفي */
         #weddingSettingsBody textarea.ws-menu-item {
             padding: 0.6rem 0.85rem; border-radius: 0.85rem; border: 1px solid #E6DFD3;

@@ -7839,6 +7839,8 @@ ${pages}
                 if (otherSection) otherSection.classList.add('hidden');
             }
             if (typeof lucide !== "undefined") refreshIcons('globalBookingModal');
+            autosizeBookingMenuFields();
+            requestAnimationFrame(autosizeBookingMenuFields);
         }
 
         // ═══════════════════ منيو مناسبة خاصة أخرى (عشاء / مؤتمر / حفل) — يدعم عدة منيوهات بتاريخ ووقت لكل منيو ═══════════════════
@@ -7891,8 +7893,8 @@ ${pages}
                     <div class="other-menu-total text-xs font-bold text-[#6E1418] bg-white/70 rounded-lg px-2.5 py-1.5 border border-amber-100">الإجمالي: ${fmtEGP((m.guests || 0) * (m.pricePerPerson || 0))}</div>
                     <div class="other-menu-items space-y-2">
                         ${(m.items && m.items.length ? m.items : ['']).map((item, ii) => `
-                            <div class="flex items-center gap-2">
-                                <input type="text" class="other-menu-item flex-1 text-sm" value="${escapeHtml(item || '')}" placeholder="اسم الصنف">
+                            <div class="flex items-start gap-2">
+                                <textarea rows="1" class="other-menu-item flex-1 text-sm" oninput="autosizeMenuItem(this)" onkeydown="if(event.key==='Enter')event.preventDefault()" placeholder="اسم الصنف">${escapeHtml(item || '')}</textarea>
                                 <button type="button" onclick="removeOtherMenuItem(${mi}, ${ii})" class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0" title="حذف الصنف">
                                     <i data-lucide="x" class="w-4 h-4"></i>
                                 </button>
@@ -7906,6 +7908,7 @@ ${pages}
                 </div>
             `).join('');
             if (typeof lucide !== "undefined") refreshIcons('otherEventMenusContainer');
+            autosizeBookingMenuFields();
             recalcOtherPayments();
         }
 
@@ -7948,6 +7951,10 @@ ${pages}
             const menus = getOtherMenusFromForm();
             menus.push({ date: '', time: '', hallId: '', hallName: '', setMenuId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' });
             renderOtherEventMenus(menus);
+        }
+
+        function autosizeBookingMenuFields() {
+            document.querySelectorAll('#otherEventMenusContainer .other-menu-item, #weddingMenuItemsList .wedding-menu-item').forEach(autosizeMenuItem);
         }
 
         function onOtherSetMenuChange(menuIdx, setId) {
@@ -8185,6 +8192,7 @@ ${pages}
             renderOtherEventMenus(om && om.menus && om.menus.length ? om.menus : null);
             renderOtherEquipment(om && om.equipment ? om.equipment : null);
             renderOtherPayments(om && om.payments ? om.payments : null);
+            requestAnimationFrame(autosizeBookingMenuFields);
         }
 
         function populateWeddingPackageSelect() {
@@ -8211,8 +8219,8 @@ ${pages}
             box.classList.remove('hidden');
             const list = document.getElementById('weddingMenuItemsList');
             list.innerHTML = (items && items.length ? items : ['']).map((item, i) => `
-                <div class="flex items-center gap-2">
-                    <input type="text" class="wedding-menu-item flex-1 text-sm" data-idx="${i}" value="${escapeHtml(item || '')}" placeholder="اسم الصنف">
+                <div class="flex items-start gap-2">
+                    <textarea rows="1" class="wedding-menu-item flex-1 text-sm" data-idx="${i}" oninput="autosizeMenuItem(this)" onkeydown="if(event.key==='Enter')event.preventDefault()" placeholder="اسم الصنف">${escapeHtml(item || '')}</textarea>
                     <button type="button" onclick="removeWeddingMenuItem(${i})" class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0" title="حذف الصنف">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
@@ -8220,6 +8228,7 @@ ${pages}
             `).join('');
             document.getElementById('weddingMenuNotes').value = notes || '';
             if (typeof lucide !== "undefined") refreshIcons('weddingPackageMenuPreview');
+            autosizeBookingMenuFields();
         }
 
         function getWeddingMenuItemsFromForm() {
