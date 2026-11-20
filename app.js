@@ -11579,3 +11579,35 @@ window.openFromNotification = function (date, bookingId) {
     }, POLL_MS);
     window.__notifOpenTimer = timer;
 };
+
+// ===== إصلاح: شريط الإجمالي الثابت يفضل فوق الكيبورد دايمًا (نافذة الحجز) =====
+// بعض المتصفحات/WebView بتفتح الكيبورد فوق الصفحة من غير ما تصغّر مساحتها، فالشريط اللي في آخر النافذة بيستخبى وراه.
+// بنقيس المساحة المرئية الفعلية (visualViewport) ونضبط ارتفاع النافذة عليها بس وقت ظهور الكيبورد.
+(function () {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function sync() {
+        try {
+            const modal = document.getElementById('globalBookingModal');
+            if (!modal) return;
+            const panel = modal.firstElementChild;
+            const kbOpen = !modal.classList.contains('hidden') && (window.innerHeight - vv.height) > 120;
+            if (kbOpen) {
+                modal.style.setProperty('bottom', 'auto', 'important');
+                modal.style.setProperty('top', vv.offsetTop + 'px', 'important');
+                modal.style.setProperty('height', vv.height + 'px', 'important');
+                if (panel) panel.style.setProperty('max-height', Math.max(200, vv.height - 20) + 'px', 'important');
+                const el = document.activeElement;
+                if (el && modal.contains(el) && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+                    setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 60);
+                }
+            } else {
+                ['bottom', 'top', 'height'].forEach(p => modal.style.removeProperty(p));
+                if (panel) panel.style.removeProperty('max-height');
+            }
+        } catch (e) {}
+    }
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    document.addEventListener('focusout', () => setTimeout(sync, 150));
+})();
