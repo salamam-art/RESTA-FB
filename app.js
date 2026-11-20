@@ -242,6 +242,17 @@
             { key: 'video', name: 'ميكسر مع 2 كاميرا HD + كاميرا كرين + شاشة عرض', value: 5200, perGuest: false },
             { key: 'chair', name: 'كرسي ديكور',   value: 30,   perGuest: true  },
         ];
+        // Set Menus (منيوهات جاهزة للمناسبات الخاصة والمؤتمرات) — محفوظة داخل weddingSettings.setMenus
+        // عشان تتزامن مع نفس مسار السحابة (نفس صلاحيات الأدمن) من غير ما نحتاج تعديل قواعد Firebase.
+        function getSetMenus() {
+            const s = state.weddingSettings && state.weddingSettings.setMenus;
+            return Array.isArray(s) ? s : [];
+        }
+        function setMenuOptionsHtml(selectedId) {
+            return '<option value="">-- منيو مخصص (بدون Set) --</option>' + getSetMenus().map(s =>
+                `<option value="${escapeHtml(s.id)}" ${selectedId === s.id ? 'selected' : ''}>${escapeHtml(s.name)} — ${fmtEGP(s.price)}/فرد</option>`
+            ).join('');
+        }
         function fmtEGP(n) {
             const v = Math.round(Number(n) || 0);
             return v.toLocaleString('en-US') + ' جنيه';
@@ -1116,6 +1127,9 @@
                     if (settingsModal && !settingsModal.classList.contains('hidden')) renderWeddingSettingsModal();
                     const qc = document.getElementById('quickCalcModal');
                     if (qc && !qc.classList.contains('hidden')) renderQuickCalcModal();
+                    const smModal = document.getElementById('setMenusModal');
+                    if (smModal && !smModal.classList.contains('hidden')) renderSetMenusModal();
+                    document.querySelectorAll('.other-menu-set').forEach(sel => { const cur = sel.value; sel.innerHTML = setMenuOptionsHtml(cur); sel.value = cur; });
                 }
             }, (err) => { console.warn('weddingSettings listener cancelled:', err && err.code); });
         }
@@ -5738,7 +5752,7 @@ ${pages}
             try { coarse = window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) {}
             if (!coarse) return;
             const SEL = 'input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea';
-            const MODALS = '#globalBookingModal, #quickCalcModal, #weddingSettingsModal, #hallsManageModal';
+            const MODALS = '#globalBookingModal, #quickCalcModal, #weddingSettingsModal, #setMenusModal, #hallsManageModal';
             document.addEventListener('click', function (e) {
                 const modal = e.target && e.target.closest ? e.target.closest(MODALS) : null;
                 if (!modal || modal.classList.contains('hidden')) return;
@@ -5799,6 +5813,7 @@ ${pages}
             if (admin) {
                 tools.push({ action: 'toggleHallsManageModal()', icon: 'building-2', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إدارة القاعات' });
                 tools.push({ action: 'toggleWeddingSettingsModal()', icon: 'settings-2', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إعدادات باقات الأفراح' });
+                tools.push({ action: 'toggleSetMenusModal()', icon: 'clipboard-list', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إعدادات Set Menus (مناسبات ومؤتمرات)' });
                 tools.push({ action: 'toggleFinanceStatsModal()', icon: 'bar-chart-3', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'الإحصائيات المالية' });
             }
             return { exp, rec, tools };
@@ -7831,7 +7846,7 @@ ${pages}
         function renderOtherEventMenus(menus) {
             const container = document.getElementById('otherEventMenusContainer');
             if (!container) return;
-            const list = (menus && menus.length) ? menus : [{ date: '', time: '', hallId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' }];
+            const list = (menus && menus.length) ? menus : [{ date: '', time: '', hallId: '', setMenuId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' }];
             container.innerHTML = list.map((m, mi) => `
                 <div class="other-menu-block bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2.5" data-menu-idx="${mi}">
                     <div class="flex items-center justify-between">
@@ -7841,6 +7856,11 @@ ${pages}
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>` : ''}
                     </div>
+                    ${getSetMenus().length ? `
+                    <div class="input-group !mb-0">
+                        <label class="text-xs">Set Menu جاهز <span class="text-[10px] text-slate-400 font-normal">(يملأ الأصناف والسعر — وتقدر تعدّل عليهم)</span></label>
+                        <select class="other-menu-set" onchange="onOtherSetMenuChange(${mi}, this.value)">${setMenuOptionsHtml(m.setMenuId || '')}</select>
+                    </div>` : ''}
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div class="input-group !mb-0">
                             <label class="text-xs">التاريخ</label>
@@ -7914,6 +7934,7 @@ ${pages}
                     time:           block.querySelector('.other-menu-time') ? block.querySelector('.other-menu-time').value : '',
                     hallId:         hallId,
                     hallName:       hall ? hall.name : '',
+                    setMenuId:      block.querySelector('.other-menu-set') ? block.querySelector('.other-menu-set').value : '',
                     guests:         guests,
                     pricePerPerson: pricePerPerson,
                     total:          guests * pricePerPerson,
@@ -7925,7 +7946,23 @@ ${pages}
 
         function addOtherMenuBlock() {
             const menus = getOtherMenusFromForm();
-            menus.push({ date: '', time: '', hallId: '', hallName: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' });
+            menus.push({ date: '', time: '', hallId: '', hallName: '', setMenuId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' });
+            renderOtherEventMenus(menus);
+        }
+
+        function onOtherSetMenuChange(menuIdx, setId) {
+            const menus = getOtherMenusFromForm();
+            const m = menus[menuIdx];
+            if (!m) return;
+            const set = getSetMenus().find(s => s.id === setId);
+            m.setMenuId = set ? set.id : '';
+            if (set) {
+                const items = (set.items || []).map(i => String(i || '').trim()).filter(Boolean);
+                m.items = items.length ? items : [''];
+                m.pricePerPerson = Number(set.price) || 0;
+                m.notes = set.notes || '';
+                m.total = (Number(m.guests) || 0) * m.pricePerPerson;
+            }
             renderOtherEventMenus(menus);
         }
 
@@ -8864,6 +8901,178 @@ ${pages}
             });
             _collectMenuFromForm();
             saveWeddingSettingsToCloud();
+        }
+
+        // ═══════════════════ إعدادات Set Menus (أدمن فقط) ═══════════════════
+        // كل Set فيه: اسم تلقائي (Set menu #N) + سعر الفرد + أصناف + ملاحظات. الحجز بياخد نسخة من الأصناف والسعر وقت الاختيار،
+        // فتعديل الـ Set بعد كده ما بيغيّرش الحجوزات القديمة (زي باقات الأفراح).
+        let _setMenuOpenIds = [];
+
+        function toggleSetMenusModal() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const modal = document.getElementById('setMenusModal');
+            if (modal.classList.contains('hidden')) {
+                renderSetMenusModal();
+                modal.classList.remove('hidden');
+                autosizeAllSetMenuFields();
+                requestAnimationFrame(autosizeAllSetMenuFields);
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function autosizeAllSetMenuFields() {
+            document.querySelectorAll('#setMenusBody .sm-item').forEach(autosizeMenuItem);
+        }
+
+        function renderSetMenusModal() {
+            const body = document.getElementById('setMenusBody');
+            if (!body) return;
+            const sets = getSetMenus();
+            const cards = sets.map((s, i) => {
+                const open = _setMenuOpenIds.includes(s.id);
+                const items = (s.items && s.items.length) ? s.items : [];
+                return `
+                <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm" data-set-card="${i}">
+                    <button type="button" onclick="toggleSetMenuCard(${i})" class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <span class="font-bold text-sm text-slate-700 flex items-center gap-2 flex-wrap">
+                            <i data-lucide="chef-hat" class="w-4 h-4 text-[#A88A45]"></i>
+                            ${escapeHtml(s.name)}
+                            <span class="text-[10px] font-normal text-slate-400">(${fmtEGP(s.price)}/فرد — ${items.filter(x => String(x).trim()).length} صنف)</span>
+                        </span>
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 sm-chevron-${i} transition-transform" style="${open ? 'transform:rotate(180deg)' : ''}"></i>
+                    </button>
+                    <div id="setMenuBody_${i}" class="${open ? '' : 'hidden'} p-4 space-y-3 bg-white">
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-bold text-slate-600">سعر الفرد (جنيه)</span>
+                            <input type="number" class="sm-price w-32" data-set="${i}" value="${s.price || ''}" min="0" step="any">
+                        </div>
+                        <div class="space-y-2">
+                            ${items.map((item, j) => `
+                                <div class="flex items-start gap-2">
+                                    <textarea rows="1" class="sm-item flex-1 text-sm" data-set="${i}" data-item="${j}"
+                                        oninput="autosizeMenuItem(this)" onkeydown="if(event.key==='Enter')event.preventDefault()"
+                                        placeholder="اسم الصنف">${escapeHtml(item)}</textarea>
+                                    <button type="button" onclick="removeSetMenuItem(${i},${j})" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="حذف الصنف">
+                                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>`).join('')}
+                        </div>
+                        <button type="button" onclick="addSetMenuItem(${i})" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#6E1418]/10">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة صنف
+                        </button>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block">ملاحظات المنيو</label>
+                            <textarea class="sm-notes w-full text-sm rounded-xl border border-slate-200 p-2.5 resize-none bg-slate-50 outline-none focus:border-[#A88A45] focus:bg-white" data-set="${i}" rows="2" placeholder="أي تفاصيل إضافية عن المنيو...">${escapeHtml(s.notes || '')}</textarea>
+                        </div>
+                        <button type="button" onclick="removeSetMenu(${i})" class="inline-flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-3 py-1.5 rounded-lg transition-colors border border-red-100">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> حذف ${escapeHtml(s.name)}
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+            body.innerHTML = `
+                ${sets.length ? '' : '<div class="text-center text-sm text-slate-400 font-bold py-6 bg-white rounded-2xl border border-dashed border-slate-200">لسه مفيش Set Menus — اضغط "إضافة Set Menu" تحت.</div>'}
+                <div class="space-y-3">${cards}</div>
+                <button type="button" onclick="addSetMenu()" class="w-full inline-flex items-center justify-center gap-1.5 text-sm font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-2.5 rounded-xl transition-colors border border-[#6E1418]/10">
+                    <i data-lucide="plus" class="w-4 h-4"></i> إضافة Set Menu
+                </button>
+                <button type="button" onclick="commitSetMenusFromForm()" class="w-full bg-gradient-to-r from-[#6E1418] to-[#8a1c22] text-white font-black py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-[#A88A45]"></i> حفظ الإعدادات
+                </button>`;
+            if (typeof lucide !== "undefined") refreshIcons('setMenusModal');
+            autosizeAllSetMenuFields();
+        }
+
+        function toggleSetMenuCard(i) {
+            const s = getSetMenus()[i];
+            const sec = document.getElementById('setMenuBody_' + i);
+            const chev = document.querySelector('.sm-chevron-' + i);
+            if (!s || !sec) return;
+            const opening = sec.classList.contains('hidden');
+            sec.classList.toggle('hidden', !opening);
+            if (chev) chev.style.transform = opening ? 'rotate(180deg)' : '';
+            _setMenuOpenIds = opening ? _setMenuOpenIds.concat(s.id) : _setMenuOpenIds.filter(id => id !== s.id);
+            if (opening) sec.querySelectorAll('.sm-item').forEach(autosizeMenuItem);
+        }
+
+        // يقرأ القيم الحالية من الفورم داخل state (من غير حفظ في السحابة)
+        function _collectSetMenusFromForm() {
+            const sets = getSetMenus();
+            sets.forEach((s, i) => {
+                if (!document.getElementById('setMenuBody_' + i)) return;
+                const price = document.querySelector(`.sm-price[data-set="${i}"]`);
+                if (price) s.price = parseFloat(price.value) || 0;
+                s.items = Array.from(document.querySelectorAll(`.sm-item[data-set="${i}"]`)).map(t => t.value);
+                const notes = document.querySelector(`.sm-notes[data-set="${i}"]`);
+                if (notes) s.notes = notes.value;
+            });
+        }
+
+        function _renumberSetMenus() {
+            getSetMenus().forEach((s, i) => { s.name = 'Set menu #' + (i + 1); });
+        }
+
+        function addSetMenu() {
+            _collectSetMenusFromForm();
+            if (!Array.isArray(state.weddingSettings.setMenus)) state.weddingSettings.setMenus = [];
+            const id = 'set_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            state.weddingSettings.setMenus.push({ id, name: '', price: 0, items: [''], notes: '' });
+            _renumberSetMenus();
+            _setMenuOpenIds.push(id);
+            renderSetMenusModal();
+            const body = document.getElementById('setMenusBody');
+            if (body) body.scrollTop = body.scrollHeight;
+        }
+
+        function removeSetMenu(i) {
+            const s = getSetMenus()[i];
+            if (!s) return;
+            if (!confirm('حذف ' + s.name + '؟ (الحجوزات القديمة اللي استخدمته مش هتتأثر)')) return;
+            _collectSetMenusFromForm();
+            state.weddingSettings.setMenus.splice(i, 1);
+            _renumberSetMenus();
+            renderSetMenusModal();
+        }
+
+        function addSetMenuItem(i) {
+            _collectSetMenusFromForm();
+            const s = getSetMenus()[i];
+            if (!s) return;
+            s.items = s.items || [];
+            s.items.push('');
+            if (!_setMenuOpenIds.includes(s.id)) _setMenuOpenIds.push(s.id);
+            renderSetMenusModal();
+            const inputs = document.querySelectorAll(`.sm-item[data-set="${i}"]`);
+            if (inputs.length) inputs[inputs.length - 1].focus();
+        }
+
+        function removeSetMenuItem(i, j) {
+            _collectSetMenusFromForm();
+            const s = getSetMenus()[i];
+            if (!s || !s.items) return;
+            s.items.splice(j, 1);
+            if (!_setMenuOpenIds.includes(s.id)) _setMenuOpenIds.push(s.id);
+            renderSetMenusModal();
+        }
+
+        async function commitSetMenusFromForm() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) {
+                showToast('عذراً، تعديل Set Menus متاح للأدمن فقط.', 'error');
+                return;
+            }
+            _collectSetMenusFromForm();
+            getSetMenus().forEach(s => { s.items = (s.items || []).map(x => String(x || '').trim()).filter(Boolean); });
+            _renumberSetMenus();
+            try {
+                if (CLOUD_ENABLED) await db.ref('weddingSettings').set(state.weddingSettings);
+                localStorage.setItem('hotel_wedding_settings', JSON.stringify(state.weddingSettings));
+                showToast('✅ تم حفظ إعدادات Set Menus بنجاح', 'success');
+                renderSetMenusModal();
+                document.querySelectorAll('.other-menu-set').forEach(sel => { const cur = sel.value; sel.innerHTML = setMenuOptionsHtml(cur); sel.value = cur; });
+            } catch (err) {
+                showToast('حدث خطأ أثناء حفظ Set Menus: ' + err.message, 'error');
+            }
         }
 
         function handleGlobalBookingSubmit(e) {
