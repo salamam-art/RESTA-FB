@@ -2521,7 +2521,7 @@ html body header.glass-panel { padding-top: 0 !important; }
 .free-chip-dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
 .free-chip-on { background: #065f46; border-color: #065f46; color: #fff; box-shadow: 0 2px 6px rgba(6, 95, 70, .3); }
 .free-chip-on .free-chip-dot { box-shadow: 0 0 0 1.5px #fff; }
-.free-hall-select { flex: 1 1 0; width: 0; min-width: 0; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 800; padding: 5px 4px; border-radius: 8px; border: 1.5px solid #D8CCB0; background: #fff; color: #475569; }
+.free-hall-select { flex: 1 1 0; width: 0; min-width: 0; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 800; padding: 0 4px; height: 32px; box-sizing: border-box; align-self: center; border-radius: 8px; border: 1.5px solid #D8CCB0; background: #fff; color: #475569; }
 .free-hall-select-on { background: #065f46; border-color: #065f46; color: #fff; }
 html.dark .free-hall-select { background: var(--d-surface, #1D1816); border-color: var(--d-border, #3A312E); color: #cbd5e1; }
 html.dark .free-hall-select-on { background: #059669; border-color: #059669; color: #fff; }
