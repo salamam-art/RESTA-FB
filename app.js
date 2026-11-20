@@ -11630,3 +11630,48 @@ window.openFromNotification = function (date, bookingId) {
         }, 450);
     });
 })();
+
+// ===== رسائل التحذير: نافذة بتصميم التطبيق بدل رسالة المتصفح (اللي بتكتب "The page at ... says") =====
+(function () {
+    const queue = [];
+    let showing = false;
+    function next() {
+        if (showing || !queue.length) return;
+        showing = true;
+        const msg = queue.shift();
+        const dark = document.documentElement.classList.contains('dark');
+        const ov = document.createElement('div');
+        ov.setAttribute('role', 'alertdialog');
+        ov.setAttribute('aria-modal', 'true');
+        ov.dir = 'rtl';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.55);';
+        const box = document.createElement('div');
+        box.style.cssText = 'width:100%;max-width:380px;border-radius:22px;padding:22px 20px 16px;box-shadow:0 20px 50px rgba(0,0,0,.35);border:1px solid ' + (dark ? '#3a2a2c' : '#eadfc8') + ';background:' + (dark ? '#241a1b' : '#fff') + ';color:' + (dark ? '#f3e9e9' : '#1e293b') + ';font-family:inherit;';
+        const bar = document.createElement('div');
+        bar.style.cssText = 'height:4px;width:44px;border-radius:4px;background:#A88A45;margin:0 0 14px;';
+        const p = document.createElement('div');
+        p.style.cssText = 'font-size:16px;font-weight:700;line-height:1.9;white-space:pre-wrap;word-break:break-word;';
+        p.textContent = msg;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'حسناً';
+        btn.style.cssText = 'display:block;margin:18px 0 0 auto;min-width:96px;padding:10px 22px;border:0;border-radius:14px;background:#6E1418;color:#fff;font-weight:900;font-size:15px;font-family:inherit;cursor:pointer;';
+        function close() {
+            document.removeEventListener('keydown', onKey, true);
+            ov.remove();
+            showing = false;
+            next();
+        }
+        function onKey(e) { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); close(); } }
+        btn.addEventListener('click', close);
+        document.addEventListener('keydown', onKey, true);
+        box.appendChild(bar); box.appendChild(p); box.appendChild(btn);
+        ov.appendChild(box);
+        document.body.appendChild(ov);
+        try { btn.focus(); } catch (e) {}
+    }
+    window.alert = function (message) {
+        queue.push(message === undefined || message === null ? '' : String(message));
+        next();
+    };
+})();
