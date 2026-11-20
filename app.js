@@ -8694,6 +8694,9 @@ ${pages}
             if (modal.classList.contains('hidden')) {
                 renderWeddingSettingsModal();
                 modal.classList.remove('hidden');
+                autosizeAllWeddingFields();
+                requestAnimationFrame(autosizeAllWeddingFields);
+                setTimeout(autosizeAllWeddingFields, 150);
             } else {
                 modal.classList.add('hidden');
             }
@@ -8780,13 +8783,21 @@ ${pages}
                 </button>
             `;
             if (typeof lucide !== "undefined") refreshIcons('weddingSettingsModal');
-            document.querySelectorAll('#weddingSettingsBody .ws-extra-name').forEach(autosizeMenuItem);
+            autosizeAllWeddingFields();
+            requestAnimationFrame(autosizeAllWeddingFields);
         }
 
         function autosizeMenuItem(el) {
             if (!el) return;
             el.style.height = 'auto';
-            if (el.scrollHeight) el.style.height = el.scrollHeight + 'px';
+            if (el.scrollHeight) {
+                const border = el.offsetHeight - el.clientHeight; // الحدود لا تدخل في scrollHeight
+                el.style.height = (el.scrollHeight + border) + 'px';
+            }
+        }
+
+        function autosizeAllWeddingFields() {
+            document.querySelectorAll('#weddingSettingsBody .ws-extra-name, #weddingSettingsBody .ws-menu-item').forEach(autosizeMenuItem);
         }
 
         function toggleMenuSection(pkgIdx) {
