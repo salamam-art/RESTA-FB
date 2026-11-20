@@ -2660,3 +2660,8 @@ html select.free-hall-select { min-height: 32px; height: 32px; font-size: 11px; 
 @media (hover: none) and (pointer: coarse) {
     :is(#globalBookingModal, #quickCalcModal, #weddingSettingsModal, #hallsManageModal) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea):not(.rs-field-live) { pointer-events: none; }
 }
+
+
+/* شريط الإجمالي الثابت للموبايل (مناسبة خاصة أخرى) */
+#otherStickyTotalBar { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -6px 16px rgba(0,0,0,.18); }
+@media (min-width: 768px) { #otherStickyTotalBar { display: none !important; } }

@@ -7892,6 +7892,7 @@ ${pages}
             } else {
                 state.editingBookingId = null;
                 modal.classList.add('hidden');
+                { const _sb = document.getElementById('otherStickyTotalBar'); if (_sb) _sb.classList.add('hidden'); }
             }
         }
 
@@ -7926,14 +7927,13 @@ ${pages}
                 section.classList.add('hidden');
                 if (otherSection) {
                     otherSection.classList.remove('hidden');
-                    if (!document.querySelectorAll('.other-menu-block').length) {
-                        renderOtherEventMenus(null);
-                    }
+                    renderOtherEventMenus(document.querySelectorAll('.other-menu-block').length ? getOtherMenusFromForm() : null);
                 }
             } else {
                 section.classList.add('hidden');
                 if (otherSection) otherSection.classList.add('hidden');
             }
+            syncOtherStickyBar();
             if (typeof lucide !== "undefined") refreshIcons('globalBookingModal');
             autosizeBookingMenuFields();
             requestAnimationFrame(autosizeBookingMenuFields);
@@ -7941,15 +7941,39 @@ ${pages}
 
         // ═══════════════════ منيو مناسبة خاصة أخرى (عشاء / مؤتمر / حفل) — يدعم عدة منيوهات بتاريخ ووقت لكل منيو ═══════════════════
 
-        function renderOtherEventMenus(menus) {
-            const container = document.getElementById('otherEventMenusContainer');
-            if (!container) return;
-            const list = (menus && menus.length) ? menus : [{ date: '', time: '', hallId: '', setMenuId: '', coffeeBreakId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' }];
-            container.innerHTML = list.map((m, mi) => `
+        const OTHER_DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+        function otherCardDateTitle(date) {
+            if (!date) return 'بدون تاريخ';
+            const p = date.split('-');
+            const dow = new Date(date + 'T00:00:00Z').getUTCDay();
+            return p[2] + '/' + p[1] + '/' + p[0] + ' — ' + (OTHER_DAY_NAMES[dow] || '');
+        }
+        function otherBlankMenu(date) {
+            return { date: date || '', time: '', hallId: '', hallName: '', setMenuId: '', coffeeBreakId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' };
+        }
+        function otherMenuIsBlank(m) {
+            return !otherMenuActive(m) && !m.time && !m.hallId && !m.setMenuId && !m.coffeeBreakId;
+        }
+        // كل أيام مدى الحجز (من "التاريخ من" إلى "التاريخ إلى") — بحد أقصى 90 يوم للكروت التلقائية
+        function otherBookingDays() {
+            const f = document.getElementById('globalBookingForm');
+            if (!f) return [];
+            const s = f.querySelector('input[name="dateFrom"]').value;
+            const e = f.querySelector('input[name="dateTo"]').value;
+            if (!s || !e || e < s) return [];
+            const days = [];
+            let cur = s;
+            while (cur <= e && days.length < 90) { days.push(cur); cur = addDaysToDateStr(cur, 1); }
+            return days;
+        }
+
+        function otherMenuBlockHtml(m, mi, numInDay, canRemove) {
+            return `
                 <div class="other-menu-block bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2.5" data-menu-idx="${mi}">
+                    <input type="hidden" class="other-menu-date" value="${m.date || ''}">
                     <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-1.5 text-[11px] font-black text-[#A88A45]"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> منيو ${mi + 1}</div>
-                        ${list.length > 1 ? `
+                        <div class="flex items-center gap-1.5 text-[11px] font-black text-[#A88A45]"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> منيو ${numInDay}</div>
+                        ${canRemove ? `
                         <button type="button" onclick="removeOtherMenuBlock(${mi})" class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0" title="حذف هذا المنيو">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>` : ''}
@@ -7964,11 +7988,7 @@ ${pages}
                         <label class="text-xs">Set Menu جاهز <span class="text-[10px] text-slate-400 font-normal">(يملأ الأصناف والسعر — وتقدر تعدّل عليهم)</span></label>
                         <select class="other-menu-set" onchange="onOtherSetMenuChange(${mi}, this.value)">${setMenuOptionsHtml(m.setMenuId || '')}</select>
                     </div>` : ''}
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <div class="input-group !mb-0">
-                            <label class="text-xs">التاريخ</label>
-                            <input type="date" class="other-menu-date" value="${m.date || ''}">
-                        </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="input-group !mb-0">
                             <label class="text-xs">الوقت</label>
                             <input type="time" class="other-menu-time" value="${m.time || ''}">
@@ -8006,12 +8026,276 @@ ${pages}
                         <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة صنف
                     </button>
                     <textarea class="other-menu-block-notes" rows="2" placeholder="أي تفاصيل إضافية عن هذا المنيو...">${escapeHtml(m.notes || '')}</textarea>
-                </div>
-            `).join('');
+                </div>`;
+        }
+
+        // كارت لكل يوم في مدى الحجز (يتولد تلقائيًا). التخزين لسه نفس الشكل: قايمة منيوهات، كل منيو بتاريخه.
+        function renderOtherEventMenus(menus) {
+            const container = document.getElementById('otherEventMenusContainer');
+            if (!container) return;
+            if (menus == null) otherOpenDay = null; // فورم جديد: يفتح أول يوم
+            const days = otherBookingDays();
+            const dayMap = new Map(days.map(d => [d, []]));
+            const orphanMap = new Map();
+            (menus || []).forEach(src => {
+                const m = Object.assign({}, src);
+                // المنيوهات القديمة بدون تاريخ تروح لأول يوم
+                if (!m.date && days.length) m.date = days[0];
+                if (dayMap.has(m.date)) { dayMap.get(m.date).push(m); return; }
+                // منيو فاضي خارج المدى مالوش لازمة، أما اللي فيه بيانات فيفضل ظاهر عشان ما يضيعش
+                if (days.length && otherMenuIsBlank(m)) return;
+                const k = m.date || '';
+                if (!orphanMap.has(k)) orphanMap.set(k, []);
+                orphanMap.get(k).push(m);
+            });
+            days.forEach(d => { if (!dayMap.get(d).length) dayMap.get(d).push(otherBlankMenu(d)); });
+            const orphanKeys = Array.from(orphanMap.keys()).sort((a, b) => (a === '') - (b === '') || (a < b ? -1 : a > b ? 1 : 0));
+
+            let mi = 0;
+            const cardHtml = (date, list, isOrphan) => {
+                const blocks = list.map((m, k) => otherMenuBlockHtml(m, mi++, k + 1, isOrphan || list.length > 1)).join('');
+                const dayTotal = list.reduce((s, m) => s + (Number(m.guests) || 0) * (Number(m.pricePerPerson) || 0), 0);
+                return `
+                <div class="other-day-card rounded-2xl border-2 border-[#A88A45]/40 bg-white overflow-hidden" data-day="${date}">
+                    <button type="button" onclick="toggleOtherDayCard('${date}')" class="other-day-head w-full flex items-center justify-between gap-2 bg-[#6E1418] text-white px-4 py-2.5 text-right">
+                        <span class="flex items-center gap-2 font-black text-sm"><i data-lucide="calendar-days" class="w-4 h-4"></i> ${otherCardDateTitle(date)}</span>
+                        <span class="flex items-center gap-2">
+                            ${isOrphan ? '<span class="text-[10px] font-bold bg-white/20 rounded-full px-2 py-0.5">خارج مدى الحجز</span>' : ''}
+                            <span class="other-day-head-total text-xs font-black bg-white/20 rounded-full px-2.5 py-0.5">${fmtEGP(dayTotal)}</span>
+                            <i data-lucide="chevron-down" class="other-day-chevron w-4 h-4" style="transition:transform .2s"></i>
+                        </span>
+                    </button>
+                    <div class="other-day-body p-3 space-y-3">
+                        ${blocks}
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button type="button" onclick="addOtherMenuToDay('${date}')" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#6E1418]/10">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> + منيو
+                            </button>
+                            <button type="button" onclick="toggleOtherCopyPanel('${date}')" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#A88A45] hover:text-white hover:bg-[#A88A45] bg-[#A88A45]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#A88A45]/30">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> نسخ من يوم تاني
+                            </button>
+                        </div>
+                        <div class="other-copy-panel hidden rounded-xl border border-[#A88A45]/30 bg-amber-50/60 p-3 space-y-2"></div>
+                        <div class="flex justify-between text-xs font-black text-[#6E1418] bg-amber-50/60 rounded-lg px-3 py-2 border border-amber-100"><span>إجمالي اليوم</span><span class="other-day-total-val">${fmtEGP(dayTotal)}</span></div>
+                    </div>
+                </div>`;
+            };
+
+            let html = days.map(d => cardHtml(d, dayMap.get(d), false)).join('');
+            html += orphanKeys.map(k => cardHtml(k, orphanMap.get(k), true)).join('');
+            if (!html) html = '<div class="text-xs font-bold text-slate-400 text-center py-4">حدد تاريخ الحجز (من / إلى) عشان تظهر كروت الأيام</div>';
+            container.innerHTML = html;
+            container.dataset.rangeStart = days.length ? days[0] : '';
+            container.dataset.rangeLen = String(days.length);
+            { const _f = document.getElementById('globalBookingForm');
+              if (_f) { container.dataset.prevFrom = _f.querySelector('input[name="dateFrom"]').value; container.dataset.prevTo = _f.querySelector('input[name="dateTo"]').value; } }
             if (typeof lucide !== "undefined") refreshIcons('otherEventMenusContainer');
+            applyOtherOpenState();
             autosizeBookingMenuFields();
             recalcOtherPayments();
         }
+
+        // ─── فتح/قفل كروت الأيام: كارت واحد مفتوح (اللي بشتغل عليه)، والباقي سطر واحد: التاريخ + إجمالي اليوم ───
+        // null = أول يوم مفتوح (الافتراضي)، '__none__' = الكل مقفول، غير كده = تاريخ الكارت المفتوح
+        let otherOpenDay = null;
+        function applyOtherOpenState() {
+            const cards = Array.from(document.querySelectorAll('#otherEventMenusContainer .other-day-card'));
+            if (!cards.length) return;
+            if (otherOpenDay !== '__none__' && !cards.some(c => c.dataset.day === otherOpenDay)) otherOpenDay = cards[0].dataset.day;
+            cards.forEach(c => {
+                const isOpen = c.dataset.day === otherOpenDay;
+                const body = c.querySelector('.other-day-body');
+                const headTotal = c.querySelector('.other-day-head-total');
+                const chev = c.querySelector('.other-day-chevron');
+                if (body) body.classList.toggle('hidden', !isOpen);
+                if (headTotal) headTotal.classList.toggle('hidden', isOpen);
+                if (chev) chev.style.transform = isOpen ? 'rotate(180deg)' : '';
+            });
+            autosizeBookingMenuFields();
+            requestAnimationFrame(autosizeBookingMenuFields);
+        }
+        function toggleOtherDayCard(date) {
+            otherOpenDay = (otherOpenDay === date) ? '__none__' : date;
+            applyOtherOpenState();
+        }
+
+        // ─── نسخ منيوهات يوم لآخر (نفس منطق copyOtherMenuForNewBooking: نسخة عميقة + إزاحة التاريخ) ───
+        function otherDaysWithMenus(excludeDate) {
+            const by = new Map();
+            getOtherMenusFromForm().forEach(m => {
+                if (otherMenuIsBlank(m) || m.date === excludeDate) return;
+                if (!by.has(m.date)) by.set(m.date, []);
+                by.get(m.date).push(m);
+            });
+            return Array.from(by.entries()).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+        }
+        function toggleOtherCopyPanel(date) {
+            const card = document.querySelector(`#otherEventMenusContainer .other-day-card[data-day="${date}"]`);
+            const panel = card && card.querySelector('.other-copy-panel');
+            if (!panel) return;
+            if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+            const srcDays = otherDaysWithMenus(date);
+            if (!srcDays.length) { showToast('مفيش منيوهات في أيام تانية تنسخ منها', 'error'); return; }
+            panel.innerHTML = `
+                <div class="input-group !mb-0">
+                    <label class="text-xs">انسخ منيوهات يوم</label>
+                    <select class="other-copy-src">
+                        ${srcDays.map(([d, list]) => `<option value="${d}">${otherCardDateTitle(d)} — ${list.length} منيو — ${fmtEGP(list.reduce((t, m) => t + otherMenuTotalOf(m), 0))}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="copyOtherDayMenus('${date}')" class="text-xs font-bold text-white bg-[#6E1418] hover:bg-[#561013] px-3 py-1.5 rounded-lg">نسخ</button>
+                    <button type="button" onclick="toggleOtherCopyPanel('${date}')" class="text-xs font-bold text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg">إلغاء</button>
+                </div>`;
+            panel.classList.remove('hidden');
+        }
+        function copyOtherDayMenus(targetDate) {
+            const card = document.querySelector(`#otherEventMenusContainer .other-day-card[data-day="${targetDate}"]`);
+            const sel = card && card.querySelector('.other-copy-src');
+            const srcDate = sel ? sel.value : '';
+            if (!srcDate) { showToast('اختر اليوم اللي هتنسخ منه', 'error'); return; }
+            const menus = getOtherMenusFromForm();
+            const src = menus.filter(m => m.date === srcDate && !otherMenuIsBlank(m));
+            if (!src.length) { showToast('اليوم ده مفيهوش منيوهات', 'error'); return; }
+            const existing = menus.filter(m => m.date === targetDate && !otherMenuIsBlank(m));
+            if (existing.length && !confirm(`يوم ${otherDayLabel(targetDate)} فيه ${existing.length} منيو.\nالنسخ هيمسحهم ويحل محلهم منيوهات يوم ${otherDayLabel(srcDate)}.\nتكمل؟`)) return;
+            const off = diffDaysDateStr(srcDate, targetDate);
+            const copies = src.map(m => {
+                const c = JSON.parse(JSON.stringify(m));
+                if (c.date) c.date = addDaysToDateStr(c.date, off);
+                return c;
+            });
+            const rest = menus.filter(m => m.date !== targetDate);
+            otherOpenDay = targetDate;
+            renderOtherEventMenus(rest.concat(copies));
+            showToast(`تم نسخ ${copies.length} منيو من يوم ${otherDayLabel(srcDate)}`);
+        }
+
+        function recalcOtherDayTotals() {
+            document.querySelectorAll('#otherEventMenusContainer .other-day-card').forEach(card => {
+                let t = 0;
+                card.querySelectorAll('.other-menu-block').forEach(b => {
+                    const g = b.querySelector('.other-menu-guests'), p = b.querySelector('.other-menu-price');
+                    t += (g ? (parseFloat(g.value) || 0) : 0) * (p ? (parseFloat(p.value) || 0) : 0);
+                });
+                const el = card.querySelector('.other-day-total-val');
+                if (el) el.textContent = fmtEGP(t);
+                const hd = card.querySelector('.other-day-head-total');
+                if (hd) hd.textContent = fmtEGP(t);
+            });
+        }
+
+        // حوار تأكيد: أيام اتشالت من مدى الحجز وفيها منيوهات — لكل يوم تختار النقل ليوم تاني أو المسح (مفيش مسح بصمت)
+        function otherAskRemovedDays(groups, days) {
+            return new Promise(resolve => {
+                const old = document.getElementById('otherRemovedDaysDialog');
+                if (old) old.remove();
+                const nearest = d => days.slice().sort((x, y) => Math.abs(diffDaysDateStr(d, x)) - Math.abs(diffDaysDateStr(d, y)))[0];
+                const rows = groups.map(([d, list], gi) => `
+                    <div class="space-y-1.5 bg-amber-50/60 border border-amber-100 rounded-xl p-3">
+                        <div class="text-xs font-black text-[#6E1418]">${otherCardDateTitle(d)} — ${list.length} منيو — ${fmtEGP(list.reduce((t, m) => t + otherMenuTotalOf(m), 0))}</div>
+                        <select data-gi="${gi}" class="other-removed-choice w-full text-sm">
+                            ${days.map(x => `<option value="${x}" ${x === nearest(d) ? 'selected' : ''}>نقل المنيوهات إلى ${otherCardDateTitle(x)}</option>`).join('')}
+                            <option value="__delete__">مسح منيوهات هذا اليوم</option>
+                        </select>
+                    </div>`).join('');
+                const ov = document.createElement('div');
+                ov.id = 'otherRemovedDaysDialog';
+                ov.className = 'fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4';
+                ov.style.zIndex = '200';
+                ov.setAttribute('dir', 'rtl');
+                ov.innerHTML = `
+                    <div class="bg-white text-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-3">
+                        <div class="font-black text-[#6E1418] text-base">أيام اتشالت من مدى الحجز وفيها منيوهات</div>
+                        <div class="text-xs text-slate-500">اختار لكل يوم: نقل المنيوهات ليوم تاني، أو مسحها. مفيش حاجة هتتمسح غير بتأكيدك.</div>
+                        ${rows}
+                        <div class="flex items-center gap-2 pt-1">
+                            <button type="button" class="other-removed-ok text-sm font-bold text-white bg-[#6E1418] hover:bg-[#561013] px-4 py-2 rounded-xl">تأكيد</button>
+                            <button type="button" class="other-removed-cancel text-sm font-bold text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-xl">إلغاء التغيير</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(ov);
+                const done = v => { ov.remove(); resolve(v); };
+                ov.querySelector('.other-removed-cancel').onclick = () => done(null);
+                ov.querySelector('.other-removed-ok').onclick = () => {
+                    const choice = {};
+                    ov.querySelectorAll('.other-removed-choice').forEach(sel => { choice[groups[+sel.dataset.gi][0]] = sel.value; });
+                    const dels = groups.filter(([d]) => choice[d] === '__delete__');
+                    if (dels.length) {
+                        const n = dels.reduce((t, [, l]) => t + l.length, 0);
+                        if (!confirm(`هيتمسح ${n} منيو نهائيًا (${dels.map(([d]) => otherDayLabel(d)).join('، ')}).\nتأكيد المسح؟`)) return;
+                    }
+                    done(choice);
+                };
+            });
+        }
+
+        // لما تتغير "التاريخ من/إلى": الكروت تتولد من جديد (اليوم الجديد = كارت فاضي)، ولو المدى اتزاح بنفس عدد الأيام المنيوهات تتزاح معاه.
+        // اليوم اللي اتشال وفيه منيوهات: حوار تأكيد (نقل/مسح/إلغاء) — الإلغاء يرجّع التواريخ القديمة.
+        let otherDateChangeBusy = false;
+        document.addEventListener('change', async function (e) {
+            const t = e.target;
+            if (!t || !t.matches || !t.matches('#globalBookingForm input[name="dateFrom"], #globalBookingForm input[name="dateTo"]')) return;
+            if (otherDateChangeBusy) return;
+            const typeEl = document.getElementById('globalEventType');
+            if (!typeEl || typeEl.value !== 'other') return;
+            const container = document.getElementById('otherEventMenusContainer');
+            if (!container) return;
+            const days = otherBookingDays();
+            if (!days.length) return;
+            let menus = getOtherMenusFromForm();
+            const oldStart = container.dataset.rangeStart || '';
+            const oldLen = parseInt(container.dataset.rangeLen || '0', 10);
+            let newOpen = otherOpenDay;
+            if (oldStart && oldLen === days.length && oldStart !== days[0]) {
+                const off = diffDaysDateStr(oldStart, days[0]);
+                menus = menus.map(m => m.date ? Object.assign({}, m, { date: addDaysToDateStr(m.date, off) }) : m);
+                if (newOpen && newOpen !== '__none__') newOpen = addDaysToDateStr(newOpen, off);
+            }
+            const inRange = new Set(days);
+            const lostMap = new Map();
+            menus.forEach(m => {
+                if (!m.date || inRange.has(m.date) || otherMenuIsBlank(m)) return;
+                if (!lostMap.has(m.date)) lostMap.set(m.date, []);
+                lostMap.get(m.date).push(m);
+            });
+            if (lostMap.size) {
+                const groups = Array.from(lostMap.entries()).sort((x, y) => (x[0] < y[0] ? -1 : 1));
+                otherDateChangeBusy = true;
+                let choice;
+                try { choice = await otherAskRemovedDays(groups, days); } finally { otherDateChangeBusy = false; }
+                if (!choice) {
+                    const f = document.getElementById('globalBookingForm');
+                    const fi = f.querySelector('input[name="dateFrom"]'), ti = f.querySelector('input[name="dateTo"]');
+                    fi.value = container.dataset.prevFrom || fi.value;
+                    ti.value = container.dataset.prevTo || ti.value;
+                    otherDateChangeBusy = true;
+                    try { fi.dispatchEvent(new Event('change', { bubbles: true })); ti.dispatchEvent(new Event('change', { bubbles: true })); } finally { otherDateChangeBusy = false; }
+                    showToast('تم إلغاء تغيير التاريخ');
+                    return;
+                }
+                let moved = 0, deleted = 0;
+                const kept = [];
+                menus.forEach(m => {
+                    if (!m.date || inRange.has(m.date)) { kept.push(m); return; }
+                    if (otherMenuIsBlank(m)) return;
+                    const target = choice[m.date];
+                    if (!target || target === '__delete__') { deleted++; return; }
+                    kept.push(Object.assign({}, m, { date: target }));
+                    moved++;
+                });
+                menus = kept;
+                otherOpenDay = newOpen;
+                renderOtherEventMenus(menus);
+                if (moved) showToast(`تم نقل ${moved} منيو لأيام تانية`);
+                if (deleted) showToast(`تم مسح ${deleted} منيو`);
+            } else {
+                otherOpenDay = newOpen;
+                renderOtherEventMenus(menus);
+            }
+            applyOtherEquipDaysLimit(true);
+            recalcOtherEquipmentTotal();
+        });
 
         function recalcOtherMenuTotal(menuIdx) {
             const block = document.querySelector(`.other-menu-block[data-menu-idx="${menuIdx}"]`);
@@ -8023,6 +8307,7 @@ ${pages}
             const guests = guestsEl ? (parseFloat(guestsEl.value) || 0) : 0;
             const price = priceEl ? (parseFloat(priceEl.value) || 0) : 0;
             totalEl.textContent = 'الإجمالي: ' + fmtEGP(guests * price);
+            recalcOtherDayTotals();
             recalcOtherPayments();
         }
 
@@ -8049,10 +8334,15 @@ ${pages}
             });
         }
 
-        function addOtherMenuBlock() {
+        function addOtherMenuToDay(date) {
             const menus = getOtherMenusFromForm();
-            menus.push({ date: '', time: '', hallId: '', hallName: '', setMenuId: '', coffeeBreakId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' });
+            menus.push(otherBlankMenu(date));
+            otherOpenDay = date;
             renderOtherEventMenus(menus);
+        }
+        function addOtherMenuBlock() {
+            const days = otherBookingDays();
+            addOtherMenuToDay(days.length ? days[days.length - 1] : '');
         }
 
         function autosizeBookingMenuFields() {
@@ -8095,7 +8385,9 @@ ${pages}
 
         function removeOtherMenuBlock(idx) {
             const menus = getOtherMenusFromForm();
-            if (menus.length <= 1) return;
+            if (!menus[idx]) return;
+            const inRange = otherBookingDays().indexOf(menus[idx].date) !== -1;
+            if (inRange && menus.filter(m => m.date === menus[idx].date).length <= 1) return;
             menus.splice(idx, 1);
             renderOtherEventMenus(menus);
         }
@@ -8122,6 +8414,22 @@ ${pages}
             { key: 'flipChart',   name: 'Flip Chart (per unit)',            hasQty: true  },
             { key: 'wirelessMic', name: 'Wireless Microphone',              hasQty: true  }
         ];
+
+        // أيام التجهيزات لا تزيد عن عدد أيام الحجز (من "التاريخ من" إلى "التاريخ إلى")
+        function otherMaxEquipDays() { return otherBookingDays().length; }
+        function applyOtherEquipDaysLimit(notify) {
+            const max = otherMaxEquipDays();
+            let clamped = false;
+            document.querySelectorAll('#otherEquipmentContainer .other-equip-days, #otherCustomEquipContainer .other-custom-equip-days').forEach(inp => {
+                if (max > 0) {
+                    inp.max = String(max);
+                    if ((parseInt(inp.value, 10) || 0) > max) { inp.value = String(max); clamped = true; }
+                } else inp.removeAttribute('max');
+            });
+            const hint = document.getElementById('otherEquipDaysHint');
+            if (hint) hint.textContent = max > 0 ? `(الأيام من 1 إلى ${max} — مدى الحجز)` : '';
+            if (clamped && notify) showToast(`أيام التجهيزات لا تزيد عن أيام الحجز (${max})`, 'error');
+        }
 
         function renderOtherEquipment(saved) {
             const container = document.getElementById('otherEquipmentContainer');
@@ -8195,6 +8503,7 @@ ${pages}
             if (!container) return;
             container.insertAdjacentHTML('beforeend', otherCustomEquipRowHtml('', '', 1, 1));
             if (typeof lucide !== "undefined") refreshIcons('otherCustomEquipContainer');
+            applyOtherEquipDaysLimit(false);
             const inputs = container.querySelectorAll('.other-custom-equip-name');
             inputs.forEach(autosizeMenuItem);
             if (inputs.length) inputs[inputs.length - 1].focus();
@@ -8228,7 +8537,7 @@ ${pages}
                 const qtyEl = row.querySelector('.other-equip-qty');
                 const qty = qtyEl ? Math.max(1, parseInt(qtyEl.value, 10) || 1) : 1;
                 const daysEl = row.querySelector('.other-equip-days');
-                const days = daysEl ? Math.max(1, parseInt(daysEl.value, 10) || 1) : 1;
+                const days = daysEl ? Math.min(otherMaxEquipDays() || Infinity, Math.max(1, parseInt(daysEl.value, 10) || 1)) : 1;
                 result.push({ key: eq.key, name: eq.name, price: price, qty: qty, days: days, total: price * qty * days });
             });
             document.querySelectorAll('.other-custom-equip-row').forEach((row, i) => {
@@ -8237,7 +8546,7 @@ ${pages}
                 const price = parseFloat(row.querySelector('.other-custom-equip-price').value) || 0;
                 const qty = Math.max(1, parseInt(row.querySelector('.other-custom-equip-qty').value, 10) || 1);
                 const cDaysEl = row.querySelector('.other-custom-equip-days');
-                const days = cDaysEl ? Math.max(1, parseInt(cDaysEl.value, 10) || 1) : 1;
+                const days = cDaysEl ? Math.min(otherMaxEquipDays() || Infinity, Math.max(1, parseInt(cDaysEl.value, 10) || 1)) : 1;
                 result.push({ key: 'custom_' + i, name: name, price: price, qty: qty, days: days, total: price * qty * days, custom: true });
             });
             return result;
@@ -8246,6 +8555,7 @@ ${pages}
         function recalcOtherEquipmentTotal() {
             const box = document.getElementById('otherEquipmentTotal');
             if (!box) return;
+            applyOtherEquipDaysLimit(true);
             recalcOtherPayments();
             const list = getOtherEquipmentFromForm();
             if (!list.length) { box.classList.add('hidden'); box.textContent = ''; return; }
@@ -8298,34 +8608,56 @@ ${pages}
                 .filter(n => n > 0);
         }
 
+        // شريط الإجمالي الثابت أسفل الفورم (موبايل فقط): يظهر لنوع "مناسبة خاصة أخرى" فقط ويتحدث لحظيًا
+        function updateOtherStickyTotal(total) {
+            const bar = document.getElementById('otherStickyTotalBar');
+            if (!bar) return;
+            const typeEl = document.getElementById('globalEventType');
+            const isOther = !!typeEl && typeEl.value === 'other';
+            bar.classList.toggle('hidden', !isOther);
+            const val = document.getElementById('otherStickyTotalVal');
+            if (val && isOther) val.textContent = Math.round(Number(total) || 0).toLocaleString('en-US');
+        }
+        function syncOtherStickyBar() {
+            const typeEl = document.getElementById('globalEventType');
+            if (typeEl && typeEl.value === 'other') recalcOtherPayments();
+            else { const bar = document.getElementById('otherStickyTotalBar'); if (bar) bar.classList.add('hidden'); }
+        }
+
         function recalcOtherPayments() {
             const section = document.getElementById('otherPaymentsSection');
             const box = document.getElementById('otherPaymentsTotalsBox');
-            if (!section || !box) return;
-            // القسم ظاهر للأدمن فقط (القيم تبقى محفوظة في الفورم حتى لا تضيع عند تعديل مستخدم آخر)
-            section.classList.toggle('hidden', state.currentUserEmail !== ADMIN_EMAIL);
-            const menusTotal = getOtherMenusFromForm().reduce((sum, m) => sum + (Number(m.total) || 0), 0);
+            const totBox = document.getElementById('otherEventTotalsBox');
+            // كارت المقدمات ظاهر للأدمن فقط (القيم تبقى محفوظة في الفورم حتى لا تضيع عند تعديل مستخدم آخر)
+            if (section) section.classList.toggle('hidden', state.currentUserEmail !== ADMIN_EMAIL);
+            const menusList = getOtherMenusFromForm();
+            const menusTotal = menusList.reduce((sum, m) => sum + (Number(m.total) || 0), 0);
             const equipTotal = getOtherEquipmentFromForm().reduce((sum, e) => sum + (Number(e.total) || 0), 0);
             const total = menusTotal + equipTotal;
             const paid = getOtherPaymentsFromForm().reduce((s, n) => s + n, 0);
             const remaining = total - paid;
-            const fDays = otherEventTotals({ menus: getOtherMenusFromForm(), equipment: [] }).days;
+            updateOtherStickyTotal(total);
+            const fDays = otherEventTotals({ menus: menusList, equipment: [] }).days;
             const dayLines = fDays.length > 1 ? fDays.map(d => `<div class="flex justify-between text-slate-500 text-xs"><span>• يوم ${otherDayLabel(d.date)}</span><span class="font-bold">${fmtEGP(d.total)}</span></div>`).join('') : '';
-            box.innerHTML = `
+            if (totBox) totBox.innerHTML = `
                 <div class="flex justify-between text-slate-600"><span>إجمالي المنيو</span><span class="font-bold">${fmtEGP(menusTotal)}</span></div>
                 ${dayLines}
                 <div class="flex justify-between text-slate-600"><span>إجمالي التجهيزات</span><span class="font-bold">${fmtEGP(equipTotal)}</span></div>
-                <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(total)}</span></div>
+                <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>إجمالي المناسبة</span><span>${fmtEGP(total)}</span></div>
+            `;
+            if (box) box.innerHTML = `
+                <div class="flex justify-between text-slate-600"><span>إجمالي المناسبة</span><span class="font-bold">${fmtEGP(total)}</span></div>
                 <div class="flex justify-between text-emerald-700 font-bold"><span>مقدمات الحجز</span><span>${fmtEGP(paid)}</span></div>
                 <div class="flex justify-between font-black ${remaining > 0 ? 'text-red-600' : 'text-emerald-700'}"><span>المتبقي</span><span>${fmtEGP(remaining)}</span></div>
             `;
         }
 
         function collectOtherMenuDataFromForm() {
-            return { menus: getOtherMenusFromForm(), equipment: getOtherEquipmentFromForm(), payments: getOtherPaymentsFromForm() };
+            return { menus: getOtherMenusFromForm().filter(m => !otherMenuIsBlank(m)), equipment: getOtherEquipmentFromForm(), payments: getOtherPaymentsFromForm() };
         }
 
         function fillOtherMenuFormFromBooking(om) {
+            otherOpenDay = null;
             renderOtherEventMenus(om && om.menus && om.menus.length ? om.menus : null);
             renderOtherEquipment(om && om.equipment ? om.equipment : null);
             renderOtherPayments(om && om.payments ? om.payments : null);
