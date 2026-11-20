@@ -2581,3 +2581,31 @@ html:not(.dark) .day-cell:not(.past-day):not([class*="heat-"]):not(.today-active
 
 /* قائمة الأيام المتاحة: تتغلب على قاعدة html select العامة (16px / min-height 46px) */
 html select.free-hall-select { min-height: 32px; height: 32px; font-size: 11px; padding: 0 4px; border-radius: 8px; }
+
+/* ===== تخفيف تقطيع السكرول داخل النوافذ على اللمس (موبايل/WebView) =====
+   - إلغاء blur الخلفية (backdrop-filter على شاشة كاملة من أثقل ما يكون على أندرويد WebView)
+   - إلغاء بقاء الـ transform بعد حركة دخول النافذة (animation-fill-mode: backwards)
+   (عمداً بدون touch-action/transform على منطقة السكرول: كانت هتكسر الجداول الأفقية والقوائم fixed) */
+@media (hover: none) and (pointer: coarse) {
+    body .modal-backdrop,
+    body #loginModal,
+    body #biometricLockScreen,
+    body #biometricSetupModal,
+    body #moveConfirmModal,
+    body #guestNameOverlay,
+    .day-backdrop {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+    body .modal-backdrop:not(.day-backdrop) > div,
+    body #loginModal > div,
+    body #biometricLockScreen > div,
+    body #biometricSetupModal > div,
+    body #moveConfirmModal > div { animation-fill-mode: backwards; }
+}
+
+/* السكرول الرأسي لما الإصبع يبدأ فوق حقل كتابة داخل نافذة (قوائم الطعام / المتعهدين / الدفعات...):
+   نصرّح صراحةً بالتمرير الرأسي على الحقول نفسها (نفس أسلوب إصلاح .booking-tag) */
+@media (hover: none) and (pointer: coarse) {
+    html [id$="Modal"] :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), textarea) { touch-action: pan-y; }
+}
