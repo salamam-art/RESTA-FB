@@ -2613,5 +2613,5 @@ html select.free-hall-select { min-height: 32px; height: 32px; font-size: 11px; 
 /* نافذة الحجز على اللمس: الحقل شفاف للمس طول ما هو مش متفعّل (التفعيل بالضغطة من app.js → .rs-field-live)
    عشان السكرول اللي يبدأ فوق الحقل ما يقفش */
 @media (hover: none) and (pointer: coarse) {
-    #globalBookingModal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea):not(.rs-field-live) { pointer-events: none; }
+    :is(#globalBookingModal, #quickCalcModal, #weddingSettingsModal, #hallsManageModal) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea):not(.rs-field-live) { pointer-events: none; }
 }

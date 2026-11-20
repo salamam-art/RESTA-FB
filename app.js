@@ -5738,10 +5738,10 @@ ${pages}
             try { coarse = window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) {}
             if (!coarse) return;
             const SEL = 'input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea';
-            const modalOf = () => document.getElementById('globalBookingModal');
+            const MODALS = '#globalBookingModal, #quickCalcModal, #weddingSettingsModal, #hallsManageModal';
             document.addEventListener('click', function (e) {
-                const modal = modalOf();
-                if (!modal || modal.classList.contains('hidden') || !e.target || !modal.contains(e.target)) return;
+                const modal = e.target && e.target.closest ? e.target.closest(MODALS) : null;
+                if (!modal || modal.classList.contains('hidden')) return;
                 if (e.target.closest && e.target.closest(SEL + ', button, select, a')) return;
                 const x = e.clientX, y = e.clientY;
                 const fields = modal.querySelectorAll(SEL);
@@ -5762,7 +5762,7 @@ ${pages}
             // أي تركيز (باللمس أو برمجياً زي إضافة صنف جديد) يفعّل الحقل، وفقدان التركيز يرجّعه شفاف
             document.addEventListener('focusin', function (e) {
                 const t = e.target;
-                if (t && t.matches && t.matches(SEL) && t.closest('#globalBookingModal')) t.classList.add('rs-field-live');
+                if (t && t.matches && t.matches(SEL) && t.closest(MODALS)) t.classList.add('rs-field-live');
             });
             document.addEventListener('focusout', function (e) {
                 const t = e.target;
