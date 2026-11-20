@@ -4304,7 +4304,7 @@
                                 })()}
 
                                 ${(() => {
-                                    if (!isAdmin || b.eventType !== 'other' || !b.otherMenu) return '';
+                                    if (b.eventType !== 'other' || !b.otherMenu) return '';
                                     const pays = (Array.isArray(b.otherMenu.payments) ? b.otherMenu.payments : []).filter(n => Number(n) > 0);
                                     if (!pays.length) return '';
                                     const mTotal = (b.otherMenu.menus || []).reduce((sum, m) => sum + ((m.total !== undefined && m.total !== null) ? Number(m.total) : (Number(m.guests) || 0) * (Number(m.pricePerPerson) || 0)), 0);
@@ -4703,8 +4703,8 @@
                 }
             }
 
-            // المقدمات والمتبقي للمناسبة الخاصة — للأدمن فقط (نفس شرط الظهور على الشاشة)
-            if (b.eventType === 'other' && b.otherMenu && state.currentUserEmail === ADMIN_EMAIL) {
+            // المقدمات والمتبقي للمناسبة الخاصة — لجميع المستخدمين
+            if (b.eventType === 'other' && b.otherMenu) {
                 const pPays = (Array.isArray(b.otherMenu.payments) ? b.otherMenu.payments : []).filter(n => Number(n) > 0);
                 if (pPays.length) {
                     const pMenusTotal = (b.otherMenu.menus || []).reduce((sum, m) => sum + ((m.total !== undefined && m.total !== null) ? Number(m.total) : (Number(m.guests) || 0) * (Number(m.pricePerPerson) || 0)), 0);
@@ -8653,8 +8653,8 @@ ${pages}
             const section = document.getElementById('otherPaymentsSection');
             const box = document.getElementById('otherPaymentsTotalsBox');
             const totBox = document.getElementById('otherEventTotalsBox');
-            // كارت المقدمات ظاهر للأدمن فقط (القيم تبقى محفوظة في الفورم حتى لا تضيع عند تعديل مستخدم آخر)
-            if (section) section.classList.toggle('hidden', state.currentUserEmail !== ADMIN_EMAIL);
+            // كارت المقدمات ظاهر لجميع المستخدمين
+            if (section) section.classList.remove('hidden');
             const menusList = getOtherMenusFromForm();
             const menusTotal = menusList.reduce((sum, m) => sum + (Number(m.total) || 0), 0);
             const equipTotal = getOtherEquipmentFromForm().reduce((sum, e) => sum + (Number(e.total) || 0), 0);
