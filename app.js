@@ -8022,6 +8022,7 @@ ${pages}
             container.insertAdjacentHTML('beforeend', otherCustomEquipRowHtml('', '', 1));
             if (typeof lucide !== "undefined") refreshIcons('otherCustomEquipContainer');
             const inputs = container.querySelectorAll('.other-custom-equip-name');
+            inputs.forEach(autosizeMenuItem);
             if (inputs.length) inputs[inputs.length - 1].focus();
         }
 
@@ -8732,9 +8733,10 @@ ${pages}
                                 <div id="menuSection_${i}" class="hidden p-4 space-y-3 bg-white">
                                     <div id="menuItems_${i}" class="space-y-2">
                                         ${(p.menuItems||[]).map((item, j) => `
-                                            <div class="flex items-center gap-2 menu-item-row">
-                                                <input type="text" class="ws-menu-item flex-1 text-sm" data-pkg="${i}" data-item="${j}"
-                                                    value="${escapeHtml(item)}" placeholder="مثال: شوربة فراخ">
+                                            <div class="flex items-start gap-2 menu-item-row">
+                                                <textarea rows="1" class="ws-menu-item flex-1 text-sm" data-pkg="${i}" data-item="${j}"
+                                                    oninput="autosizeMenuItem(this)" onkeydown="if(event.key==='Enter')event.preventDefault()"
+                                                    placeholder="مثال: شوربة فراخ">${escapeHtml(item)}</textarea>
                                                 <button type="button" onclick="removeMenuItem(${i},${j})"
                                                     class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
                                                     <i data-lucide="x" class="w-3.5 h-3.5"></i>
@@ -8778,12 +8780,19 @@ ${pages}
             if (typeof lucide !== "undefined") refreshIcons('weddingSettingsModal');
         }
 
+        function autosizeMenuItem(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            if (el.scrollHeight) el.style.height = el.scrollHeight + 'px';
+        }
+
         function toggleMenuSection(pkgIdx) {
             const section = document.getElementById('menuSection_' + pkgIdx);
             const chevron = document.querySelector('.menu-chevron-' + pkgIdx);
             if (!section) return;
             const isHidden = section.classList.contains('hidden');
             section.classList.toggle('hidden', !isHidden);
+            if (isHidden) section.querySelectorAll('.ws-menu-item').forEach(autosizeMenuItem);
             if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
         }
 

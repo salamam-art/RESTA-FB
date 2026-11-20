@@ -129,6 +129,16 @@
             border-color: var(--brand-gold) !important;
             box-shadow: 0 0 0 4px rgba(168, 138, 69, 0.15) !important;
         }
+        /* حقول أصناف المنيو: تلتف على أكثر من سطر بدل ما الكلام يختفي */
+        #weddingSettingsBody textarea.ws-menu-item {
+            padding: 0.6rem 0.85rem; border-radius: 0.85rem; border: 1px solid #E6DFD3;
+            background-color: #F6F2EB; outline: none; font-size: 0.9rem; color: #2E2823;
+            width: 100%; resize: none; overflow: hidden; line-height: 1.6; min-height: 2.6rem;
+        }
+        #weddingSettingsBody textarea.ws-menu-item:focus {
+            background-color: #fff; border-color: var(--brand-gold) !important;
+            box-shadow: 0 0 0 4px rgba(168,138,69,.15) !important;
+        }
         /* إصلاح: حقل السعر كان ياخد 100% من العرض ويضغط اسم الباقة */
         #weddingSettingsBody input.ws-package-price { width: 7.5rem; flex: 0 0 7.5rem; text-align: center; }
         #weddingSettingsBody .ws-package-name { flex: 1 1 0%; min-width: 0; white-space: normal; word-break: normal; overflow-wrap: break-word; }
