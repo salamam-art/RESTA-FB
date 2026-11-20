@@ -253,6 +253,16 @@
                 `<option value="${escapeHtml(s.id)}" ${selectedId === s.id ? 'selected' : ''}>${escapeHtml(s.name)} — ${fmtEGP(s.price)}/فرد</option>`
             ).join('');
         }
+        // Coffee Breaks — محفوظة داخل weddingSettings.coffeeBreaks (نفس مسار Set Menus)
+        function getCoffeeBreaks() {
+            const s = state.weddingSettings && state.weddingSettings.coffeeBreaks;
+            return Array.isArray(s) ? s : [];
+        }
+        function coffeeBreakOptionsHtml(selectedId) {
+            return '<option value="">Coffee break</option>' + getCoffeeBreaks().map(s =>
+                `<option value="${escapeHtml(s.id)}" ${selectedId === s.id ? 'selected' : ''}>${escapeHtml(s.name)} — ${fmtEGP(s.price)}/فرد</option>`
+            ).join('');
+        }
         function fmtEGP(n) {
             const v = Math.round(Number(n) || 0);
             return v.toLocaleString('en-US') + ' جنيه';
@@ -1130,6 +1140,9 @@
                     const smModal = document.getElementById('setMenusModal');
                     if (smModal && !smModal.classList.contains('hidden')) renderSetMenusModal();
                     document.querySelectorAll('.other-menu-set').forEach(sel => { const cur = sel.value; sel.innerHTML = setMenuOptionsHtml(cur); sel.value = cur; });
+                    const cbModal = document.getElementById('coffeeBreaksModal');
+                    if (cbModal && !cbModal.classList.contains('hidden')) renderCoffeeBreaksModal();
+                    document.querySelectorAll('.other-menu-coffee').forEach(sel => { const cur = sel.value; sel.innerHTML = coffeeBreakOptionsHtml(cur); sel.value = cur; });
                 }
             }, (err) => { console.warn('weddingSettings listener cancelled:', err && err.code); });
         }
@@ -5752,7 +5765,7 @@ ${pages}
             try { coarse = window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) {}
             if (!coarse) return;
             const SEL = 'input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea';
-            const MODALS = '#globalBookingModal, #quickCalcModal, #weddingSettingsModal, #setMenusModal, #hallsManageModal';
+            const MODALS = '#globalBookingModal, #quickCalcModal, #weddingSettingsModal, #setMenusModal, #coffeeBreaksModal, #hallsManageModal';
             document.addEventListener('click', function (e) {
                 const modal = e.target && e.target.closest ? e.target.closest(MODALS) : null;
                 if (!modal || modal.classList.contains('hidden')) return;
@@ -5814,6 +5827,7 @@ ${pages}
                 tools.push({ action: 'toggleHallsManageModal()', icon: 'building-2', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إدارة القاعات' });
                 tools.push({ action: 'toggleWeddingSettingsModal()', icon: 'settings-2', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إعدادات باقات الأفراح' });
                 tools.push({ action: 'toggleSetMenusModal()', icon: 'clipboard-list', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إعدادات Set Menus (مناسبات ومؤتمرات)' });
+                tools.push({ action: 'toggleCoffeeBreaksModal()', icon: 'coffee', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إعدادات Coffee Breaks' });
                 tools.push({ action: 'toggleFinanceStatsModal()', icon: 'bar-chart-3', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'الإحصائيات المالية' });
             }
             return { exp, rec, tools };
@@ -7848,7 +7862,7 @@ ${pages}
         function renderOtherEventMenus(menus) {
             const container = document.getElementById('otherEventMenusContainer');
             if (!container) return;
-            const list = (menus && menus.length) ? menus : [{ date: '', time: '', hallId: '', setMenuId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' }];
+            const list = (menus && menus.length) ? menus : [{ date: '', time: '', hallId: '', setMenuId: '', coffeeBreakId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' }];
             container.innerHTML = list.map((m, mi) => `
                 <div class="other-menu-block bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2.5" data-menu-idx="${mi}">
                     <div class="flex items-center justify-between">
@@ -7858,6 +7872,11 @@ ${pages}
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>` : ''}
                     </div>
+                    ${getCoffeeBreaks().length ? `
+                    <div class="input-group !mb-0">
+                        <label class="text-xs">Coffee Break جاهز <span class="text-[10px] text-slate-400 font-normal">(يملأ الأصناف والسعر — وتقدر تعدّل عليهم)</span></label>
+                        <select class="other-menu-coffee" onchange="onOtherCoffeeBreakChange(${mi}, this.value)">${coffeeBreakOptionsHtml(m.coffeeBreakId || '')}</select>
+                    </div>` : ''}
                     ${getSetMenus().length ? `
                     <div class="input-group !mb-0">
                         <label class="text-xs">Set Menu جاهز <span class="text-[10px] text-slate-400 font-normal">(يملأ الأصناف والسعر — وتقدر تعدّل عليهم)</span></label>
@@ -7938,6 +7957,7 @@ ${pages}
                     hallId:         hallId,
                     hallName:       hall ? hall.name : '',
                     setMenuId:      block.querySelector('.other-menu-set') ? block.querySelector('.other-menu-set').value : '',
+                    coffeeBreakId:  block.querySelector('.other-menu-coffee') ? block.querySelector('.other-menu-coffee').value : '',
                     guests:         guests,
                     pricePerPerson: pricePerPerson,
                     total:          guests * pricePerPerson,
@@ -7949,12 +7969,29 @@ ${pages}
 
         function addOtherMenuBlock() {
             const menus = getOtherMenusFromForm();
-            menus.push({ date: '', time: '', hallId: '', hallName: '', setMenuId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' });
+            menus.push({ date: '', time: '', hallId: '', hallName: '', setMenuId: '', coffeeBreakId: '', guests: 0, pricePerPerson: 0, items: [''], notes: '' });
             renderOtherEventMenus(menus);
         }
 
         function autosizeBookingMenuFields() {
             document.querySelectorAll('#otherEventMenusContainer .other-menu-item, #weddingMenuItemsList .wedding-menu-item').forEach(autosizeMenuItem);
+        }
+
+        function onOtherCoffeeBreakChange(menuIdx, cbId) {
+            const menus = getOtherMenusFromForm();
+            const m = menus[menuIdx];
+            if (!m) return;
+            const cb = getCoffeeBreaks().find(s => s.id === cbId);
+            m.coffeeBreakId = cb ? cb.id : '';
+            if (cb) {
+                m.setMenuId = '';
+                const items = (cb.items || []).map(i => String(i || '').trim()).filter(Boolean);
+                m.items = items.length ? items : [''];
+                m.pricePerPerson = Number(cb.price) || 0;
+                m.notes = cb.notes || '';
+                m.total = (Number(m.guests) || 0) * m.pricePerPerson;
+            }
+            renderOtherEventMenus(menus);
         }
 
         function onOtherSetMenuChange(menuIdx, setId) {
@@ -7963,6 +8000,7 @@ ${pages}
             if (!m) return;
             const set = getSetMenus().find(s => s.id === setId);
             m.setMenuId = set ? set.id : '';
+            if (set) m.coffeeBreakId = '';
             if (set) {
                 const items = (set.items || []).map(i => String(i || '').trim()).filter(Boolean);
                 m.items = items.length ? items : [''];
@@ -9083,6 +9121,180 @@ ${pages}
                 document.querySelectorAll('.other-menu-set').forEach(sel => { const cur = sel.value; sel.innerHTML = setMenuOptionsHtml(cur); sel.value = cur; });
             } catch (err) {
                 showToast('حدث خطأ أثناء حفظ Set Menus: ' + err.message, 'error');
+            }
+        }
+
+        // ═══════════════════ إعدادات Coffee Breaks (أدمن فقط) ═══════════════════
+        // كل Set فيه: اسم تلقائي (Coffee break #N) + سعر الفرد + أصناف + ملاحظات. الحجز بياخد نسخة من الأصناف والسعر وقت الاختيار،
+        // فتعديل الـ Set بعد كده ما بيغيّرش الحجوزات القديمة (زي باقات الأفراح).
+        let _coffeeBreakOpenIds = [];
+
+        function toggleCoffeeBreaksModal() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const modal = document.getElementById('coffeeBreaksModal');
+            if (modal.classList.contains('hidden')) {
+                renderCoffeeBreaksModal();
+                modal.classList.remove('hidden');
+                autosizeAllCoffeeBreakFields();
+                requestAnimationFrame(autosizeAllCoffeeBreakFields);
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function autosizeAllCoffeeBreakFields() {
+            document.querySelectorAll('#coffeeBreaksBody .cbk-item').forEach(autosizeMenuItem);
+        }
+
+        function renderCoffeeBreaksModal() {
+            const body = document.getElementById('coffeeBreaksBody');
+            if (!body) return;
+            const sets = getCoffeeBreaks();
+            const cards = sets.map((s, i) => {
+                const open = _coffeeBreakOpenIds.includes(s.id);
+                const items = (s.items && s.items.length) ? s.items : [];
+                return `
+                <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm" data-set-card="${i}">
+                    <div class="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+                        <button type="button" onclick="toggleCoffeeBreakCard(${i})" class="flex-1 min-w-0 flex items-center justify-between gap-2 text-right hover:opacity-80 transition-opacity">
+                            <span class="font-bold text-sm text-slate-700 flex items-center gap-2 flex-wrap">
+                                <i data-lucide="coffee" class="w-4 h-4 text-[#A88A45]"></i>
+                                ${escapeHtml(s.name)}
+                                <span class="text-[10px] font-normal text-slate-400">(${items.filter(x => String(x).trim()).length} صنف)</span>
+                            </span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 cbk-chevron-${i} transition-transform shrink-0" style="${open ? 'transform:rotate(180deg)' : ''}"></i>
+                        </button>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <input type="number" class="cbk-price" style="width:6.5rem" data-set="${i}" value="${s.price || ''}" min="0" step="any" placeholder="سعر الفرد">
+                            <span class="text-[10px] font-bold text-slate-500">جنيه/فرد</span>
+                        </div>
+                    </div>
+                    <div id="coffeeBreakBody_${i}" class="${open ? '' : 'hidden'} p-4 space-y-3 bg-white">
+                        <div class="space-y-2">
+                            ${items.map((item, j) => `
+                                <div class="flex items-start gap-2">
+                                    <textarea rows="1" class="cbk-item flex-1 text-sm" data-set="${i}" data-item="${j}"
+                                        oninput="autosizeMenuItem(this)" onkeydown="if(event.key==='Enter')event.preventDefault()"
+                                        placeholder="اسم الصنف">${escapeHtml(item)}</textarea>
+                                    <button type="button" onclick="removeCoffeeBreakItem(${i},${j})" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="حذف الصنف">
+                                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>`).join('')}
+                        </div>
+                        <button type="button" onclick="addCoffeeBreakItem(${i})" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-1.5 rounded-lg transition-colors border border-[#6E1418]/10">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> إضافة صنف
+                        </button>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block">ملاحظات المنيو</label>
+                            <textarea class="cbk-notes w-full text-sm rounded-xl border border-slate-200 p-2.5 resize-none bg-slate-50 outline-none focus:border-[#A88A45] focus:bg-white" data-set="${i}" rows="2" placeholder="أي تفاصيل إضافية عن المنيو...">${escapeHtml(s.notes || '')}</textarea>
+                        </div>
+                        <button type="button" onclick="removeCoffeeBreak(${i})" class="inline-flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-3 py-1.5 rounded-lg transition-colors border border-red-100">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> حذف ${escapeHtml(s.name)}
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+            body.innerHTML = `
+                ${sets.length ? '' : '<div class="text-center text-sm text-slate-400 font-bold py-6 bg-white rounded-2xl border border-dashed border-slate-200">لسه مفيش Coffee Breaks — اضغط "إضافة Coffee Break" تحت.</div>'}
+                <div class="space-y-3">${cards}</div>
+                <button type="button" onclick="addCoffeeBreak()" class="w-full inline-flex items-center justify-center gap-1.5 text-sm font-bold text-[#6E1418] hover:text-white hover:bg-[#6E1418] bg-[#6E1418]/5 px-3 py-2.5 rounded-xl transition-colors border border-[#6E1418]/10">
+                    <i data-lucide="plus" class="w-4 h-4"></i> إضافة Coffee Break
+                </button>
+                <button type="button" onclick="commitCoffeeBreaksFromForm()" class="w-full bg-gradient-to-r from-[#6E1418] to-[#8a1c22] text-white font-black py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-[#A88A45]"></i> حفظ الإعدادات
+                </button>`;
+            if (typeof lucide !== "undefined") refreshIcons('coffeeBreaksModal');
+            autosizeAllCoffeeBreakFields();
+        }
+
+        function toggleCoffeeBreakCard(i) {
+            const s = getCoffeeBreaks()[i];
+            const sec = document.getElementById('coffeeBreakBody_' + i);
+            const chev = document.querySelector('.cbk-chevron-' + i);
+            if (!s || !sec) return;
+            const opening = sec.classList.contains('hidden');
+            sec.classList.toggle('hidden', !opening);
+            if (chev) chev.style.transform = opening ? 'rotate(180deg)' : '';
+            _coffeeBreakOpenIds = opening ? _coffeeBreakOpenIds.concat(s.id) : _coffeeBreakOpenIds.filter(id => id !== s.id);
+            if (opening) sec.querySelectorAll('.cbk-item').forEach(autosizeMenuItem);
+        }
+
+        // يقرأ القيم الحالية من الفورم داخل state (من غير حفظ في السحابة)
+        function _collectCoffeeBreaksFromForm() {
+            const sets = getCoffeeBreaks();
+            sets.forEach((s, i) => {
+                if (!document.getElementById('coffeeBreakBody_' + i)) return;
+                const price = document.querySelector(`.cbk-price[data-set="${i}"]`);
+                if (price) s.price = parseFloat(price.value) || 0;
+                s.items = Array.from(document.querySelectorAll(`.cbk-item[data-set="${i}"]`)).map(t => t.value);
+                const notes = document.querySelector(`.cbk-notes[data-set="${i}"]`);
+                if (notes) s.notes = notes.value;
+            });
+        }
+
+        function _renumberCoffeeBreaks() {
+            getCoffeeBreaks().forEach((s, i) => { s.name = 'Coffee break #' + (i + 1); });
+        }
+
+        function addCoffeeBreak() {
+            _collectCoffeeBreaksFromForm();
+            if (!Array.isArray(state.weddingSettings.coffeeBreaks)) state.weddingSettings.coffeeBreaks = [];
+            const id = 'cb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            state.weddingSettings.coffeeBreaks.push({ id, name: '', price: 0, items: [''], notes: '' });
+            _renumberCoffeeBreaks();
+            _coffeeBreakOpenIds.push(id);
+            renderCoffeeBreaksModal();
+            const body = document.getElementById('coffeeBreaksBody');
+            if (body) body.scrollTop = body.scrollHeight;
+        }
+
+        function removeCoffeeBreak(i) {
+            const s = getCoffeeBreaks()[i];
+            if (!s) return;
+            if (!confirm('حذف ' + s.name + '؟ (الحجوزات القديمة اللي استخدمته مش هتتأثر)')) return;
+            _collectCoffeeBreaksFromForm();
+            state.weddingSettings.coffeeBreaks.splice(i, 1);
+            _renumberCoffeeBreaks();
+            renderCoffeeBreaksModal();
+        }
+
+        function addCoffeeBreakItem(i) {
+            _collectCoffeeBreaksFromForm();
+            const s = getCoffeeBreaks()[i];
+            if (!s) return;
+            s.items = s.items || [];
+            s.items.push('');
+            if (!_coffeeBreakOpenIds.includes(s.id)) _coffeeBreakOpenIds.push(s.id);
+            renderCoffeeBreaksModal();
+            const inputs = document.querySelectorAll(`.cbk-item[data-set="${i}"]`);
+            if (inputs.length) inputs[inputs.length - 1].focus();
+        }
+
+        function removeCoffeeBreakItem(i, j) {
+            _collectCoffeeBreaksFromForm();
+            const s = getCoffeeBreaks()[i];
+            if (!s || !s.items) return;
+            s.items.splice(j, 1);
+            if (!_coffeeBreakOpenIds.includes(s.id)) _coffeeBreakOpenIds.push(s.id);
+            renderCoffeeBreaksModal();
+        }
+
+        async function commitCoffeeBreaksFromForm() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) {
+                showToast('عذراً، تعديل Coffee Breaks متاح للأدمن فقط.', 'error');
+                return;
+            }
+            _collectCoffeeBreaksFromForm();
+            getCoffeeBreaks().forEach(s => { s.items = (s.items || []).map(x => String(x || '').trim()).filter(Boolean); });
+            _renumberCoffeeBreaks();
+            try {
+                if (CLOUD_ENABLED) await db.ref('weddingSettings').set(state.weddingSettings);
+                localStorage.setItem('hotel_wedding_settings', JSON.stringify(state.weddingSettings));
+                showToast('✅ تم حفظ إعدادات Coffee Breaks بنجاح', 'success');
+                renderCoffeeBreaksModal();
+                document.querySelectorAll('.other-menu-coffee').forEach(sel => { const cur = sel.value; sel.innerHTML = coffeeBreakOptionsHtml(cur); sel.value = cur; });
+            } catch (err) {
+                showToast('حدث خطأ أثناء حفظ Coffee Breaks: ' + err.message, 'error');
             }
         }
 
