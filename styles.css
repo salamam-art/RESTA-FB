@@ -129,6 +129,9 @@
             border-color: var(--brand-gold) !important;
             box-shadow: 0 0 0 4px rgba(168, 138, 69, 0.15) !important;
         }
+        /* إصلاح: حقل السعر كان ياخد 100% من العرض ويضغط اسم الباقة */
+        #weddingSettingsBody input.ws-package-price { width: 7.5rem; flex: 0 0 7.5rem; text-align: center; }
+        #weddingSettingsBody .ws-package-name { flex: 1 1 0%; min-width: 0; white-space: normal; word-break: normal; overflow-wrap: break-word; }
         /* ===== Toggle Switch (يحل محل كل الـ checkbox في التطبيق) ===== */
         input[type="checkbox"] {
             -webkit-appearance: none !important;

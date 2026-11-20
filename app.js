@@ -8706,7 +8706,7 @@ ${pages}
                     <div class="space-y-2.5">
                         ${state.weddingSettings.packages.map((p, i) => `
                             <div class="flex items-center gap-3">
-                                <span class="flex-1 text-sm font-bold text-slate-600">${p.name}</span>
+                                <span class="ws-package-name text-sm font-bold text-slate-600">${p.name}</span>
                                 <input type="number" class="ws-package-price w-32" data-idx="${i}" value="${p.price || ''}" min="0" step="any">
                             </div>
                         `).join('')}
