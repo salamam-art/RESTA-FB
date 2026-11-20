@@ -3510,8 +3510,23 @@
             render();
         }
 
+        // منيوهات المناسبات الخاصة بتحجز القاعة اللي اتحددت ليها (حتى لو القاعة الأساسية للحجز قاعة تانية)
+        function menuHallBlocks(hallId, date, startTime, endTime, ignoreId = null, ignoreGroup = false) {
+            return state.bookings.some(b => {
+                if (ignoreId) {
+                    if (ignoreGroup && (b.groupId === ignoreId || b.id === ignoreId)) return false;
+                    if (!ignoreGroup && b.id === ignoreId) return false;
+                }
+                if (b.eventType !== 'other' || !b.otherMenu || !Array.isArray(b.otherMenu.menus)) return false;
+                if (b.hallId === hallId) return false; // القاعة الأساسية للحجز ده بتتفحص بالحجز نفسه
+                return b.otherMenu.menus.some(m => m && m.hallId === hallId && m.date === date &&
+                    (!m.time || !startTime || !endTime || (m.time >= startTime && m.time < endTime)));
+            });
+        }
+
         function checkConflict(hallId, date, startTime, endTime, ignoreId = null, ignoreGroup = false) {
             if (hallId === PHOTO_HALL_ID) return false; // فوتوسيشن: أكتر من حجز في نفس اليوم مسموح
+            if (menuHallBlocks(hallId, date, startTime, endTime, ignoreId, ignoreGroup)) return true;
             return state.bookings.some(b => {
                 if (ignoreId) {
                     if (ignoreGroup && (b.groupId === ignoreId || b.id === ignoreId)) return false;
@@ -7088,6 +7103,14 @@ ${pages}
             const fullDayBookedHallIds = state.bookings
                 .filter(b => b.startDate === dateStr && (!b.startTime || !b.endTime))
                 .map(b => b.hallId);
+            // قاعات منيو المناسبات الخاصة (بدون وقت محدد) = القاعة محجوزة اليوم كله
+            state.bookings.forEach(b => {
+                if (b.eventType === 'other' && b.otherMenu && Array.isArray(b.otherMenu.menus)) {
+                    b.otherMenu.menus.forEach(m => {
+                        if (m && m.hallId && m.date === dateStr && !m.time && m.hallId !== PHOTO_HALL_ID) fullDayBookedHallIds.push(m.hallId);
+                    });
+                }
+            });
             const availableHalls = HALLS.filter(h => !fullDayBookedHallIds.includes(h.id));
 
             if (availableHalls.length === 0) {
@@ -9758,6 +9781,33 @@ ${pages}
             }
         }
 
+        // فحص تعارض قاعات منيو "المناسبة الخاصة الأخرى": كل منيو ليه قاعة وتاريخ ووقت،
+        // ولازم القاعة تكون فاضية وقتها (قدام الحجوزات العادية ومنيوهات الحجوزات التانية).
+        function _menuTimeClash(menuTime, otherStart, otherEnd) {
+            if (!menuTime || !otherStart || !otherEnd) return true;           // وقت غير محدد = اليوم كله
+            return menuTime >= otherStart && menuTime < otherEnd;
+        }
+        function findOtherMenuHallConflict(menus, ignoreId, mainHallId) {
+            for (const m of (menus || [])) {
+                if (!m || !m.hallId || !m.date || m.hallId === PHOTO_HALL_ID) continue;
+                if (m.hallId === mainHallId) continue; // القاعة الأساسية بتتفحص في الفحص العادي
+                for (const b of state.bookings) {
+                    if (ignoreId && (b.groupId === ignoreId || b.id === ignoreId)) continue;
+                    // 1) حجز عادي في نفس القاعة نفس اليوم
+                    if (b.hallId === m.hallId && b.startDate === m.date && _menuTimeClash(m.time, b.startTime, b.endTime)) {
+                        return { menu: m, other: b };
+                    }
+                    // 2) منيو تاني (في حجز مناسبة تانية) في نفس القاعة نفس اليوم
+                    if (b.eventType === 'other' && b.otherMenu && Array.isArray(b.otherMenu.menus) && b.hallId !== m.hallId) {
+                        const hit = b.otherMenu.menus.some(om => om && om.hallId === m.hallId && om.date === m.date &&
+                            (!om.time || !m.time || om.time === m.time));
+                        if (hit) return { menu: m, other: b };
+                    }
+                }
+            }
+            return null;
+        }
+
         function handleGlobalBookingSubmitInner(e) {
             const form   = e.target;
             const hallId = form.hallId.value;
@@ -9826,6 +9876,16 @@ ${pages}
             for (const ds of newDates) {
                 if (checkConflict(bookingData.hallId, ds, bookingData.startTime, bookingData.endTime, state.editingBookingId, true)) {
                     alert('عذراً، يوجد حجز مسبق يوم ' + ds + ' في ' + bookingData.hallName + '.');
+                    return;
+                }
+            }
+
+            // Conflict check – قاعات المنيو في المناسبة الخاصة (قاعة مختلفة عن القاعة الأساسية)
+            if (bookingData.eventType === 'other' && bookingData.otherMenu) {
+                const _mc = findOtherMenuHallConflict(bookingData.otherMenu.menus, state.editingBookingId, bookingData.hallId);
+                if (_mc) {
+                    const _d = _mc.menu.date ? _mc.menu.date.split('-').reverse().join('/') : '';
+                    alert('عذراً، ' + (_mc.menu.hallName || 'القاعة') + ' محجوزة يوم ' + _d + (_mc.other.companyName ? ' (حجز: ' + _mc.other.companyName + ')' : '') + ' — غيّر قاعة المنيو أو الوقت.');
                     return;
                 }
             }
