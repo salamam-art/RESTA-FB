@@ -4230,8 +4230,12 @@
 
                                 ${(() => {
                                     if (b.eventType !== 'other' || !b.otherMenu || !b.otherMenu.menus) return '';
-                                    const menus = b.otherMenu.menus.filter(m => (m.items && m.items.filter(i => i.trim()).length) || (m.notes && m.notes.trim()) || (m.guests > 0) || (m.pricePerPerson > 0));
+                                    const otC = otherEventTotals(b.otherMenu);
+                                    const menus = otC.days.flatMap(d => d.menus);
                                     if (!menus.length) return '';
+                                    const multiDay = otC.days.length > 1;
+                                    const dayFirst = new Map(), dayLast = new Map();
+                                    otC.days.forEach(d => { dayFirst.set(d.menus[0], d); dayLast.set(d.menus[d.menus.length - 1], d); });
                                     const fmtMenuDate = (d) => d ? d.split('-').reverse().join('/') : '';
                                     return `<div class="mt-4 p-3 bg-[#6E1418]/5 rounded-xl border border-[#6E1418]/10 space-y-3 text-sm">
                                         <div class="flex items-center gap-1.5 text-[11px] font-black text-[#6E1418] mb-1"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> منيو المناسبة</div>
@@ -4243,7 +4247,7 @@
                                             const guests = m.guests || 0;
                                             const price = m.pricePerPerson || 0;
                                             const total = (m.total !== undefined && m.total !== null) ? m.total : (guests * price);
-                                            return `<div class="${i > 0 ? 'pt-3 border-t border-[#6E1418]/10' : ''} space-y-1.5">
+                                            return `${multiDay && dayFirst.has(m) ? `<div class="${i > 0 ? 'mt-1 ' : ''}text-xs font-black text-white bg-[#6E1418] rounded-lg px-2.5 py-1">يوم ${otherDayLabel(dayFirst.get(m).date)}</div>` : ''}<div class="${i > 0 && !(multiDay && dayFirst.has(m)) ? 'pt-3 border-t border-[#6E1418]/10' : ''} space-y-1.5">
                                                 ${(menus.length > 1 || dt || hallName) ? `<div class="flex items-center justify-between flex-wrap gap-1.5 text-[11px] font-bold text-slate-500">
                                                     <span>${menus.length > 1 ? 'منيو ' + (i + 1) : ''}</span>
                                                     <span class="flex items-center gap-2 flex-wrap">
@@ -4254,7 +4258,7 @@
                                                 ${menuItems.length ? `<div class="flex flex-wrap gap-1.5">${menuItems.map(item => `<span class="text-xs font-bold bg-[#A88A45]/10 text-[#8f753a] px-2.5 py-1 rounded-lg border border-[#A88A45]/20" style="max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.6">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
                                                 ${(guests > 0 || price > 0) ? `<div class="flex justify-between text-xs font-bold text-slate-600"><span>${guests} فرد × ${fmtEGP(price)}</span><span class="text-[#6E1418]">${fmtEGP(total)}</span></div>` : ''}
                                                 ${menuNotes ? `<p class="text-xs text-slate-500 font-medium bg-amber-50 rounded-lg px-2.5 py-1.5 border border-amber-100">${escapeHtml(menuNotes)}</p>` : ''}
-                                            </div>`;
+                                            </div>${multiDay && dayLast.has(m) ? `<div class="flex justify-between text-xs font-black text-[#6E1418] bg-white/70 rounded-lg px-2.5 py-1.5 border border-[#6E1418]/10"><span>إجمالي يوم ${otherDayLabel(dayLast.get(m).date)}</span><span>${fmtEGP(dayLast.get(m).total)}</span></div>` : ''}`;
                                         }).join('')}
                                     </div>`;
                                 })()}
@@ -4265,8 +4269,21 @@
                                     const eqSum = eqs.reduce((sum, e) => sum + (Number(e.total) || 0), 0);
                                     return `<div class="mt-4 p-3 bg-[#6E1418]/5 rounded-xl border border-[#6E1418]/10 space-y-1.5 text-sm">
                                         <div class="flex items-center gap-1.5 text-[11px] font-black text-[#6E1418] mb-1"><i data-lucide="presentation" class="w-3.5 h-3.5"></i> التجهيزات</div>
-                                        ${eqs.map(e => `<div class="flex justify-between gap-2 text-xs font-bold text-slate-600"><span dir="auto">${escapeHtml(e.name)}${(Number(e.qty) || 1) > 1 ? ' × ' + Number(e.qty) : ''}</span><span class="shrink-0">${fmtEGP(e.total)}</span></div>`).join('')}
+                                        ${eqs.map(e => `<div class="flex justify-between gap-2 text-xs font-bold text-slate-600"><span dir="auto">${escapeHtml(e.name)}${(Number(e.qty) || 1) > 1 ? ' × ' + Number(e.qty) : ''}${(Number(e.days) || 1) > 1 ? ' × ' + Number(e.days) + ' يوم' : ''}</span><span class="shrink-0">${fmtEGP(e.total)}</span></div>`).join('')}
                                         <div class="flex justify-between text-xs font-black text-[#6E1418] pt-1.5 border-t border-[#6E1418]/10"><span>إجمالي التجهيزات</span><span>${fmtEGP(eqSum)}</span></div>
+                                    </div>`;
+                                })()}
+
+                                ${(() => {
+                                    if (b.eventType !== 'other' || !b.otherMenu) return '';
+                                    const ot = otherEventTotals(b.otherMenu);
+                                    const hasEq = Array.isArray(b.otherMenu.equipment) && b.otherMenu.equipment.length;
+                                    if (!(ot.days.length > 1 || hasEq) || ot.grand <= 0) return '';
+                                    return `<div class="mt-4 p-3 bg-[#6E1418]/5 rounded-xl border border-[#6E1418]/10 space-y-1.5 text-sm">
+                                        <div class="flex items-center gap-1.5 text-[11px] font-black text-[#6E1418] mb-1"><i data-lucide="calculator" class="w-3.5 h-3.5"></i> إجمالي المناسبة</div>
+                                        ${ot.days.map(d => `<div class="flex justify-between text-xs font-bold text-slate-600"><span>إجمالي يوم ${otherDayLabel(d.date)}</span><span>${fmtEGP(d.total)}</span></div>`).join('')}
+                                        ${ot.equipTotal > 0 ? `<div class="flex justify-between text-xs font-bold text-slate-600"><span>إجمالي التجهيزات</span><span>${fmtEGP(ot.equipTotal)}</span></div>` : ''}
+                                        <div class="flex justify-between text-sm font-black text-[#6E1418] pt-1.5 border-t border-[#6E1418]/10"><span>الإجمالي الكلي</span><span>${fmtEGP(ot.grand)}</span></div>
                                     </div>`;
                                 })()}
 
@@ -4611,7 +4628,11 @@
                 }
             } else if (b.eventType === 'other' && b.otherMenu && b.otherMenu.menus) {
                 const fmtMenuDate = d => d ? d.split('-').reverse().join('/') : '';
-                const activeMenus = b.otherMenu.menus.filter(m => (m.items && m.items.filter(i => i.trim()).length) || (m.notes && m.notes.trim()) || (m.guests > 0) || (m.pricePerPerson > 0));
+                const otP = otherEventTotals(b.otherMenu);
+                const activeMenus = otP.days.flatMap(d => d.menus);
+                const pMultiDay = otP.days.length > 1;
+                const pDayFirst = new Map(), pDayLast = new Map();
+                otP.days.forEach(d => { pDayFirst.set(d.menus[0], d); pDayLast.set(d.menus[d.menus.length - 1], d); });
                 menuBoxHtml = activeMenus.map((m, i) => {
                     const menuItems = (m.items || []).filter(it => it.trim());
                     const menuNotes = (m.notes || '').trim();
@@ -4626,26 +4647,44 @@
                         </div>` : '';
                     const pricingHtml = (guests > 0 || price > 0) ? `<div class="menu-notes" style="background:#fdf6f2;border-color:#A88A45;color:#6E1418;">${guests} فرد × ${fmtEGP(price)} = ${fmtEGP(total)}</div>` : '';
                     const notesHtml = menuNotes ? `<div class="menu-notes">${menuNotes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : '';
-                    return `
+                    const dayHead = (pMultiDay && pDayFirst.has(m)) ? `<div style="font-size:13px;font-weight:900;color:#fff;background:#6E1418;border-radius:4px;padding:3px 8px;margin:6px 0 3px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">يوم ${otherDayLabel(pDayFirst.get(m).date)}</div>` : '';
+                    const dayFoot = (pMultiDay && pDayLast.has(m)) ? `<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;color:#6E1418;border:1px solid #A88A45;border-radius:4px;padding:3px 8px;margin-bottom:6px;"><span>إجمالي يوم ${otherDayLabel(pDayLast.get(m).date)}</span><span>${fmtEGP(pDayLast.get(m).total)}</span></div>` : '';
+                    return `${dayHead}
 <div class="menu-box">
     <div class="menu-box-title">${activeMenus.length > 1 ? 'منيو ' + (i + 1) : 'منيو المناسبة'}${metaLine ? ' — ' + metaLine : ''}</div>
     ${itemsGridHtml}
     ${pricingHtml}
     ${notesHtml}
-</div>`;
+</div>${dayFoot}`;
                 }).join('');
             }
 
             if (b.eventType === 'other' && b.otherMenu && Array.isArray(b.otherMenu.equipment) && b.otherMenu.equipment.length) {
                 const eqs = b.otherMenu.equipment;
                 const eqSum = eqs.reduce((sum, e) => sum + (Number(e.total) || 0), 0);
-                const eqRows = eqs.map(e => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;color:#000;padding:2px 0;"><span dir="auto">${escapeHtml(e.name)}${(Number(e.qty) || 1) > 1 ? ' × ' + Number(e.qty) : ''}</span><span>${fmtEGP(e.total)}</span></div>`).join('');
+                const eqRows = eqs.map(e => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;color:#000;padding:2px 0;"><span dir="auto">${escapeHtml(e.name)}${(Number(e.qty) || 1) > 1 ? ' × ' + Number(e.qty) : ''}${(Number(e.days) || 1) > 1 ? ' × ' + Number(e.days) + ' يوم' : ''}</span><span>${fmtEGP(e.total)}</span></div>`).join('');
                 menuBoxHtml += `
 <div class="menu-box">
     <div class="menu-box-title">التجهيزات</div>
     ${eqRows}
     <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:900;color:#6E1418;border-top:1px solid #A88A45;margin-top:3px;padding-top:3px;"><span>إجمالي التجهيزات</span><span>${fmtEGP(eqSum)}</span></div>
 </div>`;
+            }
+
+            // ملخص إجمالي المناسبة (كل الأيام + التجهيزات) — للجميع وليس للأدمن فقط
+            if (b.eventType === 'other' && b.otherMenu) {
+                const otS = otherEventTotals(b.otherMenu);
+                const sHasEq = Array.isArray(b.otherMenu.equipment) && b.otherMenu.equipment.length;
+                if ((otS.days.length > 1 || sHasEq) && otS.grand > 0) {
+                    const sLine = (label, val) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;color:#000;padding:2px 0;"><span>${label}</span><span>${fmtEGP(val)}</span></div>`;
+                    menuBoxHtml += `
+<div class="menu-box">
+    <div class="menu-box-title">إجمالي المناسبة</div>
+    ${otS.days.map(d => sLine('إجمالي يوم ' + otherDayLabel(d.date), d.total)).join('')}
+    ${otS.equipTotal > 0 ? sLine('إجمالي التجهيزات', otS.equipTotal) : ''}
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;color:#6E1418;border-top:1px solid #A88A45;margin-top:3px;padding-top:3px;"><span>الإجمالي الكلي</span><span>${fmtEGP(otS.grand)}</span></div>
+</div>`;
+                }
             }
 
             // المقدمات والمتبقي للمناسبة الخاصة — للأدمن فقط (نفس شرط الظهور على الشاشة)
@@ -5241,15 +5280,46 @@ ${pages}
             window.location.href = mailtoUrl;
         }
 
+        // ═══════════ تجميع منيوهات المناسبة الخاصة حسب اليوم + الإجمالي الكلي (يظهر للجميع وفي الطباعة) ═══════════
+        function otherMenuActive(m) { return !!((m.items && m.items.filter(i => i.trim()).length) || (m.notes && m.notes.trim()) || (m.guests > 0) || (m.pricePerPerson > 0)); }
+        function otherMenuTotalOf(m) { return (m.total !== undefined && m.total !== null) ? (Number(m.total) || 0) : (Number(m.guests) || 0) * (Number(m.pricePerPerson) || 0); }
+        function otherDayLabel(date) { return date ? date.split('-').reverse().slice(0, 2).join('/') : 'بدون تاريخ'; }
+        function otherEventTotals(om) {
+            const items = ((om && om.menus) || []).filter(otherMenuActive).map((m, i) => ({ m, i }));
+            items.sort((a, b) => {
+                const da = a.m.date || '', db = b.m.date || '';
+                if (da === db) return a.i - b.i;
+                if (!da) return 1;
+                if (!db) return -1;
+                return da < db ? -1 : 1;
+            });
+            const days = [];
+            items.forEach(x => {
+                const d0 = x.m.date || '';
+                let d = days[days.length - 1];
+                if (!d || d.date !== d0) { d = { date: d0, menus: [], total: 0 }; days.push(d); }
+                d.menus.push(x.m);
+                d.total += otherMenuTotalOf(x.m);
+            });
+            const menusTotal = days.reduce((s, d) => s + d.total, 0);
+            const equipTotal = ((om && om.equipment) || []).reduce((s, e) => s + (Number(e.total) || 0), 0);
+            return { days, menusTotal, equipTotal, grand: menusTotal + equipTotal };
+        }
+
         // سطور تفاصيل المناسبة الخاصة (المنيو + التجهيزات بالأسعار) — تُستخدم في البريد والمشاركة
         function otherEventSummaryLines(b) {
             const lines = [];
             if (b.eventType === 'other' && b.otherMenu && b.otherMenu.menus) {
                 const fmtMenuDate = d => d ? d.split('-').reverse().join('/') : '';
-                const activeMenus = b.otherMenu.menus.filter(m => (m.items && m.items.filter(i => i.trim()).length) || (m.notes && m.notes.trim()) || (m.guests > 0) || (m.pricePerPerson > 0));
+                const otL = otherEventTotals(b.otherMenu);
+                const activeMenus = otL.days.flatMap(d => d.menus);
+                const lMulti = otL.days.length > 1;
+                const lFirst = new Map(), lLast = new Map();
+                otL.days.forEach(d => { lFirst.set(d.menus[0], d); lLast.set(d.menus[d.menus.length - 1], d); });
                 if (activeMenus.length) {
                     lines.push('', '-- منيو المناسبة --');
                     activeMenus.forEach((m, i) => {
+                        if (lMulti && lFirst.has(m)) lines.push('', `[ يوم ${otherDayLabel(lFirst.get(m).date)} ]`);
                         const menuItems = (m.items || []).filter(it => it.trim());
                         const menuNotes = (m.notes || '').trim();
                         const dt = [fmtMenuDate(m.date), m.time].filter(Boolean).join(' - ');
@@ -5262,6 +5332,7 @@ ${pages}
                         if (guests > 0 || price > 0) lines.push(`  عدد الأفراد: ${guests} × ${fmtEGP(price)} = ${fmtEGP(total)}`);
                         if (menuItems.length) lines.push(`  الأصناف: ${menuItems.join('، ')}`);
                         if (menuNotes) lines.push(`  ملاحظات: ${menuNotes}`);
+                        if (lMulti && lLast.has(m)) lines.push(`  >> إجمالي يوم ${otherDayLabel(lLast.get(m).date)}: ${fmtEGP(lLast.get(m).total)}`);
                     });
                 }
             }
@@ -5269,8 +5340,19 @@ ${pages}
             if (b.eventType === 'other' && b.otherMenu && Array.isArray(b.otherMenu.equipment) && b.otherMenu.equipment.length) {
                 const eqs = b.otherMenu.equipment;
                 lines.push('', '-- التجهيزات --');
-                eqs.forEach(e => lines.push(`  ${e.name}${(Number(e.qty) || 1) > 1 ? ' × ' + Number(e.qty) : ''}: ${fmtEGP(e.total)}`));
+                eqs.forEach(e => lines.push(`  ${e.name}${(Number(e.qty) || 1) > 1 ? ' × ' + Number(e.qty) : ''}${(Number(e.days) || 1) > 1 ? ' × ' + Number(e.days) + ' يوم' : ''}: ${fmtEGP(e.total)}`));
                 lines.push(`  إجمالي التجهيزات: ${fmtEGP(eqs.reduce((sum, e) => sum + (Number(e.total) || 0), 0))}`);
+            }
+
+            if (b.eventType === 'other' && b.otherMenu) {
+                const otT = otherEventTotals(b.otherMenu);
+                const tHasEq = Array.isArray(b.otherMenu.equipment) && b.otherMenu.equipment.length;
+                if ((otT.days.length > 1 || tHasEq) && otT.grand > 0) {
+                    lines.push('', '-- إجمالي المناسبة --');
+                    otT.days.forEach(d => lines.push(`  إجمالي يوم ${otherDayLabel(d.date)}: ${fmtEGP(d.total)}`));
+                    if (otT.equipTotal > 0) lines.push(`  إجمالي التجهيزات: ${fmtEGP(otT.equipTotal)}`);
+                    lines.push(`  الإجمالي الكلي: ${fmtEGP(otT.grand)}`);
+                }
             }
 
             return lines;
@@ -8052,11 +8134,12 @@ ${pages}
                 else if (e.key) savedMap[e.key] = e;
             });
             const customContainer = document.getElementById('otherCustomEquipContainer');
-            if (customContainer) customContainer.innerHTML = savedCustom.map(e => otherCustomEquipRowHtml(e.name, e.price, e.qty)).join('');
+            if (customContainer) customContainer.innerHTML = savedCustom.map(e => otherCustomEquipRowHtml(e.name, e.price, e.qty, e.days)).join('');
             container.innerHTML = OTHER_EQUIPMENT_CATALOG.map(eq => {
                 const s = savedMap[eq.key];
                 const price = s ? (Number(s.price) || '') : '';
                 const qty = s ? (Number(s.qty) || 1) : 1;
+                const days = s ? (Number(s.days) || 1) : 1;
                 return `
                 <div class="other-equip-row bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2" data-equip-key="${eq.key}">
                     <label class="flex items-center gap-2 flex-1 cursor-pointer" style="min-width:190px">
@@ -8069,6 +8152,10 @@ ${pages}
                         <input type="number" class="other-equip-qty text-center" style="width:4.5rem" min="1" step="1" value="${qty}" oninput="onOtherEquipInput(this)">
                     </div>` : ''}
                     <div class="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+                        <span>الأيام</span>
+                        <input type="number" class="other-equip-days text-center" style="width:4rem" min="1" step="1" value="${days}" oninput="onOtherEquipInput(this)">
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-slate-400 shrink-0">
                         <input type="number" class="other-equip-price" style="width:7.5rem" min="0" step="any" value="${price}" placeholder="السعر" oninput="onOtherEquipInput(this)">
                         <span>جنيه</span>
                     </div>
@@ -8078,8 +8165,9 @@ ${pages}
         }
 
         // تجهيز مخصّص يكتبه المستخدم (اسم + عدد + سعر) — يُحفظ مع الحجز فقط ولا يُضاف للكتالوج الثابت
-        function otherCustomEquipRowHtml(name, price, qty) {
+        function otherCustomEquipRowHtml(name, price, qty, days) {
             const q = Number(qty) || 1;
+            const dy = Number(days) || 1;
             const p = (price === '' || price === undefined || price === null) ? '' : (Number(price) || '');
             return `
                 <div class="other-custom-equip-row bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
@@ -8087,6 +8175,10 @@ ${pages}
                     <div class="flex items-center gap-1 text-xs text-slate-400 shrink-0">
                         <span>العدد</span>
                         <input type="number" class="other-custom-equip-qty text-center" style="width:4.5rem" min="1" step="1" value="${q}" oninput="recalcOtherEquipmentTotal()">
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+                        <span>الأيام</span>
+                        <input type="number" class="other-custom-equip-days text-center" style="width:4rem" min="1" step="1" value="${dy}" oninput="recalcOtherEquipmentTotal()">
                     </div>
                     <div class="flex items-center gap-1 text-xs text-slate-400 shrink-0">
                         <input type="number" class="other-custom-equip-price" style="width:7.5rem" min="0" step="any" value="${p}" placeholder="السعر" oninput="recalcOtherEquipmentTotal()">
@@ -8101,7 +8193,7 @@ ${pages}
         function addOtherCustomEquipRow() {
             const container = document.getElementById('otherCustomEquipContainer');
             if (!container) return;
-            container.insertAdjacentHTML('beforeend', otherCustomEquipRowHtml('', '', 1));
+            container.insertAdjacentHTML('beforeend', otherCustomEquipRowHtml('', '', 1, 1));
             if (typeof lucide !== "undefined") refreshIcons('otherCustomEquipContainer');
             const inputs = container.querySelectorAll('.other-custom-equip-name');
             inputs.forEach(autosizeMenuItem);
@@ -8117,7 +8209,7 @@ ${pages}
         // كتابة سعر أكبر من صفر تفعّل الصنف تلقائيًا (حتى لا يُنسى تفعيله وبالتالي لا يُحفظ)
         function onOtherEquipInput(el) {
             const row = el.closest('.other-equip-row');
-            if (row && el.classList.contains('other-equip-price') && (parseFloat(el.value) || 0) > 0) {
+            if (row && (el.classList.contains('other-equip-price') || el.classList.contains('other-equip-days')) && (parseFloat(el.value) || 0) > 0) {
                 const cb = row.querySelector('.other-equip-toggle');
                 if (cb) cb.checked = true;
             }
@@ -8135,14 +8227,18 @@ ${pages}
                 const price = parseFloat(row.querySelector('.other-equip-price').value) || 0;
                 const qtyEl = row.querySelector('.other-equip-qty');
                 const qty = qtyEl ? Math.max(1, parseInt(qtyEl.value, 10) || 1) : 1;
-                result.push({ key: eq.key, name: eq.name, price: price, qty: qty, total: price * qty });
+                const daysEl = row.querySelector('.other-equip-days');
+                const days = daysEl ? Math.max(1, parseInt(daysEl.value, 10) || 1) : 1;
+                result.push({ key: eq.key, name: eq.name, price: price, qty: qty, days: days, total: price * qty * days });
             });
             document.querySelectorAll('.other-custom-equip-row').forEach((row, i) => {
                 const name = row.querySelector('.other-custom-equip-name').value.trim();
                 if (!name) return;
                 const price = parseFloat(row.querySelector('.other-custom-equip-price').value) || 0;
                 const qty = Math.max(1, parseInt(row.querySelector('.other-custom-equip-qty').value, 10) || 1);
-                result.push({ key: 'custom_' + i, name: name, price: price, qty: qty, total: price * qty, custom: true });
+                const cDaysEl = row.querySelector('.other-custom-equip-days');
+                const days = cDaysEl ? Math.max(1, parseInt(cDaysEl.value, 10) || 1) : 1;
+                result.push({ key: 'custom_' + i, name: name, price: price, qty: qty, days: days, total: price * qty * days, custom: true });
             });
             return result;
         }
@@ -8213,8 +8309,11 @@ ${pages}
             const total = menusTotal + equipTotal;
             const paid = getOtherPaymentsFromForm().reduce((s, n) => s + n, 0);
             const remaining = total - paid;
+            const fDays = otherEventTotals({ menus: getOtherMenusFromForm(), equipment: [] }).days;
+            const dayLines = fDays.length > 1 ? fDays.map(d => `<div class="flex justify-between text-slate-500 text-xs"><span>• يوم ${otherDayLabel(d.date)}</span><span class="font-bold">${fmtEGP(d.total)}</span></div>`).join('') : '';
             box.innerHTML = `
                 <div class="flex justify-between text-slate-600"><span>إجمالي المنيو</span><span class="font-bold">${fmtEGP(menusTotal)}</span></div>
+                ${dayLines}
                 <div class="flex justify-between text-slate-600"><span>إجمالي التجهيزات</span><span class="font-bold">${fmtEGP(equipTotal)}</span></div>
                 <div class="flex justify-between text-base text-[#6E1418] font-black pt-2 border-t border-amber-200"><span>الإجمالي</span><span>${fmtEGP(total)}</span></div>
                 <div class="flex justify-between text-emerald-700 font-bold"><span>مقدمات الحجز</span><span>${fmtEGP(paid)}</span></div>
