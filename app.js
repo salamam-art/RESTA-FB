@@ -6133,6 +6133,7 @@ ${pages}
 "",
 "8) الحاسبة والإحصائيات",
 "   - حاسبة باقة فرح سريعة لحساب تكلفة الباقة بسرعة.",
+"   - أيقونتان في الشريط العلوي لعرض محتويات الـ Set Menus (والكوفي بريك) ومحتويات باقات الأفراح بأسعارها — للقراءة فقط ومتاحتان لجميع المستخدمين.",
 "   - إحصائيات الحجوزات لكل القاعات، والإحصائيات المالية (للأدمن).",
 "",
 "9) التصدير والنسخ الاحتياطي",
@@ -6273,6 +6274,7 @@ ${pages}
 "",
 "8) Calculator and statistics",
 "   - Quick wedding package calculator.",
+"   - Two top-bar icons show the contents of the Set Menus (and Coffee Breaks) and of the wedding packages with prices — read-only, available to all signed-in users.",
 "   - Booking statistics for all halls, and financial statistics (admin).",
 "",
 "9) Export and backup",
@@ -6434,6 +6436,12 @@ ${pages}
 
                         <div class="flex items-center gap-1 sm:gap-3 flex-nowrap justify-end">
                             ${!isGuest() ? `
+                            <button onclick="toggleMenuViewer('set')" class="hdr-mv-btn relative p-1.5 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="محتويات Set Menus">
+                                <i data-lucide="utensils-crossed" class="w-[18px] h-[18px] sm:w-5 sm:h-5"></i>
+                            </button>
+                            <button onclick="toggleMenuViewer('wedding')" class="hdr-mv-btn relative p-1.5 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="محتويات باقات الأفراح">
+                                <i data-lucide="cake" class="w-[18px] h-[18px] sm:w-5 sm:h-5"></i>
+                            </button>
                             <div class="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5 shrink-0">
                                 <button onclick="performUndo()" ${moveUndoStack.length === 0 ? 'disabled' : ''} class="p-1.5 sm:p-2 text-slate-500 hover:text-[#6E1418] hover:bg-white rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500" title="تراجع عن آخر نقل">
                                     <i data-lucide="undo-2" class="w-4 h-4 sm:w-5 sm:h-5"></i>
@@ -9405,6 +9413,69 @@ ${pages}
             });
             _collectMenuFromForm();
             saveWeddingSettingsToCloud();
+        }
+
+        // ═══════════════════ عرض محتويات Set Menus وباقات الأفراح (قراءة فقط — لجميع المستخدمين) ═══════════════════
+        let _menuViewerKind = '';
+        function toggleMenuViewer(kind) {
+            const modal = document.getElementById('menuViewerModal');
+            if (!modal || isGuest()) return;
+            const isOpen = !modal.classList.contains('hidden');
+            if (isOpen && _menuViewerKind === kind) { modal.classList.add('hidden'); return; }
+            _menuViewerKind = kind;
+            renderMenuViewer(kind);
+            modal.classList.remove('hidden');
+            const b = document.getElementById('menuViewerBody');
+            if (b) b.scrollTop = 0;
+        }
+        function mvToggleCard(el) {
+            const card = el.closest('.mv-card');
+            if (card) card.classList.toggle('open');
+        }
+        function mvToggleAll() {
+            const cards = document.querySelectorAll('#menuViewerBody .mv-card');
+            const anyClosed = Array.from(cards).some(c => !c.classList.contains('open'));
+            cards.forEach(c => c.classList.toggle('open', anyClosed));
+            const btn = document.getElementById('mvToggleAllBtn');
+            if (btn) btn.textContent = anyClosed ? 'طي الكل' : 'فتح الكل';
+        }
+        function _mvCardHtml(name, price, items, notes) {
+            const list = (items || []).map(x => String(x).trim()).filter(Boolean);
+            return `<div class="mv-card">
+                <button type="button" class="mv-head" onclick="mvToggleCard(this)">
+                    <span class="mv-name">${escapeHtml(name)}<span class="mv-count">${list.length} صنف</span></span>
+                    <span class="mv-price">${price ? fmtEGP(price) + ' <small>/فرد</small>' : ''}</span>
+                    <i data-lucide="chevron-down" class="w-4 h-4 mv-chev"></i>
+                </button>
+                <div class="mv-body">
+                    ${list.length ? '<ul class="mv-list">' + list.map(x => `<li>${escapeHtml(x)}</li>`).join('') + '</ul>' : '<div class="mv-empty">لا توجد أصناف</div>'}
+                    ${notes && String(notes).trim() ? `<div class="mv-notes">${escapeHtml(String(notes).trim())}</div>` : ''}
+                </div>
+            </div>`;
+        }
+        function renderMenuViewer(kind) {
+            const body = document.getElementById('menuViewerBody');
+            const title = document.getElementById('menuViewerTitle');
+            const sub = document.getElementById('menuViewerSub');
+            if (!body) return;
+            let html = '';
+            if (kind === 'wedding') {
+                if (title) title.textContent = 'باقات الأفراح';
+                if (sub) sub.textContent = 'محتويات كل باقة وسعر الفرد';
+                const pk = (state.weddingSettings && state.weddingSettings.packages) || [];
+                html = pk.map(p => _mvCardHtml('باقة ' + p.name, p.price, p.menuItems, p.menuNotes)).join('');
+                if (!pk.length) html = '<div class="mv-empty">لا توجد باقات</div>';
+            } else {
+                if (title) title.textContent = 'Set Menus';
+                if (sub) sub.textContent = 'منيوهات المناسبات والمؤتمرات وسعر الفرد';
+                const sets = getSetMenus();
+                const cbs = getCoffeeBreaks();
+                html = sets.map(s => _mvCardHtml(s.name, s.price, s.items, s.notes)).join('');
+                if (cbs.length) html += '<div class="mv-section">Coffee Breaks</div>' + cbs.map(s => _mvCardHtml(s.name, s.price, s.items, s.notes)).join('');
+                if (!sets.length && !cbs.length) html = '<div class="mv-empty">لا توجد منيوهات جاهزة بعد</div>';
+            }
+            body.innerHTML = `<button type="button" id="mvToggleAllBtn" class="mv-all" onclick="mvToggleAll()">فتح الكل</button>${html}`;
+            if (typeof lucide !== "undefined") refreshIcons('menuViewerModal');
         }
 
         // ═══════════════════ إعدادات Set Menus (أدمن فقط) ═══════════════════
