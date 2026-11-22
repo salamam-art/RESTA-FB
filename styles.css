@@ -2767,3 +2767,11 @@ html.dark body #globalBookingForm > div.rounded-2xl,
 html.dark body #globalBookingForm #otherEventMenuSection > div.rounded-2xl {
     border-color: #b5434b !important;
 }
+
+
+/* ---------- Mobile: keep the main header sticky ----------
+   Having overflow-x:hidden on BOTH html and body turns body into a scroll container, which stops
+   position:sticky from working. `clip` still blocks sideways scrolling but doesn't create a scroll container. */
+@media (max-width: 767px) {
+    html body { overflow-x: clip; }
+}
