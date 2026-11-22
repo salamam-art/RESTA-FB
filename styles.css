@@ -2775,3 +2775,23 @@ html.dark body #globalBookingForm #otherEventMenuSection > div.rounded-2xl {
 @media (max-width: 767px) {
     html body { overflow-x: clip; }
 }
+
+/* ===================== كاليندر الكمبيوتر: خط أوضح للحجوزات ===================== */
+/* الموبايل مش متأثر (الأنماط هنا بس من 768px وأكبر) */
+@media (min-width: 768px) {
+    .calendar-grid { grid-auto-rows: 164px; }
+    .day-cell { height: 164px; }
+    html .booking-tag {
+        font-size: 0.82rem;
+        font-weight: 700;
+        height: 25px;
+        line-height: 19px;
+        padding: 3px 8px;
+        opacity: 1;
+        letter-spacing: 0;
+    }
+    html .booking-tag > span { font-weight: 700; }
+    /* الأيام اللي عدّت: أخف شوية بس النص يفضل مقروء */
+    .day-cell.past-day:not(.selected-day):not(.drag-over) { opacity: 0.78; }
+    .more-bookings-btn { font-size: 0.75rem; }
+}

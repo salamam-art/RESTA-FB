@@ -686,6 +686,12 @@
         const PHOTO_HALL_ID = 'photoshoot';
         const PHOTO_HALL = normalizeHall({ id: PHOTO_HALL_ID, name: 'فوتوسيشن', icon: 'camera', colorKey: 'pink' });
         function findHall(id) { return HALLS.find(h => h.id === id) || (id === PHOTO_HALL_ID ? PHOTO_HALL : undefined); }
+        // الاسم اللي يظهر في الكاليندر: الفوتوسيشن بدون اسم العميل (الاسم بيظهر في تفاصيل الحجز فقط)
+        function calLabel(b) {
+            if (b && b.eventType === 'photoshoot') return (b.photoshoot && b.photoshoot.sub === 'prep') ? 'غرفة تجهيز' : 'فوتوسيشن';
+            if (b && b.eventType === 'wedding') return 'زفاف/خطوبة';
+            return b ? b.companyName : '';
+        }
         function evEmoji(b) { return b && b.eventType === 'wedding' ? '💍 ' : (b && b.eventType === 'photoshoot' ? '📷 ' : ''); }
         function hallDotColor(id) { const h = findHall(id); return h ? h.dot : '#94a3b8'; }
 
@@ -5633,8 +5639,8 @@ ${pages}
                              style="border-right:4px solid ${hallDotColor(b.hallId)};"
                              class="agenda-item flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm active:bg-slate-50">
                             <div class="min-w-0 flex-1">
-                                <div class="text-sm font-black text-slate-800 truncate">${evEmoji(b)}${escapeHtml(b.companyName)}</div>
-                                <div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>
+                                <div class="text-sm font-black text-slate-800 truncate">${evEmoji(b)}${escapeHtml(calLabel(b))}</div>
+                                ${b.eventType === 'photoshoot' ? '' : `<div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>`}
                             </div>
                             <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
                         </div>`;
@@ -5815,8 +5821,8 @@ ${pages}
                          ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
                          ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
                         <div class="min-w-0 flex-1">
-                            <div class="text-sm font-black text-slate-800 truncate">${evEmoji(b)}${escapeHtml(b.companyName)}</div>
-                            <div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>
+                            <div class="text-sm font-black text-slate-800 truncate">${evEmoji(b)}${escapeHtml(calLabel(b))}</div>
+                            ${b.eventType === 'photoshoot' ? '' : `<div class="text-[11px] font-bold text-slate-400 truncate">${hall.name}</div>`}
                         </div>
                         <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
                     </div>`;
@@ -7041,7 +7047,7 @@ ${pages}
                     const canDrag = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || isMyBooking);
                     return `
                         <div class="booking-tag ${hall.color} ${hall.border} ${isMyBooking ? 'my-booking' : ''}"
-                             title="${hall.name}: ${escapeHtml(b.companyName)}${canDrag ? ' (اسحب لنقل الحجز ليوم آخر)' : ''}"
+                             title="${b.eventType === 'photoshoot' ? escapeHtml(calLabel(b)) : hall.name + ': ' + escapeHtml(calLabel(b))}${canDrag ? ' (اسحب لنقل الحجز ليوم آخر)' : ''}"
                              draggable="${canDrag}"
                              ondragstart="${canDrag ? `handleBookingDragStart(event, '${b.id}')` : ''}"
                              ondragend="${canDrag ? 'handleBookingDragEnd(event)' : ''}"
@@ -7050,7 +7056,7 @@ ${pages}
                              ontouchend="${canDrag ? 'handleBookingTouchEnd(event)' : ''}"
                              ontouchcancel="${canDrag ? 'handleBookingTouchCancel(event)' : ''}">
                             <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" style="min-width:6px;"></div>
-                            <span>${evEmoji(b)}${escapeHtml(b.companyName)}</span>
+                            <span>${evEmoji(b)}${escapeHtml(calLabel(b))}</span>
                         </div>
                     `;
                 }).join('');
