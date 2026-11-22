@@ -6953,22 +6953,28 @@ ${pages}
                 </div>
 
                 <div class="bg-white rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 p-1.5 md:p-8">
-                    <div class="relative flex flex-row flex-nowrap items-center justify-center mb-1.5 md:mb-3 gap-1 md:gap-3">
-                        <div class="flex shrink-0 bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-sm">
-                            <button onclick="${isWeekMode() ? 'changeWeek(-1)' : 'changeMonth(-1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="-1" class="p-1 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-                            <span class="px-1 py-0.5 md:px-4 text-xs md:text-sm font-black text-[#6E1418] flex items-center justify-center tracking-wide">
-                                ${isWeekMode() ? weekRangeLabel() : new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' })}
-                            </span>
-                            <button onclick="${isWeekMode() ? 'changeWeek(1)' : 'changeMonth(1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="1" class="p-1 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                    <div class="relative flex flex-row flex-nowrap md:flex-wrap items-center justify-center mb-1.5 md:mb-8 gap-1 md:gap-4">
+                        <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2 md:gap-3">
+                            <div class="hidden md:flex w-7 h-7 md:w-10 md:h-10 bg-[#A88A45]/10 rounded-lg md:rounded-xl items-center justify-center text-[#A88A45]">
+                                <i data-lucide="calendar" class="w-4 h-4 md:w-5 md:h-5"></i>
+                            </div>
                         </div>
-                        <div class="contents">
-                        <div class="md:hidden inline-flex shrink-0 bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-sm text-[11px] font-black">
+                        <div class="flex shrink-0 bg-slate-50 border border-slate-200 rounded-lg md:rounded-xl p-0.5 md:p-1.5 shadow-sm">
+                            <button onclick="${isWeekMode() ? 'changeWeek(-1)' : 'changeMonth(-1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="-1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4 md:w-5 md:h-5"></i></button>
+                            <span class="px-1 py-0.5 md:px-6 md:py-2 text-xs md:text-base font-black text-[#6E1418] flex items-center md:min-w-[140px] justify-center tracking-wide">
+                                ${isWeekMode() ? weekRangeLabel() : new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) + '<span class="hidden md:inline">&nbsp;(شهر ' + (state.currentMonth + 1) + ')</span>'}
+                            </span>
+                            <button onclick="${isWeekMode() ? 'changeWeek(1)' : 'changeMonth(1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="1" class="p-1 md:p-2 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-4 h-4 md:w-5 md:h-5"></i></button>
+                        </div>
+                        <div class="contents md:hidden">
+                        <div class="inline-flex shrink-0 bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-sm text-[11px] font-black">
                             <button onclick="setCalView('month')" class="px-2.5 py-1 rounded-md transition-all ${isWeekMode() ? 'text-slate-500' : 'bg-white shadow-sm text-[#6E1418]'}">شهر</button>
                             <button onclick="setCalView('week')" class="px-2.5 py-1 rounded-md transition-all ${isWeekMode() ? 'bg-white shadow-sm text-[#6E1418]' : 'text-slate-500'}">أسبوع</button>
                         </div>
                         ${renderFreeHallSelectHtml()}
                         </div>
                     </div>
+                    ${renderFreeDaysChipsHtml()}
                     ${isWeekMode() ? renderFreeDaysSummaryHtml() + renderWeekViewHtml() : `${renderCalendar(true)}
                     ${renderFreeDaysSummaryHtml()}
                     <div id="dayAgenda" class="day-agenda">${renderDayAgendaHtml()}</div>`}
@@ -10297,7 +10303,7 @@ ${pages}
                                 <div class="flex items-center gap-2 min-w-0">
                                     <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 font-black text-[11px] border border-slate-200">${r.deletedBy ? r.deletedBy.charAt(0).toUpperCase() : '?'}</div>
                                     <div class="min-w-0">
-                                        <div class="text-[11px] font-bold text-slate-600 truncate" dir="ltr" style="text-align:right;">${r.deletedBy || '—'}</div>
+                                        <div class="text-[11px] font-bold text-slate-600 truncate" dir="ltr" style="text-align:right;">${r.deletedBy ? r.deletedBy.split('@')[0] : '—'}</div>
                                         <div class="text-[10px] text-slate-400 font-medium">${tsDate} ${tsTime}</div>
                                     </div>
                                 </div>
@@ -10361,7 +10367,7 @@ ${pages}
                                 <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 font-black text-xs border border-slate-200">
                                     ${r.deletedBy ? r.deletedBy.charAt(0).toUpperCase() : '?'}
                                 </div>
-                                <span class="text-xs font-bold text-slate-600 break-all" style="direction:ltr; max-width:160px;" title="${r.deletedBy || ''}">${r.deletedBy || '—'}</span>
+                                <span class="text-xs font-bold text-slate-600 whitespace-nowrap" style="direction:ltr; max-width:160px;" title="${r.deletedBy || ''}">${r.deletedBy ? r.deletedBy.split('@')[0] : '—'}</span>
                             </div>
                         </td>
                         ${isAdminUser ? `
