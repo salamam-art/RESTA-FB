@@ -689,7 +689,6 @@
         // الاسم اللي يظهر في الكاليندر: الفوتوسيشن بدون اسم العميل (الاسم بيظهر في تفاصيل الحجز فقط)
         function calLabel(b) {
             if (b && b.eventType === 'photoshoot') return (b.photoshoot && b.photoshoot.sub === 'prep') ? 'غرفة تجهيز' : 'فوتوسيشن';
-            if (b && b.eventType === 'wedding') return 'زفاف/خطوبة';
             return b ? b.companyName : '';
         }
         // تصغير خط الاسم تلقائياً في شرائط الكاليندر لو الاسم أطول من الشريط (بدل القص بنقط ...)
