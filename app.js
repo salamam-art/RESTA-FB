@@ -1751,12 +1751,65 @@
             return h ? `${h} س ${r} د` : `${r} د`;
         }
 
+        // ─── حذف سجلات الدخول (للأدمن): تحديد واحد أو أكتر، أو حذف الكل ───
+        // ملاحظة: لو اتمسح سجل جلسة لسه متصلة، وقت خروجها مش هيتسجل (الرولز بترفض الكتابة على سجل ناقص) — مفيش ضرر على المستخدم.
+        let _slRows = [];
+        const _slSelected = new Set();
+
+        function _slUpdateBar() {
+            const n = _slSelected.size;
+            const btn = document.getElementById('slDelSel');
+            if (btn) { btn.textContent = 'حذف المحدد (' + n + ')'; btn.disabled = n === 0; }
+            const all = document.getElementById('slAll');
+            if (all) all.checked = _slRows.length > 0 && n === _slRows.length;
+        }
+        function _slToggle(id, on) {
+            if (on) _slSelected.add(id); else _slSelected.delete(id);
+            // نفس السجل ممكن يكون ظاهر في الجدول وفي الكارت: نزامن الاتنين
+            document.querySelectorAll('.sl-cb').forEach(el => { if (el.dataset.id === id) el.checked = !!on; });
+            _slUpdateBar();
+        }
+        function _slToggleAll(on) {
+            _slSelected.clear();
+            if (on) _slRows.forEach(r => _slSelected.add(r.id));
+            document.querySelectorAll('.sl-cb').forEach(el => { el.checked = !!on; });
+            _slUpdateBar();
+        }
+        async function deleteSelectedSessionLogs() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const ids = Array.from(_slSelected);
+            if (!ids.length) return;
+            const live = _slRows.filter(r => r.live && _slSelected.has(r.id)).length;
+            if (!confirm('حذف ' + ids.length + ' سجل نهائيًا؟' + (live ? '\n(منهم ' + live + ' جلسة متصلة حاليًا — وقت خروجها مش هيتسجل)' : '') + '\nالحذف لا يمكن التراجع عنه.')) return;
+            const upd = {};
+            ids.forEach(id => { upd['sessionLogs/' + id] = null; });
+            try {
+                await db.ref().update(upd);
+                showToast('تم حذف ' + ids.length + ' سجل', 'success');
+            } catch (err) {
+                showToast('تعذر الحذف: ' + (err && err.code === 'PERMISSION_DENIED' ? 'حدّث قواعد Firebase أولًا' : ((err && (err.code || err.message)) || '')), 'error');
+            }
+            loadSessionLogs();
+        }
+        async function deleteAllSessionLogs() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const live = _slRows.filter(r => r.live).length;
+            if (!confirm('حذف كل سجلات الدخول نهائيًا (حتى الأقدم من آخر 200 المعروضة)؟' + (live ? '\nمنها ' + live + ' جلسة متصلة حاليًا — وقت خروجها مش هيتسجل.' : '') + '\nالحذف لا يمكن التراجع عنه.')) return;
+            try {
+                await db.ref('sessionLogs').remove();
+                showToast('تم حذف كل سجلات الدخول', 'success');
+            } catch (err) {
+                showToast('تعذر الحذف: ' + (err && err.code === 'PERMISSION_DENIED' ? 'حدّث قواعد Firebase أولًا' : ((err && (err.code || err.message)) || '')), 'error');
+            }
+            loadSessionLogs();
+        }
+
         async function loadSessionLogs() {
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
             const body = document.getElementById('sessionLogsBody');
             const cards = document.getElementById('sessionLogsCards');
             if (!body) return;
-            body.innerHTML = '<tr><td colspan="6" class="text-center text-slate-400 py-4">جاري التحميل...</td></tr>';
+            body.innerHTML = '<tr><td colspan="7" class="text-center text-slate-400 py-4">جاري التحميل...</td></tr>';
             if (cards) cards.innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">جاري التحميل...</div>';
             try {
                 const snap = await db.ref('sessionLogs').orderByKey().limitToLast(200).once('value');
@@ -1765,11 +1818,15 @@
                 const rows = Object.keys(val).map(k => Object.assign({ id: k }, val[k])).filter(r => r.loginAt)
                     .sort((a, b) => b.loginAt - a.loginAt);
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="6" class="text-center text-slate-400 py-4">لا توجد سجلات بعد</td></tr>';
+                    _slRows = []; _slSelected.clear(); _slUpdateBar();
+                    body.innerHTML = '<tr><td colspan="7" class="text-center text-slate-400 py-4">لا توجد سجلات بعد</td></tr>';
                     if (cards) cards.innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">لا توجد سجلات بعد</div>';
                     return;
                 }
+                _slRows = rows.map(r => ({ id: r.id, live: !r.logoutAt && liveIds.has(r.id) }));
+                _slSelected.clear();
                 const built = rows.map(r => {
+                    const cb = `<input type="checkbox" class="sl-cb" data-id="${r.id}" onchange="_slToggle('${r.id}', this.checked)" aria-label="تحديد">`;
                     const who = r.guest
                         ? (r.name ? `<span style="direction:rtl;unicode-bidi:plaintext">زائر: ${escapeHtml(r.name)}</span>` : 'زائر')
                         : escapeHtml(r.email || '—');
@@ -1788,11 +1845,13 @@
                         <td class="text-sm text-slate-600">${_fmtLogTime(r.loginAt)}</td>
                         <td class="text-sm text-slate-600">${to}</td>
                         <td class="text-sm text-slate-500">${dur}</td>
+                        <td>${cb}</td>
                     </tr>`;
                     // نفس البيانات على شكل كارت منفصل (بيظهر على الموبايل بدل الجدول)
                     const card = `<div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                         <div class="flex items-start justify-between gap-2">
-                            <div class="font-black text-slate-800 text-sm break-all" style="direction:ltr;text-align:right">${who}</div>
+                            <label class="shrink-0 pt-0.5">${cb}</label>
+                            <div class="font-black text-slate-800 text-sm break-all flex-1" style="direction:ltr;text-align:right">${who}</div>
                             ${isLive ? '<span class="shrink-0 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">متصل الآن</span>' : ''}
                         </div>
                         <div class="grid grid-cols-2 gap-x-3 gap-y-3 mt-3 text-xs">
@@ -1807,8 +1866,9 @@
                 });
                 body.innerHTML = built.map(x => x.tr).join('');
                 if (cards) cards.innerHTML = built.map(x => x.card).join('');
+                _slUpdateBar();
             } catch (err) {
-                body.innerHTML = '<tr><td colspan="5" class="text-center text-red-500 py-4">تعذر تحميل السجل: ' + escapeHtml(err.code || err.message) + '</td></tr>';
+                body.innerHTML = '<tr><td colspan="7" class="text-center text-red-500 py-4">تعذر تحميل السجل: ' + escapeHtml(err.code || err.message) + '</td></tr>';
                 if (cards) cards.innerHTML = '<div class="text-center text-red-500 py-4 text-sm">تعذر تحميل السجل: ' + escapeHtml(err.code || err.message) + '</div>';
             }
         }
@@ -6309,7 +6369,7 @@ ${pages}
 "",
 "10) إدارة النظام (للأدمن)",
 "   - إدارة القاعات (الأسماء والألوان)، وإعدادات باقات الأفراح.",
-"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر).",
+"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر)، وإمكانية حذف سجلات محددة أو حذف الكل من سجل الدخول.",
 "",
 "11) الأمان والدخول",
 "   - تسجيل دخول بالبريد وكلمة المرور.",
@@ -6450,7 +6510,7 @@ ${pages}
 "",
 "10) System management (admin)",
 "   - Manage halls (names and colors) and wedding package settings.",
-"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop).",
+"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop), and the ability to delete selected login records or all of them.",
 "",
 "11) Security and login",
 "   - Email and password login.",
