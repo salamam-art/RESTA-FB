@@ -2705,28 +2705,53 @@
         }
 
         let _androidBiometricResolver = null;
+        let _androidBiometricPromise = null;
+
+        function _biometricLockVisible() {
+            const el = document.getElementById('biometricLockScreen');
+            return !!el && !el.classList.contains('hidden');
+        }
 
         // دالة لطلب البصمة من تطبيق الأندرويد (بترجع Promise تتحل لما يوصل الرد)
         function requestBiometricAuth() {
-            return new Promise((resolve) => {
-                if (hasAndroidBiometricBridge()) {
-                    _androidBiometricResolver = resolve;
-                    window.Android.authenticateBiometric();
-                } else {
-                    console.log('هذه الميزة متاحة فقط داخل تطبيق الأندرويد.');
-                    resolve(false);
-                }
-            });
+            if (!hasAndroidBiometricBridge()) {
+                console.log('هذه الميزة متاحة فقط داخل تطبيق الأندرويد.');
+                return Promise.resolve(false);
+            }
+            // فيه طلب شغال بالفعل: نرجّع نفس الـ Promise بدل ما نفتح نافذة بصمة تانية ونضيّع الرد الأصلي
+            if (_androidBiometricPromise) return _androidBiometricPromise;
+
+            let resolveFn, timer;
+            const p = new Promise(r => { resolveFn = r; });
+            _androidBiometricPromise = p;
+            _androidBiometricResolver = (v) => {
+                clearTimeout(timer);
+                _androidBiometricResolver = null;
+                _androidBiometricPromise = null;
+                resolveFn(!!v);
+            };
+            // لو الرد ما وصلش خالص من التطبيق الأصلي، ما نفضلش معلّقين: نظهر أزرار "إعادة المحاولة / كلمة المرور"
+            timer = setTimeout(() => { if (_androidBiometricPromise === p && _androidBiometricResolver) _androidBiometricResolver(false); }, 60000);
+            try {
+                window.Android.authenticateBiometric();
+            } catch (e) {
+                console.warn('authenticateBiometric threw:', e);
+                if (_androidBiometricResolver) _androidBiometricResolver(false);
+            }
+            return p;
         }
 
         // هذه الدالة يستدعيها تطبيق الأندرويد تلقائيًا بعد عملية البصمة
         function onBiometricResult(success, message) {
+            // قيم الفشل الصريحة فقط (بما فيها النص 'false' اللي كان بيتحسب نجاح بالغلط)
+            const ok = !(success === false || success === 'false' || success === 0 || success === '0' || success == null || success === '');
             if (_androidBiometricResolver) {
-                const resolve = _androidBiometricResolver;
-                _androidBiometricResolver = null;
-                resolve(!!success);
+                _androidBiometricResolver(ok);
+            } else if (ok && _biometricLockVisible()) {
+                // رد نجاح وصل متأخر (بعد انتهاء مهلة الانتظار أو بعد فقدان الطلب) والشاشة لسه مقفولة
+                unlockApp();
             }
-            if (!success && message) {
+            if (!ok && message) {
                 console.warn('Biometric auth failed:', message);
             }
         }
