@@ -6107,6 +6107,10 @@ ${pages}
             };
             const theme = { action: 'toggleTheme()', icon: isDarkMode() ? 'sun' : 'moon', bg: 'bg-slate-100', color: 'text-slate-600', label: isDarkMode() ? 'الوضع الفاتح' : 'الوضع الداكن' };
             const about = { action: 'toggleAboutModal()', icon: 'info', bg: 'bg-blue-50', color: 'text-blue-600', label: 'عن التطبيق / About' };
+            // البصمة: نفس شرط ظهورها في الهيدر، وعلى الموبايل مكانها هنا تحت الوضع الداكن
+            const bioOn = (window.PublicKeyCredential || hasAndroidBiometricBridge()) && !_isDesktopBrowser() && state.currentUserEmail !== GUEST_EMAIL;
+            const bioReg = bioOn && isBiometricRegisteredForCurrentUser();
+            const bio = bioOn ? { action: 'toggleBiometricForCurrentUser()', icon: 'fingerprint', bg: bioReg ? 'bg-red-50' : 'bg-slate-100', color: bioReg ? 'text-[#6E1418]' : 'text-slate-600', label: bioReg ? 'إلغاء الدخول بالبصمة' : 'تفعيل الدخول بالبصمة' } : null;
             const games = [
                 { url: 'https://salamam-art.github.io/RESTA-FB/pong.html', icon: 'circle-dot', bg: 'bg-blue-50', color: 'text-blue-600', label: 'Pong' },
                 { url: 'https://salamam-art.github.io/RESTA-FB/snake.html', icon: 'dot', bg: 'bg-green-50', color: 'text-green-600', label: 'Snake' },
@@ -6126,7 +6130,7 @@ ${pages}
                  + acc('records', 'folder-open', 'السجلات والأرشيف', m.rec)
                  + acc('tools', 'wrench', 'الأدوات والإدارة', m.tools)
                  + gamesHtml
-                 + _hdrItemHtml(theme) + _hdrItemHtml(about);
+                 + _hdrItemHtml(theme) + (bio ? _hdrItemHtml(bio) : '') + _hdrItemHtml(about);
         }
 
         // فتح عنوان واحد فقط في كل مرة (قائمة الموبايل)
@@ -6696,7 +6700,7 @@ ${pages}
                             ` : ''}
 
                             ${((window.PublicKeyCredential || hasAndroidBiometricBridge()) && !_isDesktopBrowser() && state.currentUserEmail !== GUEST_EMAIL) ? `
-                                <button onclick="toggleBiometricForCurrentUser()" class="p-2 sm:p-2.5 ${isBiometricRegisteredForCurrentUser() ? 'text-[#6E1418] bg-red-50' : 'text-slate-500 hover:text-[#6E1418] hover:bg-red-50'} rounded-xl transition-all shrink-0" title="${isBiometricRegisteredForCurrentUser() ? 'إلغاء الدخول بالبصمة' : 'تفعيل الدخول بالبصمة'}">
+                                <button onclick="toggleBiometricForCurrentUser()" class="hidden sm:inline-block p-2 sm:p-2.5 ${isBiometricRegisteredForCurrentUser() ? 'text-[#6E1418] bg-red-50' : 'text-slate-500 hover:text-[#6E1418] hover:bg-red-50'} rounded-xl transition-all shrink-0" title="${isBiometricRegisteredForCurrentUser() ? 'إلغاء الدخول بالبصمة' : 'تفعيل الدخول بالبصمة'}">
                                     <i data-lucide="fingerprint" class="w-5 h-5"></i>
                                 </button>
                             ` : ''}
