@@ -8681,7 +8681,7 @@ ${pages}
         }
 
         // شريط الإجمالي الثابت أسفل الفورم (موبايل فقط): يظهر لنوع "مناسبة خاصة أخرى" فقط ويتحدث لحظيًا
-        function updateOtherStickyTotal(total) {
+        function updateOtherStickyTotal(total, paid) {
             const bar = document.getElementById('otherStickyTotalBar');
             if (!bar) return;
             const typeEl = document.getElementById('globalEventType');
@@ -8689,6 +8689,21 @@ ${pages}
             bar.classList.toggle('hidden', !isOther);
             const val = document.getElementById('otherStickyTotalVal');
             if (val && isOther) val.textContent = Math.round(Number(total) || 0).toLocaleString('en-US');
+            // المتبقي يظهر فقط لو فيه مقدم مسجّل (وإلا يساوي الإجمالي ويزحم الشريط)
+            const paidNum = Number(paid) || 0;
+            const showRemain = isOther && paidNum > 0;
+            const remWrap = document.getElementById('otherStickyRemainWrap');
+            const remVal = document.getElementById('otherStickyRemainVal');
+            const totWrap = document.getElementById('otherStickyTotalWrap');
+            const unit = document.getElementById('otherStickyTotalUnit');
+            if (remWrap) remWrap.classList.toggle('hidden', !showRemain);
+            if (totWrap) { totWrap.classList.toggle('flex-1', !showRemain); totWrap.classList.toggle('justify-between', !showRemain); }
+            if (unit) unit.classList.toggle('hidden', showRemain);
+            if (remVal && showRemain) {
+                const rem = Math.round((Number(total) || 0) - paidNum);
+                remVal.textContent = rem.toLocaleString('en-US');
+                remVal.style.color = rem > 0 ? '#fca5a5' : '#86efac';
+            }
         }
         function syncOtherStickyBar() {
             const typeEl = document.getElementById('globalEventType');
@@ -8709,7 +8724,7 @@ ${pages}
             const total = menusTotal + equipTotal;
             const paid = getOtherPaymentsFromForm().reduce((s, n) => s + n, 0);
             const remaining = total - paid;
-            updateOtherStickyTotal(total);
+            updateOtherStickyTotal(total, paid);
             const fDays = otherEventTotals({ menus: menusList, equipment: [] }).days;
             const dayLines = fDays.length > 1 ? fDays.map(d => `<div class="flex justify-between text-slate-500 text-xs"><span>• يوم ${otherDayLabel(d.date)}</span><span class="font-bold">${fmtEGP(d.total)}</span></div>`).join('') : '';
             if (totBox) totBox.innerHTML = `
@@ -8904,11 +8919,11 @@ ${pages}
             const { guests, extrasTotal, chairTotal } = getWeddingExtrasBreakdown();
             const subtotal = price * guests;
             const total = subtotal + extrasTotal + chairTotal;
-            updateOtherStickyTotal(total);
 
             let paid = 0;
             document.querySelectorAll('.wedding-payment-input').forEach(inp => { paid += parseFloat(inp.value) || 0; });
             const remaining = total - paid;
+            updateOtherStickyTotal(total, paid);
 
             box.innerHTML = `
                 <div class="flex justify-between text-slate-600"><span>إجمالي الأفراد (${guests} × ${fmtEGP(price)})</span><span class="font-bold">${fmtEGP(subtotal)}</span></div>

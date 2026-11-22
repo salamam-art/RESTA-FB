@@ -2707,3 +2707,63 @@ html #globalBookingModal > div:first-child { padding-bottom: 0 !important; }
     }
     html [id$="Modal"] :is(input, textarea, select) { transition: none !important; }
 }
+
+
+/* ---------- Main header: gold gradient bar (scoped to header.glass-panel; dropdown menus keep their own look) ---------- */
+html body header.glass-panel {
+    background: linear-gradient(135deg, #8f7338, #6b5527) !important;
+    border-bottom: 1px solid rgba(0,0,0,.18) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 4px 14px rgba(60,40,10,.28) !important;
+}
+html.dark body header.glass-panel {
+    background: linear-gradient(135deg, #6f5a2c, #4a3b1c) !important;
+    border-bottom-color: rgba(0,0,0,.35) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 4px 16px rgba(0,0,0,.40) !important;
+}
+/* top-level header buttons (not the items inside dropdowns) */
+html body header.glass-panel > div.max-w-7xl > div > button:not(.bg-red-50):not([onclick="logout()"]),
+html body header.glass-panel .hdr-dd > button,
+html body header.glass-panel .bg-slate-100 button {
+    color: #fff !important;
+}
+html body header.glass-panel > div.max-w-7xl > div > button:not(:disabled):not([onclick="logout()"]):hover,
+html body header.glass-panel .hdr-dd > button:hover,
+html body header.glass-panel .bg-slate-100 button:not(:disabled):hover {
+    background: rgba(255,255,255,.18) !important;
+    color: #fff !important;
+}
+/* undo / redo group */
+html body header.glass-panel .bg-slate-100 {
+    background: rgba(255,255,255,.14) !important;
+    border-color: rgba(255,255,255,.24) !important;
+}
+/* vertical divider */
+html body header.glass-panel .bg-slate-200 { background: rgba(255,255,255,.32) !important; }
+/* logout button */
+html body header.glass-panel button[onclick="logout()"] {
+    color: #fff !important;
+    background: rgba(0,0,0,.18) !important;
+    border-color: rgba(255,255,255,.25) !important;
+}
+html body header.glass-panel button[onclick="logout()"]:hover {
+    background: rgba(110,20,24,.88) !important;
+    border-color: rgba(255,255,255,.35) !important;
+}
+/* count badges keep a white ring so the burgundy badges stay visible on gold */
+html body header.glass-panel button > span.absolute { box-shadow: 0 0 0 2px #fff; }
+html.dark body header.glass-panel button > span.absolute { box-shadow: 0 0 0 2px #4a3b1c; }
+
+
+/* ---------- Booking form (normal / wedding / special event): burgundy card borders so cards stand apart ---------- */
+html body #globalBookingForm > div.rounded-2xl,
+html body #globalBookingForm #otherEventMenuSection > div.rounded-2xl {
+    border-color: #6E1418 !important;
+}
+html body #globalBookingForm > div.rounded-2xl:not(.border-2),
+html body #globalBookingForm #otherEventMenuSection > div.rounded-2xl:not(.border-2) {
+    border-width: 1.5px !important;
+}
+html.dark body #globalBookingForm > div.rounded-2xl,
+html.dark body #globalBookingForm #otherEventMenuSection > div.rounded-2xl {
+    border-color: #b5434b !important;
+}
