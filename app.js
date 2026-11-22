@@ -672,9 +672,41 @@
             { id: 'bar', name: 'البار', icon: 'glass-water', colorKey: 'purple' },
             { id: 'pool', name: 'حمام السباحة', icon: 'waves', colorKey: 'cyan' },
         ];
+        // ─── لون مخصص للقاعة (من البالتة): بنولّد كلاسات CSS ديناميكية للون المختار ───
+        const _hallCustomCssDone = new Set();
+        function normHex(v) {
+            const x = String(v || '').trim().toLowerCase();
+            return /^#[0-9a-f]{6}$/.test(x) ? x : '';
+        }
+        function _mixHex(hex, target, t) { // t: نسبة الخلط مع اللون الهدف (0..255 للقناة)
+            const n = parseInt(hex.slice(1), 16);
+            const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+            return ch.map(c => Math.round(c * (1 - t) + target * t));
+        }
+        function ensureCustomHallCss(hex) {
+            const id = hex.slice(1);
+            if (_hallCustomCssDone.has(id)) return;
+            _hallCustomCssDone.add(id);
+            let st = document.getElementById('hallCustomCss');
+            if (!st) { st = document.createElement('style'); st.id = 'hallCustomCss'; document.head.appendChild(st); }
+            const [r, g, b] = _mixHex(hex, 0, 0);
+            const dk = _mixHex(hex, 0, 0.42);      // نص داكن على خلفية فاتحة (الوضع العادي)
+            const lt = _mixHex(hex, 255, 0.35);    // نص فاتح (الوضع الداكن)
+            st.appendChild(document.createTextNode(
+                `.hcx-${id}{background-color:rgba(${r},${g},${b},.13);color:rgb(${dk.join(',')});}` +
+                `.hcxb-${id}{border-color:${hex} !important;}` +
+                `html.dark .hcx-${id}{background-color:rgba(${r},${g},${b},.20);color:rgb(${lt.join(',')});}`
+            ));
+        }
         function normalizeHall(h) {
             const key = (h && HALL_COLOR_PRESETS[h.colorKey]) ? h.colorKey : 'blue';
             const p = HALL_COLOR_PRESETS[key];
+            const cc = normHex(h && h.customColor);
+            if (cc) {
+                ensureCustomHallCss(cc);
+                return { id: String(h.id), name: String(h.name || ''), icon: h.icon || 'building-2', colorKey: key,
+                         customColor: cc, color: 'hcx-' + cc.slice(1), border: 'hcxb-' + cc.slice(1), dot: cc };
+            }
             return { id: String(h.id), name: String(h.name || ''), icon: h.icon || 'building-2', colorKey: key,
                      color: p.color, border: p.border, dot: p.dot };
         }
@@ -880,13 +912,13 @@
             db.ref('hallsSettings').on('value', (snap) => {
                 try {
                     const list = fbValToArray(snap.val());
-                    const before = JSON.stringify(HALLS.map(h => [h.id, h.name, h.colorKey]));
+                    const before = JSON.stringify(HALLS.map(h => [h.id, h.name, h.colorKey, h.customColor || '']));
                     applyHalls(list.length ? list : DEFAULT_HALLS);
-                    const changed = before !== JSON.stringify(HALLS.map(h => [h.id, h.name, h.colorKey]));
+                    const changed = before !== JSON.stringify(HALLS.map(h => [h.id, h.name, h.colorKey, h.customColor || '']));
                     // نعيد الرسم فقط لو القاعات اتغيرت فعلاً (عشان ما نلمسش أي حاجة تانية في التطبيق)
                     if (changed && state.isLoggedIn && document.getElementById('app').style.display !== 'none') render();
                     const m = document.getElementById('hallsManageModal');
-                    if (changed && m && !m.classList.contains('hidden') && !_hallsDirty) { _hallsDraft = HALLS.map(h => ({ id: h.id, name: h.name, icon: h.icon, colorKey: h.colorKey })); renderHallsManageBody(); }
+                    if (changed && m && !m.classList.contains('hidden') && !_hallsDirty) { _hallsDraft = HALLS.map(h => ({ id: h.id, name: h.name, icon: h.icon, colorKey: h.colorKey, customColor: h.customColor || '' })); renderHallsManageBody(); }
                 } catch (e) { console.warn('halls update failed:', e); }
             }, (err) => { console.warn('hallsSettings listener cancelled:', err && err.code); });
         }
@@ -9287,7 +9319,7 @@ ${pages}
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
             const m = ensureHallsModal();
             if (m.classList.contains('hidden')) {
-                _hallsDraft = HALLS.map(h => ({ id: h.id, name: h.name, icon: h.icon, colorKey: h.colorKey }));
+                _hallsDraft = HALLS.map(h => ({ id: h.id, name: h.name, icon: h.icon, colorKey: h.colorKey, customColor: h.customColor || '' }));
                 _hallsDirty = false;
                 renderHallsManageBody();
                 m.classList.remove('hidden');
@@ -9296,20 +9328,36 @@ ${pages}
             }
         }
 
+        // اختيار لون القاعة: دايرة قوس قزح بتفتح منتقي الألوان الكامل
+        function _hallCurrentHex(h) {
+            return normHex(h.customColor) || (HALL_COLOR_PRESETS[h.colorKey] || HALL_COLOR_PRESETS.blue).dot.toLowerCase();
+        }
+        function setHallColor(i, hex, rerender) {
+            const h = _hallsDraft[i]; if (!h) return;
+            h.customColor = normHex(hex);
+            _hallsDirty = true;
+            const dot = document.getElementById('hallColorDot' + i);
+            if (dot) dot.style.background = _hallCurrentHex(h);
+            if (rerender) renderHallsManageBody();
+        }
         function renderHallsManageBody() {
             const body = document.getElementById('hallsManageBody');
             if (!body) return;
-            body.innerHTML = _hallsDraft.map((h, i) => `
+            body.innerHTML = _hallsDraft.map((h, i) => {
+                const cur = _hallCurrentHex(h);
+                return `
                 <div class="flex items-center gap-2 p-3 rounded-2xl border border-slate-200 bg-slate-50">
-                    <span class="w-3 h-8 rounded-full shrink-0" style="background:${(HALL_COLOR_PRESETS[h.colorKey] || HALL_COLOR_PRESETS.blue).dot}"></span>
+                    <span id="hallColorDot${i}" class="w-3 h-8 rounded-full shrink-0" style="background:${cur}"></span>
                     <input type="text" value="${escapeHtml(h.name)}" placeholder="اسم القاعة" oninput="_hallsDraft[${i}].name = this.value; _hallsDirty = true"
                         class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold">
-                    <select onchange="_hallsDraft[${i}].colorKey = this.value; _hallsDirty = true; renderHallsManageBody()"
-                        class="px-2 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">
-                        ${Object.entries(HALL_COLOR_PRESETS).map(([k, p]) => `<option value="${k}" ${k === h.colorKey ? 'selected' : ''}>${p.label}</option>`).join('')}
-                    </select>
+                    <label class="relative w-8 h-8 rounded-full shrink-0 overflow-hidden cursor-pointer border-2 border-white shadow-sm" title="اختيار لون القاعة"
+                        style="background:conic-gradient(red,yellow,lime,aqua,blue,magenta,red)">
+                        <input type="color" value="${cur}" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                            oninput="setHallColor(${i}, this.value, false)" onchange="setHallColor(${i}, this.value, false)">
+                    </label>
                     <button onclick="removeHallDraft(${i})" class="p-2 text-red-500 hover:bg-red-50 rounded-xl shrink-0" title="حذف"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                </div>`).join('');
+                </div>`;
+            }).join('');
             if (window.lucide) lucide.createIcons();
         }
 
@@ -9336,7 +9384,7 @@ ${pages}
 
         async function saveHallsFromModal() {
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
-            const clean = _hallsDraft.map(h => ({ id: h.id, name: (h.name || '').trim(), icon: h.icon || 'building-2', colorKey: h.colorKey }));
+            const clean = _hallsDraft.map(h => { const o = { id: h.id, name: (h.name || '').trim(), icon: h.icon || 'building-2', colorKey: h.colorKey }; const cc = normHex(h.customColor); if (cc) o.customColor = cc; return o; });
             if (!clean.length) { showToast('يجب وجود قاعة واحدة على الأقل', 'error'); return; }
             if (clean.some(h => !h.name)) { showToast('اكتب اسماً لكل قاعة', 'error'); return; }
             try {
