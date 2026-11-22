@@ -10195,6 +10195,50 @@ ${pages}
             }
         }
 
+        // تجميع أيام الحجز المتعدد اللي اتحذف "بالكامل" مرة واحدة في سجل واحد (من - إلى).
+        // ده على مستوى العرض فقط: السجلات في قاعدة البيانات بتفضل زي ما هي (سجل لكل يوم).
+        // اللي اتحذف "يوم واحد" بيفضل ظاهر لوحده زي ما هو.
+        function groupDeletedRecords(records) {
+            const out = [];
+            const clusters = {}; // groupId -> [cluster]
+            const ts = r => r.deletedAt ? new Date(r.deletedAt).getTime() : NaN;
+            records.forEach(r => {
+                // السجلات القديمة ممكن تكون من غير groupId: نستنتجه من bookingId (الشكل: <groupId>_d0, _d1 ...)
+                const gk = r.groupId || (r.bookingId && String(r.bookingId).indexOf('_d') > 0 ? String(r.bookingId).split('_d')[0] : '');
+                if (!String(r.deleteType || '').includes('بالكامل') || !gk) { out.push(r); return; }
+                const t = ts(r);
+                const list = clusters[gk] || (clusters[gk] = []);
+                let c = list.find(x => {
+                    if (x.rec.deletedBy !== r.deletedBy) return false;
+                    if (isNaN(t) && isNaN(x.t)) return true;
+                    return Math.abs(t - x.t) <= 300000;
+                });
+                if (!c) {
+                    const merged = Object.assign({}, r, { keys: [r.key], dates: [], daysCount: 0 });
+                    c = { rec: merged, t: t };
+                    list.push(c);
+                    out.push(merged);
+                } else {
+                    c.rec.keys.push(r.key);
+                }
+                c.rec.daysCount++;
+                if (r.startDate) c.rec.dates.push(r.startDate);
+                const e = r.endDate || r.startDate;
+                if (r.startDate && (!c.rec.startDate || r.startDate < c.rec.startDate)) c.rec.startDate = r.startDate;
+                if (e && (!c.rec.endDate || e > c.rec.endDate)) c.rec.endDate = e;
+            });
+            return out;
+        }
+
+        // نص "من → إلى" مع عدد الأيام للسجل المجمّع
+        function fmtDeletedRange(r, fmtDate) {
+            if (!r.startDate) return '—';
+            const base = (r.endDate && r.endDate !== r.startDate)
+                ? `${fmtDate(r.startDate)} → ${fmtDate(r.endDate)}`
+                : fmtDate(r.startDate);
+            return (r.daysCount > 1) ? `${base} (${r.daysCount} أيام)` : base;
+        }
+
         async function loadDeletedBookings() {
             const deleteColHead = document.getElementById('deletedBookingsDeleteColHead');
             const isAdminUser = state.currentUserEmail === ADMIN_EMAIL;
@@ -10260,6 +10304,7 @@ ${pages}
                 return 0;
             });
 
+            records = groupDeletedRecords(records);
             window._allDeletedBookings = records;
 
             const searchInput = document.getElementById('deletedBookingsSearchInput');
@@ -10308,9 +10353,7 @@ ${pages}
                             tsTime = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
                         } catch (e) { /* تجاهل */ }
                     }
-                    const dateRange = r.startDate
-                        ? (r.endDate && r.endDate !== r.startDate ? `${fmtDate(r.startDate)} → ${fmtDate(r.endDate)}` : fmtDate(r.startDate))
-                        : '—';
+                    const dateRange = fmtDeletedRange(r, fmtDate);
                     const typeColor = r.deleteType === 'الحجز بالكامل'
                         ? 'bg-red-100 text-red-700 border border-red-200'
                         : 'bg-orange-100 text-orange-700 border border-orange-200';
@@ -10318,7 +10361,7 @@ ${pages}
                         <div class="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm" style="border-right: 4px solid #6E1418;">
                             <div class="flex items-start justify-between gap-2">
                                 <div class="flex items-start gap-2 min-w-0">
-                                    ${isAdminUser ? `<input type="checkbox" class="deletedBookingRowCheckbox mt-1 shrink-0" data-key="${escAttr(r.key)}" onchange="updateDeletedBookingsSelectAllState()">` : ''}
+                                    ${isAdminUser ? `<input type="checkbox" class="deletedBookingRowCheckbox mt-1 shrink-0" data-key="${escAttr((r.keys || [r.key]).join(','))}" onchange="updateDeletedBookingsSelectAllState()">` : ''}
                                     <div class="font-black text-[#6E1418] text-sm leading-snug min-w-0 break-words">${r.company || '—'}</div>
                                 </div>
                                 <span class="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg shrink-0 ${typeColor}">
@@ -10348,7 +10391,7 @@ ${pages}
                                     </div>
                                 </div>
                                 ${isAdminUser ? `
-                                <button onclick="deleteDeletedBookingRecord('${escAttr(r.key)}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all shrink-0" title="حذف هذا السجل نهائياً">
+                                <button onclick="deleteDeletedBookingRecord('${escAttr((r.keys || [r.key]).join(','))}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all shrink-0" title="حذف هذا السجل نهائياً">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>` : ''}
                             </div>
@@ -10372,9 +10415,7 @@ ${pages}
                     } catch (e) { /* تجاهل */ }
                 }
 
-                const dateRange = r.startDate
-                    ? (r.endDate && r.endDate !== r.startDate ? `${fmtDate(r.startDate)} → ${fmtDate(r.endDate)}` : fmtDate(r.startDate))
-                    : '—';
+                const dateRange = fmtDeletedRange(r, fmtDate);
 
                 const typeColor = r.deleteType === 'الحجز بالكامل'
                     ? 'bg-red-100 text-red-700 border border-red-200'
@@ -10383,7 +10424,7 @@ ${pages}
                 return `
                     <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50 group">
                         <td class="px-3 py-3 text-center w-8">
-                            <input type="checkbox" class="deletedBookingRowCheckbox" data-key="${r.key}" onchange="updateDeletedBookingsSelectAllState()">
+                            <input type="checkbox" class="deletedBookingRowCheckbox" data-key="${(r.keys || [r.key]).join(',')}" onchange="updateDeletedBookingsSelectAllState()">
                         </td>
                         <td class="px-3 py-3 text-xs font-bold text-slate-300 text-center w-8 group-hover:text-slate-500">${records.length - i}</td>
                         <td class="px-3 py-3">
@@ -10412,7 +10453,7 @@ ${pages}
                         </td>
                         ${isAdminUser ? `
                         <td class="px-3 py-3 text-center">
-                            <button onclick="deleteDeletedBookingRecord('${r.key}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="حذف هذا السجل نهائياً">
+                            <button onclick="deleteDeletedBookingRecord('${(r.keys || [r.key]).join(',')}')" class="w-8 h-8 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="حذف هذا السجل نهائياً">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </td>` : ''}
@@ -10471,7 +10512,8 @@ ${pages}
                     (r.hallName   || '').toLowerCase().includes(q) ||
                     (r.deletedBy  || '').toLowerCase().includes(q) ||
                     (r.deleteType || '').toLowerCase().includes(q) ||
-                    (r.startDate  || '').toLowerCase().includes(q)
+                    (r.startDate  || '').toLowerCase().includes(q) ||
+                    (r.dates || []).some(d => String(d).toLowerCase().includes(q))
                 );
             renderDeletedBookingsTable(filtered);
         }
@@ -10480,14 +10522,22 @@ ${pages}
         async function deleteDeletedBookingRecord(key) {
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
             if (!key) return;
-            if (!confirm('هل أنت متأكد من حذف هذا السجل نهائياً من سجل الحجوزات المحذوفة؟\nلا يمكن التراجع عن هذا الإجراء.')) return;
+            // السجل المجمّع (حجز متعدد الأيام) مفتاحه عدة مفاتيح مفصولة بفاصلة
+            const keys = String(key).split(',').filter(Boolean);
+            const multi = keys.length > 1;
+            if (!confirm(multi
+                ? `هل أنت متأكد من حذف هذا السجل (${keys.length} أيام) نهائياً من سجل الحجوزات المحذوفة؟\nلا يمكن التراجع عن هذا الإجراء.`
+                : 'هل أنت متأكد من حذف هذا السجل نهائياً من سجل الحجوزات المحذوفة؟\nلا يمكن التراجع عن هذا الإجراء.')) return;
 
             try {
                 if (CLOUD_ENABLED) {
-                    await db.ref('deletedBookings/' + key).remove();
+                    const updates = {};
+                    keys.forEach(k => { updates['deletedBookings/' + k] = null; });
+                    await db.ref().update(updates);
                 }
                 if (window._allDeletedBookings) {
-                    window._allDeletedBookings = window._allDeletedBookings.filter(r => r.key !== key);
+                    const keysSet = new Set(keys);
+                    window._allDeletedBookings = window._allDeletedBookings.filter(r => !(r.keys || [r.key]).some(k => keysSet.has(k)));
                 }
                 filterDeletedBookings();
                 showToast('تم حذف السجل نهائياً', 'success');
@@ -10501,7 +10551,7 @@ ${pages}
         async function deleteSelectedDeletedBookings() {
             if (state.currentUserEmail !== ADMIN_EMAIL) return;
             const keys = getVisibleDeletedBoxes(true)
-                .map(cb => cb.dataset.key)
+                .flatMap(cb => String(cb.dataset.key || '').split(','))
                 .filter(Boolean);
             if (keys.length === 0) return;
             if (!confirm(`هل أنت متأكد من حذف ${keys.length} سجل نهائياً من سجل الحجوزات المحذوفة؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
@@ -10514,7 +10564,7 @@ ${pages}
                 }
                 if (window._allDeletedBookings) {
                     const keysSet = new Set(keys);
-                    window._allDeletedBookings = window._allDeletedBookings.filter(r => !keysSet.has(r.key));
+                    window._allDeletedBookings = window._allDeletedBookings.filter(r => !(r.keys || [r.key]).some(k => keysSet.has(k)));
                 }
                 filterDeletedBookings();
                 showToast(`تم حذف ${keys.length} سجل نهائياً`, 'success');
