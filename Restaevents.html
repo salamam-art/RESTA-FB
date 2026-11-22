@@ -67,7 +67,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20261121a">
+    <link rel="stylesheet" href="styles.css?v=20261122b">
 </head>
 <body>
     <script>window.__restaSplashStart = Date.now();</script>
@@ -931,8 +931,8 @@
                     </div>
                 </form>
             </div>
-            <!-- شريط الإجمالي الثابت (موبايل فقط — مناسبة خاصة أخرى) -->
-            <div id="otherStickyTotalBar" class="hidden flex md:hidden shrink-0 items-center justify-between gap-3 bg-[#6E1418] text-white px-5 py-3 border-t-2 border-[#A88A45]" dir="rtl" aria-live="polite">
+            <!-- شريط الإجمالي الثابت (موبايل + كمبيوتر — فرح / مناسبة خاصة أخرى) -->
+            <div id="otherStickyTotalBar" class="hidden flex shrink-0 items-center justify-between gap-3 bg-[#6E1418] text-white px-5 py-3 border-t-2 border-[#A88A45]" dir="rtl" aria-live="polite">
                 <span class="text-sm font-bold">الإجمالي الكلي:</span>
                 <span class="text-base font-black text-[#F3E3B3]"><span id="otherStickyTotalVal">0</span> <span class="text-[11px] font-bold opacity-80">جنيه</span></span>
             </div>
@@ -1203,7 +1203,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261121a"></script>
+    <script src="app.js?v=20261122e"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">

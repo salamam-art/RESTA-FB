@@ -4265,7 +4265,7 @@
                                             const total = (m.total !== undefined && m.total !== null) ? m.total : (guests * price);
                                             return `${multiDay && dayFirst.has(m) ? `<div class="${i > 0 ? 'mt-1 ' : ''}text-xs font-black text-white bg-[#6E1418] rounded-lg px-2.5 py-1">يوم ${otherDayLabel(dayFirst.get(m).date)}</div>` : ''}<div class="${i > 0 && !(multiDay && dayFirst.has(m)) ? 'pt-3 border-t border-[#6E1418]/10' : ''} space-y-1.5">
                                                 ${(menus.length > 1 || dt || hallName) ? `<div class="flex items-center justify-between flex-wrap gap-1.5 text-[11px] font-bold text-slate-500">
-                                                    <span>${menus.length > 1 ? 'منيو ' + (i + 1) : ''}</span>
+                                                    <span>${escapeHtml(otherMenuTitle(m, menus.length > 1 ? 'منيو' : ''))}</span>
                                                     <span class="flex items-center gap-2 flex-wrap">
                                                         ${hallName ? `<span class="flex items-center gap-1 text-[#6E1418]"><i data-lucide="map-pin" class="w-3 h-3"></i>${escapeHtml(hallName)}</span>` : ''}
                                                         ${dt ? `<span class="flex items-center gap-1 text-[#8f753a]"><i data-lucide="calendar-clock" class="w-3 h-3"></i>${escapeHtml(dt)}</span>` : ''}
@@ -4647,9 +4647,9 @@
                 const otP = otherEventTotals(b.otherMenu);
                 const activeMenus = otP.days.flatMap(d => d.menus);
                 const pMultiDay = otP.days.length > 1;
-                const pDayFirst = new Map(), pDayLast = new Map();
-                otP.days.forEach(d => { pDayFirst.set(d.menus[0], d); pDayLast.set(d.menus[d.menus.length - 1], d); });
-                menuBoxHtml = activeMenus.map((m, i) => {
+                // كل منيو = محتواه (عنوان + أصناف + سعر + ملاحظات). في المناسبة متعددة الأيام: كل يوم في كارت منفصل
+                // (رأس اليوم + منيوهاته + إجمالي اليوم)، وكل كارت لا ينقسم بين ورقتين.
+                const menuInner = (m, i) => {
                     const menuItems = (m.items || []).filter(it => it.trim());
                     const menuNotes = (m.notes || '').trim();
                     const dt = [fmtMenuDate(m.date), m.time].filter(Boolean).join(' — ');
@@ -4663,16 +4663,28 @@
                         </div>` : '';
                     const pricingHtml = (guests > 0 || price > 0) ? `<div class="menu-notes" style="background:#fdf6f2;border-color:#A88A45;color:#6E1418;">${guests} فرد × ${fmtEGP(price)} = ${fmtEGP(total)}</div>` : '';
                     const notesHtml = menuNotes ? `<div class="menu-notes">${menuNotes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : '';
-                    const dayHead = (pMultiDay && pDayFirst.has(m)) ? `<div style="font-size:13px;font-weight:900;color:#fff;background:#6E1418;border-radius:4px;padding:3px 8px;margin:6px 0 3px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">يوم ${otherDayLabel(pDayFirst.get(m).date)}</div>` : '';
-                    const dayFoot = (pMultiDay && pDayLast.has(m)) ? `<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;color:#6E1418;border:1px solid #A88A45;border-radius:4px;padding:3px 8px;margin-bottom:6px;"><span>إجمالي يوم ${otherDayLabel(pDayLast.get(m).date)}</span><span>${fmtEGP(pDayLast.get(m).total)}</span></div>` : '';
-                    return `${dayHead}
-<div class="menu-box">
-    <div class="menu-box-title">${activeMenus.length > 1 ? 'منيو ' + (i + 1) : 'منيو المناسبة'}${metaLine ? ' — ' + metaLine : ''}</div>
+                    return `<div class="menu-box-title">${otherMenuTitle(m, activeMenus.length > 1 ? 'منيو' : 'منيو المناسبة')}${metaLine ? ' — ' + metaLine : ''}</div>
     ${itemsGridHtml}
     ${pricingHtml}
-    ${notesHtml}
-</div>${dayFoot}`;
-                }).join('');
+    ${notesHtml}`;
+                };
+                if (pMultiDay) {
+                    let mi = 0;
+                    menuBoxHtml = otP.days.map(d => {
+                        const inner = d.menus.map(m => `<div style="margin-top:5px;">${menuInner(m, mi++)}</div>`).join('');
+                        return `
+<div class="menu-box day-card">
+    <div style="font-size:13px;font-weight:900;color:#fff;background:#6E1418;border-radius:4px;padding:3px 8px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">يوم ${otherDayLabel(d.date)}</div>
+    ${inner}
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;color:#6E1418;border-top:1px solid #A88A45;margin-top:5px;padding-top:3px;"><span>إجمالي يوم ${otherDayLabel(d.date)}</span><span>${fmtEGP(d.total)}</span></div>
+</div>`;
+                    }).join('');
+                } else {
+                    menuBoxHtml = activeMenus.map((m, i) => `
+<div class="menu-box">
+    ${menuInner(m, i)}
+</div>`).join('');
+                }
             }
 
             if (b.eventType === 'other' && b.otherMenu && Array.isArray(b.otherMenu.equipment) && b.otherMenu.equipment.length) {
@@ -4855,6 +4867,8 @@ ${acknowledgmentHtml}`;
     td.value.date-val span, .date-strong, .date-strong span { color: #000000 !important; }
     .date-strong { font-size: 14px; font-weight: 900; }
     .menu-box {
+        break-inside: avoid;
+        page-break-inside: avoid;
         margin-top: 5px;
         background: #fdf6f2;
         border: 1px solid #A88A45;
@@ -5299,6 +5313,12 @@ ${pages}
         // ═══════════ تجميع منيوهات المناسبة الخاصة حسب اليوم + الإجمالي الكلي (يظهر للجميع وفي الطباعة) ═══════════
         function otherMenuActive(m) { return !!((m.items && m.items.filter(i => i.trim()).length) || (m.notes && m.notes.trim()) || (m.guests > 0) || (m.pricePerPerson > 0)); }
         function otherMenuTotalOf(m) { return (m.total !== undefined && m.total !== null) ? (Number(m.total) || 0) : (Number(m.guests) || 0) * (Number(m.pricePerPerson) || 0); }
+        // عنوان المنيو بدون أرقام: لو اختير Coffee Break أو Set Menu يظهر اسم النوع، وغير كده العنوان الافتراضي
+        function otherMenuTitle(m, fallback) {
+            if (m && m.coffeeBreakId) return 'Coffee Break';
+            if (m && m.setMenuId) return 'Set Menu';
+            return fallback || '';
+        }
         function otherDayLabel(date) { return date ? date.split('-').reverse().slice(0, 2).join('/') : 'بدون تاريخ'; }
         function otherEventTotals(om) {
             const items = ((om && om.menus) || []).filter(otherMenuActive).map((m, i) => ({ m, i }));
@@ -5342,7 +5362,7 @@ ${pages}
                         const guests = m.guests || 0;
                         const price = m.pricePerPerson || 0;
                         const total = (m.total !== undefined && m.total !== null) ? m.total : (guests * price);
-                        if (activeMenus.length > 1) lines.push(`منيو ${i + 1}:`);
+                        { const _ttl = otherMenuTitle(m, activeMenus.length > 1 ? 'منيو' : ''); if (_ttl) lines.push(`${_ttl}:`); }
                         if (m.hallName) lines.push(`  القاعة: ${m.hallName}`);
                         if (dt) lines.push(`  الموعد: ${dt}`);
                         if (guests > 0 || price > 0) lines.push(`  عدد الأفراد: ${guests} × ${fmtEGP(price)} = ${fmtEGP(total)}`);
@@ -7999,25 +8019,50 @@ ${pages}
             return days;
         }
 
+        // نوع المنيو: Coffee Break / Set Menu / منيو حر — يتحدد من الاختيار المحفوظ أو من آخر ضغطة على الأزرار
+        function otherMenuKindOf(m) {
+            if (m && (m._kind === 'coffee' || m._kind === 'set' || m._kind === 'free')) return m._kind;
+            if (m && m.coffeeBreakId) return 'coffee';
+            if (m && m.setMenuId) return 'set';
+            return 'free';
+        }
+        function setOtherMenuKind(menuIdx, kind) {
+            const menus = getOtherMenusFromForm();
+            const m = menus[menuIdx];
+            if (!m || otherMenuKindOf(m) === kind) return;
+            m._kind = kind;
+            // تغيير النوع بيشيل ربط الاختيار الجاهز فقط — الأصناف والسعر اللي اتكتبوا بيفضلوا زي ما هم
+            if (kind !== 'coffee') m.coffeeBreakId = '';
+            if (kind !== 'set') m.setMenuId = '';
+            renderOtherEventMenus(menus);
+        }
         function otherMenuBlockHtml(m, mi, numInDay, canRemove) {
+            const kind = otherMenuKindOf(m);
+            const hasCb = getCoffeeBreaks().length > 0, hasSet = getSetMenus().length > 0;
+            const kindBtn = (k, label) => `<button type="button" onclick="setOtherMenuKind(${mi}, '${k}')" class="flex-1 text-[11px] font-black py-1.5 px-2 rounded-lg transition-colors ${kind === k ? 'bg-[#6E1418] text-white' : 'text-slate-500 hover:bg-amber-100/60'}">${label}</button>`;
+            const kindTitle = kind === 'coffee' ? 'Coffee Break' : kind === 'set' ? 'Set Menu' : 'منيو';
             return `
-                <div class="other-menu-block bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2.5" data-menu-idx="${mi}">
+                <div class="other-menu-block bg-amber-50/60 border border-amber-100 rounded-xl p-3.5 space-y-2.5" data-menu-idx="${mi}" data-kind="${kind}">
                     <input type="hidden" class="other-menu-date" value="${m.date || ''}">
                     <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-1.5 text-[11px] font-black text-[#A88A45]"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> منيو ${numInDay}</div>
+                        <div class="flex items-center gap-1.5 text-[11px] font-black text-[#A88A45]"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> ${kindTitle}</div>
                         ${canRemove ? `
                         <button type="button" onclick="removeOtherMenuBlock(${mi})" class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0" title="حذف هذا المنيو">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>` : ''}
                     </div>
-                    ${getCoffeeBreaks().length ? `
+                    ${(hasCb || hasSet) ? `
+                    <div class="flex gap-1 bg-white/70 border border-amber-100 rounded-xl p-0.5">
+                        ${hasCb ? kindBtn('coffee', 'Coffee Break') : ''}
+                        ${hasSet ? kindBtn('set', 'Set Menu') : ''}
+                        ${kindBtn('free', 'منيو حر')}
+                    </div>` : ''}
+                    ${kind === 'coffee' && hasCb ? `
                     <div class="input-group !mb-0">
-                        <label class="text-xs">Coffee Break جاهز <span class="text-[10px] text-slate-400 font-normal">(يملأ الأصناف والسعر — وتقدر تعدّل عليهم)</span></label>
                         <select class="other-menu-coffee" onchange="onOtherCoffeeBreakChange(${mi}, this.value)">${coffeeBreakOptionsHtml(m.coffeeBreakId || '')}</select>
                     </div>` : ''}
-                    ${getSetMenus().length ? `
+                    ${kind === 'set' && hasSet ? `
                     <div class="input-group !mb-0">
-                        <label class="text-xs">Set Menu جاهز <span class="text-[10px] text-slate-400 font-normal">(يملأ الأصناف والسعر — وتقدر تعدّل عليهم)</span></label>
                         <select class="other-menu-set" onchange="onOtherSetMenuChange(${mi}, this.value)">${setMenuOptionsHtml(m.setMenuId || '')}</select>
                     </div>` : ''}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -8357,6 +8402,7 @@ ${pages}
                     hallName:       hall ? hall.name : '',
                     setMenuId:      block.querySelector('.other-menu-set') ? block.querySelector('.other-menu-set').value : '',
                     coffeeBreakId:  block.querySelector('.other-menu-coffee') ? block.querySelector('.other-menu-coffee').value : '',
+                    _kind:          block.dataset.kind || '',
                     guests:         guests,
                     pricePerPerson: pricePerPerson,
                     total:          guests * pricePerPerson,
@@ -8686,7 +8732,7 @@ ${pages}
         }
 
         function collectOtherMenuDataFromForm() {
-            return { menus: getOtherMenusFromForm().filter(m => !otherMenuIsBlank(m)), equipment: getOtherEquipmentFromForm(), payments: getOtherPaymentsFromForm() };
+            return { menus: getOtherMenusFromForm().filter(m => !otherMenuIsBlank(m)).map(m => { const c = Object.assign({}, m); delete c._kind; return c; }), equipment: getOtherEquipmentFromForm(), payments: getOtherPaymentsFromForm() };
         }
 
         function fillOtherMenuFormFromBooking(om) {
