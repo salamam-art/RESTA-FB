@@ -2795,3 +2795,18 @@ html.dark body #globalBookingForm #otherEventMenuSection > div.rounded-2xl {
     .day-cell.past-day:not(.selected-day):not(.drag-over) { opacity: 0.78; }
     .more-bookings-btn { font-size: 0.75rem; }
 }
+
+/* زر المزامنة في الهيدر: داخل div#syncDropdownContainer فمش بيتغطّى بقاعدة الأزرار المباشرة → كان رمادي على الشريط الذهبي */
+html body header.glass-panel #syncDropdownContainer > button {
+    color: #fff !important;
+}
+html body header.glass-panel #syncDropdownContainer > button:hover {
+    background: rgba(255,255,255,.18) !important;
+    color: #fff !important;
+}
+/* أثناء المزامنة الأيقونة بتلف: بنخليها بيضاء برضه (اللون الذهبي مكانش هيبان على الشريط) */
+html body header.glass-panel #syncDropdownContainer > button svg,
+html body header.glass-panel #syncDropdownContainer > button i {
+    color: #fff !important;
+    stroke: currentColor;
+}

@@ -1258,6 +1258,13 @@
             );
         }
 
+        // لف أيقونة المزامنة في الهيدر مباشرة (من غير ما نستنى إعادة رسم الهيدر)
+        function _syncSpin(on) {
+            try {
+                const el = document.querySelector('#syncDropdownContainer svg, #syncDropdownContainer i');
+                if (el) el.classList.toggle('animate-spin', !!on);
+            } catch (e) {}
+        }
         async function syncToCloud(isSilent = false) {
             if (!CLOUD_ENABLED) return;
 
@@ -1267,7 +1274,7 @@
                 return;
             }
 
-            state.isSyncing = true;
+            state.isSyncing = true; _syncSpin(true);
             state._syncPending = false;
             if (!isSilent) showSync("جاري المزامنة مع السحابة...");
 
@@ -1286,7 +1293,7 @@
                 // لو تغيّرت نسخة العمليات أثناء القراءة (يعني جاء حذف/تعديل جديد)
                 // نوقف هذه الدورة ونبدأ دورة جديدة بالبيانات المحدّثة
                 if (state._opsVersion !== opsVersionAtStart) {
-                    state.isSyncing = false;
+                    state.isSyncing = false; _syncSpin(false);
                     state._syncPending = true;
                     setTimeout(() => syncToCloud(isSilent), 500);
                     return;
@@ -1314,7 +1321,7 @@
 
                     // فحص ثالث بعد الكتابة — لو حصل تغيير أثناء الكتابة، لا تُحدّث state
                     if (state._opsVersion !== opsVersionAtStart) {
-                        state.isSyncing = false;
+                        state.isSyncing = false; _syncSpin(false);
                         state._syncPending = true;
                         setTimeout(() => syncToCloud(isSilent), 800);
                         return;
@@ -1449,7 +1456,7 @@
                 const denied = e && (e.code === 'PERMISSION_DENIED' || /permission_denied/i.test(e.message || ''));
                 if (denied && state.isLoggedIn) {
                     // الحساب اتوقف/اتحذف من المدير (أو الجلسة لم تعد صالحة) → خروج فوري
-                    state.isSyncing = false;
+                    state.isSyncing = false; _syncSpin(false);
                     showToast('تم إيقاف حسابك أو انتهت صلاحية الدخول. سيتم تسجيل خروجك.', 'error');
                     setTimeout(() => logout(true), 1000);
                     return;
@@ -1457,7 +1464,7 @@
                 if (!isSilent) showSync("فشل المزامنة: " + e.message, true);
             }
 
-            state.isSyncing = false;
+            state.isSyncing = false; _syncSpin(false);
             if (!isSilent) setTimeout(() => document.getElementById('sync-status').style.display = 'none', 3000);
 
             // لو في طلب مزامنة معلّق، شغّله الآن
