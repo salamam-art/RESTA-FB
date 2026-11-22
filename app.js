@@ -1643,6 +1643,19 @@
         document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && _presenceOnline) _touchLastLog(); });
         window.addEventListener('pagehide', function () { if (_presenceOnline) _touchLastLog(); });
 
+        // نوع الجهاز اللي دخل منه المستخدم (بيتسجل في presence و sessionLogs ويظهر للأدمن)
+        // app = تطبيق الأندرويد (WebView) · mobile = متصفح موبايل/تابلت · pc = كمبيوتر
+        function _detectDevice() {
+            try {
+                if (hasAndroidBiometricBridge() || /;\s*wv\)/i.test(navigator.userAgent || '')) return 'app';
+                if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) return 'mobile';
+            } catch (e) {}
+            return 'pc';
+        }
+        function _deviceLabel(code) {
+            return code === 'app' ? '📱 تطبيق' : code === 'mobile' ? '📱 موبايل' : code === 'pc' ? '💻 كمبيوتر' : '';
+        }
+
         function _publishPresence() {
             const ref = _presenceRef();
             const u = auth.currentUser;
@@ -1650,10 +1663,14 @@
             const TS = firebase.database.ServerValue.TIMESTAMP;
             const email = isGuest() ? '' : state.currentUserEmail;
             const gname = isGuest() ? getGuestName() : '';
-            // لو القواعد رفضت حقل الاسم الإضافي نرجع للشكل القديم بدونه عشان التسجيل ما يتعطلش
-            const _setOptName = (r, base) => gname
-                ? r.set(Object.assign({}, base, { name: gname })).catch(() => r.set(base))
-                : r.set(base);
+            const DEV = _detectDevice();
+            // لو القواعد رفضت حقل إضافي (الجهاز/الاسم) نرجع تدريجيًا للشكل الأقدم عشان التسجيل ما يتعطلش
+            const _setOptName = (r, base) => {
+                const withName = gname ? Object.assign({}, base, { name: gname }) : base;
+                return r.set(Object.assign({}, withName, { device: DEV }))
+                    .catch(() => r.set(withName))
+                    .catch(() => gname ? r.set(base) : Promise.reject(new Error('presence write rejected')));
+            };
 
             // سجل جديد (وقت الدخول الآن)، أو استكمال آخر سجل لنفس الحساب لو الانقطاع أقل من دقيقتين
             const newLog = () => {
@@ -1664,7 +1681,8 @@
             const prev = _readLastLog();
             const canReuse = !!(prev && prev.k && prev.u === u.uid && (Date.now() - prev.t) < SESSLOG_REUSE_MS);
             const logP = canReuse
-                ? db.ref('sessionLogs/' + prev.k).update({ logoutAt: null })
+                ? db.ref('sessionLogs/' + prev.k).update({ logoutAt: null, device: DEV })
+                    .catch(() => db.ref('sessionLogs/' + prev.k).update({ logoutAt: null }))
                     .then(() => {
                         if (gname) db.ref('sessionLogs/' + prev.k + '/name').set(gname).catch(() => {});
                         return { key: prev.k };
@@ -1738,7 +1756,7 @@
             const body = document.getElementById('sessionLogsBody');
             const cards = document.getElementById('sessionLogsCards');
             if (!body) return;
-            body.innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-4">جاري التحميل...</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" class="text-center text-slate-400 py-4">جاري التحميل...</td></tr>';
             if (cards) cards.innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">جاري التحميل...</div>';
             try {
                 const snap = await db.ref('sessionLogs').orderByKey().limitToLast(200).once('value');
@@ -1747,7 +1765,7 @@
                 const rows = Object.keys(val).map(k => Object.assign({ id: k }, val[k])).filter(r => r.loginAt)
                     .sort((a, b) => b.loginAt - a.loginAt);
                 if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-4">لا توجد سجلات بعد</td></tr>';
+                    body.innerHTML = '<tr><td colspan="6" class="text-center text-slate-400 py-4">لا توجد سجلات بعد</td></tr>';
                     if (cards) cards.innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">لا توجد سجلات بعد</div>';
                     return;
                 }
@@ -1765,6 +1783,7 @@
                     } else { to = '—'; dur = '—'; }
                     const tr = `<tr class="hover:bg-slate-50">
                         <td class="font-bold text-slate-800" style="direction:ltr">${who}</td>
+                        <td class="text-sm text-slate-600">${_deviceLabel(r.device) || '—'}</td>
                         <td class="text-sm text-slate-600">${_fmtLogDate(r.loginAt)}</td>
                         <td class="text-sm text-slate-600">${_fmtLogTime(r.loginAt)}</td>
                         <td class="text-sm text-slate-600">${to}</td>
@@ -1781,6 +1800,7 @@
                             <div><span class="block text-slate-400 font-bold mb-0.5">المدة</span><span class="text-slate-700 font-bold">${dur}</span></div>
                             <div><span class="block text-slate-400 font-bold mb-0.5">من</span><span class="text-slate-700 font-bold">${_fmtLogTime(r.loginAt)}</span></div>
                             <div><span class="block text-slate-400 font-bold mb-0.5">إلى</span><span class="text-slate-700 font-bold">${to}</span></div>
+                            <div><span class="block text-slate-400 font-bold mb-0.5">الجهاز</span><span class="text-slate-700 font-bold">${_deviceLabel(r.device) || '—'}</span></div>
                         </div>
                     </div>`;
                     return { tr: tr, card: card };
@@ -2115,20 +2135,22 @@
         function getOnlineSummary() {
             const active = new Set(), anyUser = new Set();
             let guests = 0, idleGuests = 0;
-            const guestNames = [];
+            const guestNames = [], guestNameDev = {};
+            const devActive = {}, devIdle = {}; // الإيميل -> أجهزة الجلسات (النشطة / الخاملة)
             _onlineSessions.forEach(s => {
                 const idle = _isIdleSession(s);
                 if (s.guest) {
                     if (idle) idleGuests++;
-                    else { guests++; if (s.name) guestNames.push(String(s.name)); }
+                    else { guests++; if (s.name) { guestNames.push(String(s.name)); if (s.device) guestNameDev[String(s.name)] = s.device; } }
                 } else if (s.email) {
                     const k = String(s.email).toLowerCase();
                     anyUser.add(k);
                     if (!idle) active.add(k);
+                    if (s.device) { const m = idle ? devIdle : devActive; (m[k] = m[k] || new Set()).add(s.device); }
                 }
             });
             const idleUsers = Array.from(anyUser).filter(k => !active.has(k)).sort();
-            return { users: Array.from(active).sort(), idleUsers: idleUsers, guests: guests, guestNames: guestNames, idleGuests: idleGuests, total: active.size + guests };
+            return { users: Array.from(active).sort(), idleUsers: idleUsers, guests: guests, guestNames: guestNames, guestNameDev: guestNameDev, devActive: devActive, devIdle: devIdle, idleGuests: idleGuests, total: active.size + guests };
         }
 
         function renderOnlineNow(skipChat) {
@@ -2143,12 +2165,16 @@
                 const chip = 'inline-flex items-center gap-2 bg-white border border-emerald-200 text-emerald-900 text-sm font-bold rounded-full px-3 py-1';
                 const dot = '<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>';
                 const idleDot = '<span class="w-2 h-2 rounded-full shrink-0" style="background:#94a3b8"></span>';
+                const devTag = (set) => {
+                    const t = set ? Array.from(set).map(_deviceLabel).filter(Boolean).join(' + ') : '';
+                    return t ? ` <span class="text-[11px] font-bold text-slate-500" style="direction:rtl;unicode-bidi:isolate">${t}</span>` : '';
+                };
                 box.innerHTML = sum.users.map(e =>
-                    `<span class="${chip}" style="direction:ltr">${dot}${escapeHtml(e)}${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}</span>`
+                    `<span class="${chip}" style="direction:ltr">${dot}${escapeHtml(e)}${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}${devTag(sum.devActive[e])}</span>`
                 ).join('')
-                + sum.guestNames.map(n => `<span class="${chip}">${dot}زائر: ${escapeHtml(n)}</span>`).join('')
+                + sum.guestNames.map(n => `<span class="${chip}">${dot}زائر: ${escapeHtml(n)}${devTag(sum.guestNameDev[n] ? [sum.guestNameDev[n]] : null)}</span>`).join('')
                 + ((sum.guests - sum.guestNames.length) > 0 ? `<span class="${chip}">${dot}زائر × ${sum.guests - sum.guestNames.length}</span>` : '')
-                + sum.idleUsers.map(e => `<span class="${chip}" style="direction:ltr;opacity:.55">${idleDot}${escapeHtml(e)} <span class="font-black">(خامل)</span></span>`).join('')
+                + sum.idleUsers.map(e => `<span class="${chip}" style="direction:ltr;opacity:.55">${idleDot}${escapeHtml(e)} <span class="font-black">(خامل)</span>${devTag(sum.devIdle[e])}</span>`).join('')
                 + (sum.idleGuests ? `<span class="${chip}" style="opacity:.55">${idleDot}زائر خامل × ${sum.idleGuests}</span>` : '');
             }
             if (!skipChat) renderChatList();
@@ -6283,7 +6309,7 @@ ${pages}
 "",
 "10) إدارة النظام (للأدمن)",
 "   - إدارة القاعات (الأسماء والألوان)، وإعدادات باقات الأفراح.",
-"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات.",
+"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر).",
 "",
 "11) الأمان والدخول",
 "   - تسجيل دخول بالبريد وكلمة المرور.",
@@ -6424,7 +6450,7 @@ ${pages}
 "",
 "10) System management (admin)",
 "   - Manage halls (names and colors) and wedding package settings.",
-"   - Manage users, see who is online, and view session logs.",
+"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop).",
 "",
 "11) Security and login",
 "   - Email and password login.",
