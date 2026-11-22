@@ -6342,7 +6342,7 @@ ${pages}
 "1) سجّل الدخول ببريدك وكلمة المرور (أو بالبصمة، أو كزائر للعرض فقط).",
 "2) من الصفحة الرئيسية اختر القاعة لعرض تقويمها.",
 "3) اضغط على اليوم المطلوب لإضافة حجز جديد، أو لعرض حجوزات ذلك اليوم.",
-"4) املأ بيانات الحجز واحفظ. تصل التغييرات لباقي المستخدمين تلقائياً.",
+"4) املأ بيانات الحجز واحفظ. رسالة \"تم إضافة/تعديل حجز\" لا تظهر إلا بعد تأكيد الحفظ على السيرفر (✓)، وإن تأخر التأكيد تظهر رسالة تحذير بأن الحجز محفوظ على جهازك فقط وسيُرفع تلقائياً. تصل التغييرات لباقي المستخدمين تلقائياً.",
 "5) لنقل حجز: اسحبه إلى اليوم الجديد، ويمكنك التراجع من أزرار الهيدر.",
 "6) في نهاية الشهر يؤرشف الأدمن الشهر من نافذة الأرشيف ويصدّر نسخة احتياطية.",
 "7) من أيقونة (i) تجد رقم الإصدار وبيانات المصمم وهذا الملف.",
@@ -6485,7 +6485,7 @@ ${pages}
 "1) Sign in with your email and password (or fingerprint, or as a guest to view only).",
 "2) From the home page choose a hall to see its calendar.",
 "3) Click the day you want to add a new booking or view that day's bookings.",
-"4) Fill in the booking details and save. Changes reach other users automatically.",
+"4) Fill in the booking details and save. The \"booking added/updated\" message appears only after the server confirms the save (✓); if confirmation is delayed, a warning says the booking is stored on your device only and will upload automatically. Changes reach other users automatically.",
 "5) To move a booking, drag it to the new day; use Undo/Redo in the header if needed.",
 "6) At month end the admin archives it from the Archive window and exports a backup.",
 "7) The (i) icon shows the version number, the designer's details and this file.",
@@ -7899,8 +7899,7 @@ ${pages}
                 logType = 'إضافة';
                 logMsg = 'تم إضافة حجز - ' + name + ' - بتاريخ ' + fmtD(date);
             }
-            addNotification(logMsg, 'add', date);
-            showToast(logMsg, 'success', date);
+            // الإشعار ورسالة النجاح بعد تأكيد الحفظ على السيرفر (شوف _confirmBookingSavedOnServer)
             state.activityLogs.unshift({
                 type: logType, company: name, hallName: PHOTO_HALL.name,
                 user: state.currentUserEmail,
@@ -7919,6 +7918,7 @@ ${pages}
             // صور اتشالت أثناء التعديل: نمسحها من Storage بعد الحفظ
             _psOrigUrls.forEach(u => { if (!psImgs.some(i => i.data === u)) deleteStorageImageSilently(u); });
             saveLocal();
+            _confirmBookingSavedOnServer(editId || (state.bookings[state.bookings.length - 1] || {}).id, logMsg, date);
             closePhotoshootModal(true);
             render();
         }
@@ -10258,8 +10258,7 @@ ${pages}
             const logType = isEditing ? 'تعديل' : 'إضافة';
             const _fmtD2 = bookingData.startDate ? bookingData.startDate.split('-').reverse().join('/') : '';
             const logMsg  = 'تم ' + logType + ' حجز - ' + bookingData.companyName + ' - بتاريخ ' + _fmtD2;
-            addNotification(logMsg, 'add', bookingData.startDate);
-            showToast(logMsg, 'success', bookingData.startDate);
+            // رسالة النجاح والإشعار بيظهروا بعد تأكيد الحفظ على السيرفر (مش بمجرد الحفظ المحلي) — شوف _confirmBookingSavedOnServer
 
             state.activityLogs.unshift({
                 type:         logType,
@@ -10284,8 +10283,33 @@ ${pages}
 
             state.editingBookingId = null;
             saveLocal();
+            _confirmBookingSavedOnServer(groupId, logMsg, bookingData.startDate);
             toggleGlobalBookingModal();
             render();
+        }
+
+        // ─── تأكيد الحفظ على السيرفر قبل إظهار "تم إضافة/تعديل حجز" ───────────────
+        // المزامنة (syncToCloud) بعد نجاح الكتابة بتستبدل state.bookings بنسخة السيرفر
+        // (من غير علامة _isDirty). فبنراقب الحجز: لما كل أيامه تبقى موجودة وغير معلّقة = اتحفظ فعلًا.
+        // لو عدّى المهلة من غير تأكيد: تحذير إن الحجز محفوظ على الجهاز بس وهيترفع تلقائيًا. (عرض فقط — مفيش لمس لكود المزامنة)
+        function _confirmBookingSavedOnServer(groupId, msg, startDate) {
+            const TIMEOUT_MS = 20000, STEP_MS = 400;
+            const t0 = Date.now();
+            const grp = () => state.bookings.filter(b => b.groupId === groupId || b.id === groupId);
+            (function poll() {
+                const g = grp();
+                if (!g.length) return; // اتحذف/اتنقل قبل التأكيد — مفيش حاجة نعلن عنها
+                if (!g.some(b => b._isDirty) && !state.isSyncing) {
+                    addNotification(msg, 'add', startDate);
+                    showToast(msg + ' ✓ (تم الحفظ على السيرفر)', 'success', startDate);
+                    return;
+                }
+                if (Date.now() - t0 >= TIMEOUT_MS) {
+                    showToast('⚠️ لم يتأكد حفظ الحجز على السيرفر بعد — محفوظ على جهازك وسيُرفع تلقائيًا. لا تغلق التطبيق وتأكد من الاتصال.', 'error');
+                    return;
+                }
+                setTimeout(poll, STEP_MS);
+            })();
         }
 
 
