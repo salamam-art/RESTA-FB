@@ -66,6 +66,29 @@
         // مفتاح البريد داخل قاعدة البيانات (Firebase لا يقبل النقطة في أسماء المفاتيح) — لازم يطابق قواعد الأمان
         function emailKey(email) { return String(email || '').trim().toLowerCase().replace(/\./g, ','); }
         const CLOUD_ENABLED = true; // Firebase مفعّل دائماً (بديل عن فحص وجود رابط GAS القديم)
+
+        // ─── مؤشر اتصال Firebase في الهيدر: أخضر متصل / أصفر شغل جاري (مزامنة أو تغييرات لسه ما اترفعتش) / أحمر منقطع ───
+        function getFbStatus() {
+            if (_isOffline()) return { c: '#ef4444', t: 'غير متصل بـ Firebase — التعديلات هتتحفظ على الجهاز وتترفع لما النت يرجع', pulse: false };
+            let pending = false;
+            try { pending = !!(state && (state.isSyncing || (state.bookings || []).some(b => b._isDirty) || (state.pendingDeletions || []).length)); } catch (e) {}
+            if (pending) return { c: '#f59e0b', t: 'متصل — في تغييرات جاري رفعها / مزامنة شغالة', pulse: true };
+            return { c: '#22c55e', t: 'متصل بـ Firebase — كل البيانات متزامنة (اضغط لمزامنة يدوية)', pulse: false };
+        }
+        function updateFbStatusDot() {
+            const dot = document.getElementById('fbStatusDot');
+            if (!dot) return;
+            const st = getFbStatus();
+            dot.style.background = st.c;
+            dot.style.boxShadow = '0 0 0 2px rgba(255,255,255,.85), 0 0 8px ' + st.c;
+            dot.classList.toggle('animate-pulse-soft', st.pulse);
+            if (dot.parentElement) dot.parentElement.title = st.t;
+        }
+        function onFbDotClick() {
+            if (_isOffline()) { showToast('غير متصل بـ Firebase حاليًا', 'error'); return; }
+            syncToCloud();
+        }
+        setInterval(updateFbStatusDot, 2000);
         // آخر قيمة معروفة لـ meta/updatedAt — تُستخدم في الاشتراك اللحظي لتفادي إعادة
         // مزامنة غير ضرورية عندما يكون التغيير صادراً من كتابتنا نحن أنفسنا
         let _lastKnownUpdatedAt = null;
@@ -73,7 +96,7 @@
         // حالة اتصال Firebase الفعلية (null = لسه مش معروفة). بنستخدمها لمنع حفظ الحجوزات وقت انقطاع الإنترنت،
         // لأن Firebase بيحتفظ بالكتابات المعلّقة ويرفعها لما النت يرجع، واحنا مش عايزين ده.
         let _fbConnected = null;
-        try { db.ref('.info/connected').on('value', (snap) => { _fbConnected = snap.val() === true; updateConnBanner(); }); } catch (e) {}
+        try { db.ref('.info/connected').on('value', (snap) => { _fbConnected = snap.val() === true; updateConnBanner(); updateFbStatusDot(); }); } catch (e) {}
 
         // شريط تحذير أحمر أعلى الشاشة يظهر لما الاتصال بالإنترنت ينقطع ويختفي لما يرجع
         let _connBannerTimer = null;
@@ -1258,13 +1281,6 @@
             );
         }
 
-        // لف أيقونة المزامنة في الهيدر مباشرة (من غير ما نستنى إعادة رسم الهيدر)
-        function _syncSpin(on) {
-            try {
-                const el = document.querySelector('#syncDropdownContainer svg, #syncDropdownContainer i');
-                if (el) el.classList.toggle('animate-spin', !!on);
-            } catch (e) {}
-        }
         async function syncToCloud(isSilent = false) {
             if (!CLOUD_ENABLED) return;
 
@@ -1274,7 +1290,7 @@
                 return;
             }
 
-            state.isSyncing = true; _syncSpin(true);
+            state.isSyncing = true; updateFbStatusDot();
             state._syncPending = false;
             if (!isSilent) showSync("جاري المزامنة مع السحابة...");
 
@@ -1293,7 +1309,7 @@
                 // لو تغيّرت نسخة العمليات أثناء القراءة (يعني جاء حذف/تعديل جديد)
                 // نوقف هذه الدورة ونبدأ دورة جديدة بالبيانات المحدّثة
                 if (state._opsVersion !== opsVersionAtStart) {
-                    state.isSyncing = false; _syncSpin(false);
+                    state.isSyncing = false; updateFbStatusDot();
                     state._syncPending = true;
                     setTimeout(() => syncToCloud(isSilent), 500);
                     return;
@@ -1321,7 +1337,7 @@
 
                     // فحص ثالث بعد الكتابة — لو حصل تغيير أثناء الكتابة، لا تُحدّث state
                     if (state._opsVersion !== opsVersionAtStart) {
-                        state.isSyncing = false; _syncSpin(false);
+                        state.isSyncing = false; updateFbStatusDot();
                         state._syncPending = true;
                         setTimeout(() => syncToCloud(isSilent), 800);
                         return;
@@ -1456,7 +1472,7 @@
                 const denied = e && (e.code === 'PERMISSION_DENIED' || /permission_denied/i.test(e.message || ''));
                 if (denied && state.isLoggedIn) {
                     // الحساب اتوقف/اتحذف من المدير (أو الجلسة لم تعد صالحة) → خروج فوري
-                    state.isSyncing = false; _syncSpin(false);
+                    state.isSyncing = false; updateFbStatusDot();
                     showToast('تم إيقاف حسابك أو انتهت صلاحية الدخول. سيتم تسجيل خروجك.', 'error');
                     setTimeout(() => logout(true), 1000);
                     return;
@@ -1464,7 +1480,7 @@
                 if (!isSilent) showSync("فشل المزامنة: " + e.message, true);
             }
 
-            state.isSyncing = false; _syncSpin(false);
+            state.isSyncing = false; updateFbStatusDot();
             if (!isSilent) setTimeout(() => document.getElementById('sync-status').style.display = 'none', 3000);
 
             // لو في طلب مزامنة معلّق، شغّله الآن
@@ -6664,10 +6680,10 @@ ${pages}
                             <button onclick="closeHdrMenus(); toggleAboutModal()" class="hidden sm:inline-block p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="عن التطبيق / About">
                                 <i data-lucide="info" class="w-5 h-5"></i>
                             </button>
-                            <!-- زر المزامنة -->
-                            <div class="relative shrink-0 hidden sm:block" id="syncDropdownContainer">
-                                <button onclick="syncToCloud()" class="p-2 sm:p-2.5 text-slate-500 hover:text-[#A88A45] hover:bg-amber-50 rounded-xl transition-all" title="مزامنة مع السحابة">
-                                    <i data-lucide="refresh-cw" class="w-5 h-5 ${state.isSyncing ? 'animate-spin text-[#A88A45]' : ''}"></i>
+                            <!-- مؤشر اتصال Firebase (نقطة ملونة) — الضغط عليها = مزامنة يدوية -->
+                            <div class="relative shrink-0" id="syncDropdownContainer">
+                                <button onclick="onFbDotClick()" class="p-2 sm:p-2.5 rounded-xl transition-all flex items-center justify-center" title="حالة الاتصال بـ Firebase">
+                                    <span id="fbStatusDot" class="block w-3 h-3 rounded-full" style="background:${getFbStatus().c}; box-shadow:0 0 0 2px rgba(255,255,255,.85), 0 0 8px ${getFbStatus().c}"></span>
                                 </button>
                             </div>
                             ` : ''}
