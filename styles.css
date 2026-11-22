@@ -2611,21 +2611,25 @@ html.dark .week-free-pill { color: #6ee7b7; }
 }
 .input-group.admin-note-field textarea:focus { border-color: #8b5cf6; }
 
-/* ===================== تمييز أيام الكاليندر: ماضي / قادم محجوز / فاضي ===================== */
-/* الماضي: رمادي باهت (مع إبقاء رقم اليوم والحجوزات مقروءة) */
-html:not(.dark) .day-cell.past-day:not(.today-active):not(.drag-over) { background-color: #E9E9EC !important; border-color: #D9D9DE; opacity: .62; filter: grayscale(.9); box-shadow: none; }
+/* ===================== ألوان الكاليندر (الدرجات الأصلية) =====================
+   - الخلفية العامة: رمادي سماوي فاتح، والخلايا بيضاء بدون إطار
+   - الماضي: نفس الخلية البيضاء لكن باهتة (من غير رمادي)، والحجوزات بتفضل بألوانها
+   - الأيام المحجوزة والفاضية: أبيض بدون تدرجات
+   - اليوم الحالي: كريمي فاتح بإطار ذهبي
+   (الأيام الفاضية الخضراء وحلقة اليوم المحدد وتأثير الإشارة بالماوس زي ما هم) */
+html:not(.dark) .calendar-grid { background: #f1f5f9; border-color: transparent; box-shadow: none; }
+html:not(.dark) .day-cell:not(.today-active):not(.drag-over):not(.free-day) { background-color: #FFFFFF !important; }
+html:not(.dark) .day-cell:not(.today-active):not(.drag-over):not(:hover) { border-color: transparent; }
+html:not(.dark) .day-cell.past-day:not(.today-active):not(.drag-over) { filter: none; }
+html:not(.dark) .day-cell.today-active { background-color: #fffbf0; border: 2px solid var(--brand-gold, #A88A45); box-shadow: 0 4px 15px rgba(168, 138, 69, 0.15); }
 html.dark .day-cell.past-day:not(.today-active):not(.drag-over) { background-color: rgba(255, 255, 255, .03) !important; opacity: .5; filter: grayscale(.8); }
-/* القادم المحجوز: وردي ترابي هادي (من لون الفندق) + حافة علوية، وتزيد الدرجة بعدد الحجوزات */
-html:not(.dark) .day-cell.heat-1:not(.past-day):not(.today-active):not(.drag-over):not(.free-day) { background-color: #F8EEEC; border-color: #E5CFCB; }
-html:not(.dark) .day-cell.heat-2:not(.past-day):not(.today-active):not(.drag-over):not(.free-day) { background-color: #F1DDD9; border-color: #D9B9B3; }
-html:not(.dark) .day-cell.heat-3:not(.past-day):not(.today-active):not(.drag-over):not(.free-day),
-html:not(.dark) .day-cell.heat-4:not(.past-day):not(.today-active):not(.drag-over):not(.free-day) { background-color: #E8C8C2; border-color: #CCA39B; }
-html:not(.dark) .day-cell[class*="heat-"]:not(.past-day):not(.today-active):not(.selected-day):not(.free-day) { box-shadow: inset 0 3px 0 #9A5A58; }
-/* الفاضي القادم: أبيض نقي */
-html:not(.dark) .day-cell:not(.past-day):not([class*="heat-"]):not(.today-active):not(.drag-over):not(.free-day) { background-color: #FFFFFF; border-color: #EADFC6; }
 
 /* قائمة الأيام المتاحة: تتغلب على قاعدة html select العامة (16px / min-height 46px) */
 html select.free-hall-select { min-height: 32px; height: 32px; font-size: 11px; padding: 0 4px; border-radius: 8px; }
+/* الكمبيوتر: نفس صف الموبايل المدمج (الشهر + قائمة الأيام المتاحة في صف واحد) بحجم أريح */
+@media (min-width: 768px) {
+    html select.free-hall-select { flex: 0 1 230px; width: 230px; max-width: 230px; min-height: 38px; height: 38px; font-size: 13px; padding: 0 10px; border-radius: 10px; cursor: pointer; }
+}
 
 /* ===== تخفيف تقطيع السكرول داخل النوافذ على اللمس (موبايل/WebView) =====
    - إلغاء blur الخلفية (backdrop-filter على شاشة كاملة من أثقل ما يكون على أندرويد WebView)
