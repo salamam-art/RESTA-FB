@@ -3573,8 +3573,7 @@
             const fmtNew = newDate.split('-').reverse().join('/');
             const logMsg = 'تم نقل حجز - ' + booking.companyName + ' - من ' + fmtOld + ' إلى ' + fmtNew;
 
-            addNotification(logMsg, 'add', newDate);
-            showToast(logMsg, 'success', newDate);
+            // رسالة النقل والإشعار بعد تأكيد الحفظ على السيرفر (شوف _confirmServerOp)
 
             state.activityLogs.unshift({
                 type:         'نقل',
@@ -3589,6 +3588,7 @@
             logEditedBookingToCloud([{ ...booking, startDate: oldDate }], [booking], 'نقل');
 
             saveLocal();
+            _confirmServerOp(() => { const x = state.bookings.find(b => b.id === id); return !x ? null : !x._isDirty; }, logMsg, 'success', newDate, 'add', 'النقل');
             render();
         }
 
@@ -4063,8 +4063,7 @@
             const _fmtDel = booking.startDate ? booking.startDate.split('-').reverse().join('/') : '';
             const logMsg = 'تم حذف يوم من حجز - ' + booking.companyName + ' - بتاريخ ' + _fmtDel;
 
-            addNotification(logMsg, 'delete', booking.startDate);
-            showToast(logMsg, 'error');
+            // رسالة الحذف والإشعار بعد تأكيد الحذف على السيرفر (شوف _confirmServerOp)
 
             state.activityLogs.unshift({
                 type:         'حذف',
@@ -4079,6 +4078,7 @@
             });
 
             saveLocal();
+            _confirmServerOp(() => !state.pendingDeletions.includes(id), logMsg, 'error', null, 'delete', 'الحذف');
             render();
 
             const detailsModal = document.getElementById('detailsModal');
@@ -4110,8 +4110,7 @@
             const _fmtDel = booking.startDate ? booking.startDate.split('-').reverse().join('/') : '';
             const logMsg = 'تم إلغاء الحجز بالكامل - ' + booking.companyName + ' - بتاريخ ' + _fmtDel;
 
-            addNotification(logMsg, 'delete', booking.startDate);
-            showToast(logMsg, 'error');
+            // رسالة الإلغاء والإشعار بعد تأكيد الحذف على السيرفر (شوف _confirmServerOp)
 
             state.activityLogs.unshift({
                 type:         'حذف',
@@ -4126,6 +4125,7 @@
             });
 
             saveLocal();
+            _confirmServerOp(() => !toDeleteIds.some(did => state.pendingDeletions.includes(did)), logMsg, 'error', null, 'delete', 'الحذف');
             render();
 
             const detailsModal = document.getElementById('detailsModal');
@@ -4338,7 +4338,7 @@
                                         </div>` : '';
                                     return `<div class="mt-4 p-3 bg-[#6E1418]/5 rounded-xl border border-[#6E1418]/10 space-y-1.5 text-sm">
                                         <div class="flex items-center gap-1.5 text-[11px] font-black text-[#6E1418] mb-1"><i data-lucide="gem" class="w-3.5 h-3.5"></i> تفاصيل باقة الفرح</div>
-                                        ${rows.map((r, i) => `<div class="flex justify-between ${i === rows.length - 1 ? 'font-black ' + remainingClass : 'text-slate-600'}"><span>${r[0]}</span><span class="font-bold">${escapeHtml(String(r[1]))}</span></div>`).join('')}
+                                        ${rows.map((r, i) => `<div class="flex justify-between gap-3 ${i === rows.length - 1 ? 'font-black ' + remainingClass : 'text-slate-600'}"><span class="shrink-0 whitespace-nowrap">${r[0]}</span><span class="font-bold min-w-0" style="overflow-wrap:anywhere">${escapeHtml(String(r[1]))}</span></div>`).join('')}
                                         ${menuHtml}
                                     </div>`;
                                 })()}
@@ -6342,7 +6342,7 @@ ${pages}
 "1) سجّل الدخول ببريدك وكلمة المرور (أو بالبصمة، أو كزائر للعرض فقط).",
 "2) من الصفحة الرئيسية اختر القاعة لعرض تقويمها.",
 "3) اضغط على اليوم المطلوب لإضافة حجز جديد، أو لعرض حجوزات ذلك اليوم.",
-"4) املأ بيانات الحجز واحفظ. رسالة \"تم إضافة/تعديل حجز\" لا تظهر إلا بعد تأكيد الحفظ على السيرفر (✓)، وإن تأخر التأكيد تظهر رسالة تحذير بأن الحجز محفوظ على جهازك فقط وسيُرفع تلقائياً. تصل التغييرات لباقي المستخدمين تلقائياً.",
+"4) املأ بيانات الحجز واحفظ. رسالة \"تم إضافة/تعديل/نقل/حذف حجز\" لا تظهر إلا بعد تأكيد الحفظ على السيرفر (✓)، وإن تأخر التأكيد تظهر رسالة تحذير بأن الحجز محفوظ على جهازك فقط وسيُرفع تلقائياً. تصل التغييرات لباقي المستخدمين تلقائياً.",
 "5) لنقل حجز: اسحبه إلى اليوم الجديد، ويمكنك التراجع من أزرار الهيدر.",
 "6) في نهاية الشهر يؤرشف الأدمن الشهر من نافذة الأرشيف ويصدّر نسخة احتياطية.",
 "7) من أيقونة (i) تجد رقم الإصدار وبيانات المصمم وهذا الملف.",
@@ -6485,7 +6485,7 @@ ${pages}
 "1) Sign in with your email and password (or fingerprint, or as a guest to view only).",
 "2) From the home page choose a hall to see its calendar.",
 "3) Click the day you want to add a new booking or view that day's bookings.",
-"4) Fill in the booking details and save. The \"booking added/updated\" message appears only after the server confirms the save (✓); if confirmation is delayed, a warning says the booking is stored on your device only and will upload automatically. Changes reach other users automatically.",
+"4) Fill in the booking details and save. The \"booking added/updated/moved/deleted\" message appears only after the server confirms the save (✓); if confirmation is delayed, a warning says the booking is stored on your device only and will upload automatically. Changes reach other users automatically.",
 "5) To move a booking, drag it to the new day; use Undo/Redo in the header if needed.",
 "6) At month end the admin archives it from the Archive window and exports a backup.",
 "7) The (i) icon shows the version number, the designer's details and this file.",
@@ -10312,6 +10312,26 @@ ${pages}
             })();
         }
 
+
+        // نسخة عامة لنفس الفكرة (للحذف والنقل): isDone() ترجّع true = اتأكد، false = لسه معلّق، null = مفيش داعي نعلن (الحجز اتغيّر/اختفى)
+        function _confirmServerOp(isDone, msg, toastType, date, notifType, what) {
+            const TIMEOUT_MS = 20000, STEP_MS = 400;
+            const t0 = Date.now();
+            (function poll() {
+                const r = isDone();
+                if (r === null) return;
+                if (r && !state.isSyncing) {
+                    addNotification(msg, notifType, date || undefined);
+                    showToast(msg + ' ✓ (تم على السيرفر)', toastType, date || undefined);
+                    return;
+                }
+                if (Date.now() - t0 >= TIMEOUT_MS) {
+                    showToast('⚠️ لم يتأكد ' + what + ' على السيرفر بعد — تم على جهازك وسيُرفع تلقائيًا. لا تغلق التطبيق وتأكد من الاتصال.', 'error');
+                    return;
+                }
+                setTimeout(poll, STEP_MS);
+            })();
+        }
 
         // ─── الحجوزات المحذوفة (من الشيت المنفصل) ──────────────────────
         async function toggleDeletedBookingsModal() {
