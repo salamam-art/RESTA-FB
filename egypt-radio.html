@@ -10,8 +10,9 @@
 :root[data-theme="dark"]{--bg:#15130f;--card:#201d17;--tx:#f3eee3;--mut:#a39b8b;--ac:#e0b04a;--ac2:#f0c872;--bd:#352f24;--err:#f2b8b5}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",Arial,sans-serif;padding-bottom:190px}
-header{padding:18px 16px 8px}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",Arial,sans-serif;padding-bottom:215px}
+header{padding:18px 16px 8px;position:relative}
+.mgb{position:absolute;left:16px;top:16px;width:42px;height:42px;border-radius:50%;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-size:20px}
 h1{margin:0;font-size:24px}
 .sub{color:var(--mut);font-size:13px;margin-top:4px}
 .bar{padding:8px 16px;display:flex;gap:8px;flex-wrap:wrap}
@@ -19,16 +20,32 @@ input[type=search],input[type=text],input[type=url]{flex:1;min-width:0;padding:1
 .tabs{display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto}
 .tab{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:7px 14px;border-radius:20px;font-size:14px;white-space:nowrap;font-family:inherit}
 .tab.on{background:var(--ac);color:#fff;border-color:var(--ac)}
-ul{list-style:none;margin:0;padding:4px 16px;display:grid;gap:8px}
-li{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px 12px}
+ul{list-style:none;margin:0;padding:4px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+li{position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:6px}
 li.cur{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
-.main{flex:1;min-width:0;text-align:right;background:none;border:0;color:inherit;font-family:inherit;padding:2px}
-.nm{font-size:16px;font-weight:600}
-.ds{font-size:12px;color:var(--mut);margin-top:2px}
-.fav{background:none;border:0;font-size:22px;color:var(--mut);padding:4px 8px}
+.main{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:none;border:0;color:inherit;font-family:inherit;padding:22px 6px 6px;overflow:hidden}
+.nm{font-size:15px;font-weight:600;line-height:1.4}
+.ds{font-size:11px;color:var(--mut);margin-top:4px;line-height:1.4}
+.fav{position:absolute;top:2px;left:4px;background:none;border:0;font-size:22px;color:var(--mut);padding:4px 8px}
 .fav.on{color:var(--ac)}
 .del{background:none;border:0;color:var(--err);font-size:18px;padding:4px 8px}
-.empty{text-align:center;color:var(--mut);padding:30px 16px}
+.empty{grid-column:1/-1;text-align:center;color:var(--mut);padding:30px 16px}
+.mg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.mg[hidden]{display:none}
+.mgc{background:var(--card);width:100%;max-width:560px;max-height:80vh;overflow:auto;border-radius:18px 18px 0 0;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px))}
+.sh{font-size:13px;color:var(--mut);margin:16px 0 6px}
+.th{display:flex;gap:8px}
+.th button{flex:1;padding:10px 4px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);font-family:inherit;font-size:14px}
+.th button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.mgc .add{margin:0}
+.rs{background:none;border:0;color:var(--ac2);font-size:14px;padding:4px 8px;font-family:inherit}
+.sr{display:flex;gap:8px}
+.sr select{padding:11px 10px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);font-size:15px;font-family:inherit}
+.mr span small{display:block;color:var(--mut);font-size:11px;margin-top:2px}
+.mgh{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.mgh button{background:none;border:0;color:var(--tx);font-size:20px;padding:4px 8px}
+.mr{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--bd)}
+.mr span{flex:1;min-width:0;font-size:15px}
 .add{margin:10px 16px;padding:12px;border:1px dashed var(--bd);border-radius:14px}
 .add summary{cursor:pointer;color:var(--ac2);font-size:14px}
 .add .row{display:grid;gap:8px;margin-top:10px}
@@ -43,28 +60,21 @@ li.cur{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
 .vol{display:flex;align-items:center;gap:8px;margin-top:10px}
 .vol input{flex:1;accent-color:var(--ac)}
 .nav{background:none;border:1px solid var(--bd);color:var(--tx);border-radius:50%;width:38px;height:38px;font-size:16px;flex:none}
+.wl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);margin-top:8px}
 .note{font-size:12px;color:var(--mut);padding:6px 16px 14px;line-height:1.7}
 </style>
 </head>
 <body>
 <header>
+  <button class="mgb" id="mgb" aria-label="الإعدادات">⚙️</button>
   <h1>📻 راديو مصر</h1>
   <div class="sub">محطات مصرية عبر الإنترنت — بث مباشر</div>
 </header>
-<div class="bar"><input type="search" id="q" placeholder="ابحث عن محطة…" aria-label="بحث"></div>
+<div class="bar"><input type="search" id="q" placeholder="ابحث عن محطة…" aria-label="بحث"><button class="btn" id="sb" style="flex:none;padding:11px 14px">🔎 محطات جديدة</button></div>
 <div class="tabs" id="tabs"></div>
 <ul id="list"></ul>
 
-<details class="add" id="addbox">
-  <summary>＋ أضف محطة بنفسك (رابط بث)</summary>
-  <div class="row">
-    <input type="text" id="an" placeholder="اسم المحطة">
-    <input type="url" id="au" placeholder="رابط البث https://…" dir="ltr">
-    <button class="btn" id="ab">حفظ المحطة</button>
-    <a id="sl" href="#" target="_blank" rel="noopener" style="display:none;color:var(--ac2);font-size:14px">🔎 ابحث عن رابط بث هذه المحطة</a>
-  </div>
-</details>
-<div class="note">إذا لم تعمل محطة، فغالبًا غيّرت جهتها رابط البث. استخدم «أضف محطة» لوضع الرابط الحالي من موقع المحطة الرسمي، وسيُحفظ على جهازك.</div>
+<div class="note">إذا لم تعمل محطة، فغالبًا غيّرت جهتها رابط البث. استخدم ⚙️ الإعدادات ← «إضافة محطة» لوضع الرابط الحالي من موقع المحطة الرسمي، وسيُحفظ على جهازك.</div>
 
 <div class="player">
   <div class="pt">
@@ -75,66 +85,87 @@ li.cur{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
   </div>
   <div class="vol"><span>🔈</span><input type="range" id="vol" min="0" max="1" step="0.01" value="0.8" aria-label="مستوى الصوت"><span>🔊</span></div>
 </div>
+<div class="mg" id="mg" hidden><div class="mgc"><div class="mgh"><b>الإعدادات</b><button id="mgx" aria-label="إغلاق">✕</button></div>
+<div class="sh">المظهر</div>
+<div class="th" id="th"><button data-t="light">☀️ نهاري</button><button data-t="dark">🌙 ليلي</button><button data-t="auto">🖥 تلقائي</button></div>
+<div class="sh">إضافة محطة</div>
+<details class="add" id="addbox">
+  <summary>＋ أضف محطة بنفسك (رابط بث)</summary>
+  <div class="row">
+    <input type="text" id="an" placeholder="اسم المحطة">
+    <input type="url" id="aw" placeholder="رابط موقع المحطة (اختياري)" dir="ltr">
+    <input type="url" id="au" placeholder="رابط البث https://…" dir="ltr">
+    <button class="btn" id="ab">حفظ المحطة</button>
+    <a id="sl" href="#" target="_blank" rel="noopener" style="display:none;color:var(--ac2);font-size:14px">🔎 ابحث عن رابط بث هذه المحطة</a>
+  </div>
+</details>
+<div class="sh">محطاتي (تعديل / حذف)</div>
+<div id="ml"></div>
+<button class="btn" id="ex" style="width:100%;margin-top:10px">⬇ تصدير محطاتي (TXT)</button>
+<div class="sh">استعادة محطة محذوفة</div>
+<div id="mt"></div>
+</div></div>
+<div class="mg" id="sg" hidden><div class="mgc"><div class="mgh"><b>🔎 ابحث عن محطات جديدة</b><button id="sgx" aria-label="إغلاق">✕</button></div>
+<div class="sr"><input type="search" id="sq" placeholder="اسم المحطة…"><select id="sc"><option value="EG">مصر</option><option value="">كل الدول</option></select></div>
+<button class="btn" id="sgo" style="width:100%;margin-top:8px">بحث</button>
+<div id="sres"></div></div></div>
 <audio id="au_el" preload="none"></audio>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-let hls=null;
+let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE=[
-{id:"nogoum",n:"نجوم إف إم",d:"100.6 · أغاني ومنوعات",c:"music",u:"https://audio.nrpstream.com/listen/nogoum_fm/radio.mp3"},
-{id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3"},
-{id:"mega",n:"ميجا إف إم",d:"92.7 · أغاني ومنوعات",c:"music",u:"https://audio.nrpstream.com/listen/mega_fm/radio.mp3"},
-{id:"nagham",n:"نغم إف إم",d:"105.3 · أغاني كلاسيكية",c:"music",u:"https://audio.nrpstream.com/listen/nagham_fm/radio.mp3"},
+{id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
+{id:"mega",n:"ميجا إف إم",d:"92.7 · أغاني ومنوعات",c:"music",u:"https://megafm927.radioca.st/stream?nocache=76&type=http",w:"https://megafm927.com/ar"},
+{id:"nagham",n:"نغم إف إم",d:"105.3 · أغاني كلاسيكية",c:"music",u:"https://ahmsamir.radioca.st/stream",w:"https://naghamfm1053.com/ar"},
 {id:"hits",n:"راديو هيتس",d:"88.2 · أحدث الأغاني",c:"music",u:"https://radiohits882.radioca.st/;"},
 {id:"r9090",n:"راديو 9090",d:"90.90 · أغاني ومنوعات",c:"music",u:"https://9090streaming.mobtada.com/9090FMEGYPT"},
 {id:"quran",n:"إذاعة القرآن الكريم",d:"القاهرة · تلاوات وتفسير",c:"quran",u:"https://stream.radiojar.com/8s5u5tpdtwzuv"},
 {id:"sha3by",n:"شعبي إف إم",d:"95.0 · أغاني شعبية",c:"music",u:"https://radio95.radioca.st/;"},
-{id:"nrj",n:"إنرجي مصر NRJ",d:"92.1 · هيتس",c:"music",u:""},
 {id:"mix",n:"ميكس إف إم",d:"87.8 · أغاني ومنوعات",c:"music",u:"https://stream-29.zeno.fm/na3vpvn10qruv"},
-{id:"gouna",n:"راديو الجونة",d:"100.0 · البحر الأحمر",c:"music",u:""},
-{id:"onsport",n:"أون سبورت إف إم",d:"93.7 · رياضة",c:"sport",u:"https://carina.streamerr.co:2020/stream/OnSportFM/;"},
-{id:"e1",n:"البرنامج العام",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e2",n:"صوت العرب",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e3",n:"الشرق الأوسط",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e4",n:"الشباب والرياضة",d:"108 · إذاعة حكومية",c:"ertu",u:""},
-{id:"e5",n:"إذاعة الأغاني",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e6",n:"البرنامج الثقافي",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e7",n:"البرنامج الموسيقي",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e8",n:"البرنامج الأوروبي",d:"بلغات أوروبية",c:"ertu",u:""},
-{id:"e9",n:"الأخبار والموسيقى",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e10",n:"الإذاعة التعليمية",d:"إذاعة حكومية",c:"ertu",u:""},
-{id:"e11",n:"إذاعة الكبار (نهر النيل)",d:"1071 AM",c:"ertu",u:""},
-{id:"e12",n:"راديو مصر",d:"88.7 · أغاني وأخبار",c:"ertu",u:""},
+{id:"onsport",n:"أون سبورت إف إم",d:"93.7 · رياضة",c:"sport",u:"https://carina.streamerr.co:2020/stream/OnSportFM"},
 {id:"e13",n:"أم كلثوم",d:"أغاني أم كلثوم 24 ساعة",c:"ertu",u:"https://stream.zeno.fm/zsgrfxg71s8uv"},
-{id:"e14",n:"الإذاعات الموجهة",d:"بلغات متعددة",c:"ertu",u:""},
-{id:"l1",n:"إذاعة القاهرة الكبرى",d:"102.2 · إقليمية",c:"local",u:""},
-{id:"l2",n:"إذاعة الإسكندرية",d:"إقليمية",c:"local",u:""},
-{id:"l3",n:"إذاعة وسط الدلتا (طنطا)",d:"إقليمية",c:"local",u:""},
-{id:"l4",n:"إذاعة القناة (الإسماعيلية)",d:"إقليمية",c:"local",u:""},
-{id:"l5",n:"إذاعة شمال الصعيد (المنيا)",d:"إقليمية",c:"local",u:""},
-{id:"l6",n:"إذاعة جنوب الصعيد (أسوان)",d:"إقليمية",c:"local",u:""},
-{id:"l7",n:"إذاعة الوادي الجديد",d:"إقليمية",c:"local",u:""},
-{id:"l8",n:"إذاعة شمال سيناء (العريش)",d:"إقليمية",c:"local",u:""},
-{id:"l9",n:"إذاعة جنوب سيناء (الطور)",d:"إقليمية",c:"local",u:""},
-{id:"l10",n:"إذاعة مطروح",d:"إقليمية",c:"local",u:""},
-{id:"o1",n:"راديو محطة مصر",d:"أونلاين",c:"online",u:""},
-{id:"o2",n:"راديو حريتنا",d:"أونلاين",c:"online",u:""},
-{id:"o3",n:"راديو 6060 إف إم",d:"أونلاين",c:"online",u:""},
+{id:"o3",n:"راديو 6060 إف إم",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/xda10sbtsg0uv"},
 {id:"o4",n:"راديو تسعينات 90s FM",d:"أونلاين",c:"online",u:"https://eu1.fastcast4u.com/proxy/prontofm?mp=/1"},
 {id:"o5",n:"راديو عمرو دياب",d:"أونلاين",c:"online",u:"https://stream-40.zeno.fm/xa4yhh4k838uv?zs=gojgaFRaRrK1wgGIwdv6xA"},
-{id:"o6",n:"راديو ألف ليلة وليلة",d:"أونلاين",c:"online",u:""},
-{id:"o7",n:"راديو هوانا",d:"أونلاين",c:"online",u:""},
-{id:"o8",n:"راديو صوتك",d:"أونلاين",c:"online",u:""},
 {id:"o9",n:"راديو وياك",d:"أونلاين",c:"online",u:"https://work.radiowayak.org/listen/live/live.mp3"},
-{id:"o10",n:"راديو مصر الجديدة",d:"أونلاين",c:"online",u:""},
+{id:"a1",n:"Radio Alwan",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/fhhhcrvxhchvv"},
+{id:"a2",n:"Mix FM",d:"أونلاين",c:"online",u:"https://s1.voscast.com:11377/live.mp3"},
+{id:"a3",n:"Egonair Radio",d:"أونلاين",c:"online",u:"https://radio.socialgenix.com/8004/stream"},
+{id:"nrj",n:"إنرجي مصر NRJ",d:"92.1 · هيتس",c:"music",u:"https://nrjstreaming.ahmed-melege.com/nrjegypt"},
+{id:"a5",n:"راديو الرجال (MenRadioFm)",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/ebitxokyr7ptv"},
+{id:"a6",n:"BBC Arabic",d:"بي بي سي · بالعربية",c:"news",u:"https://stream.live.vc.bbcmedia.co.uk/bbc_arabic_radio"},
+{id:"e3",n:"إذاعة الشرق الأوسط",d:"إذاعة حكومية",c:"ertu",u:"https://s2.voscast.com:7387/stream"},
+{id:"x1",n:"إذاعة ياسر الدوسري",d:"قرآن كريم",c:"quran",u:"https://qurango.net/radio/yasser_aldosari"},
+{id:"x2",n:"إذاعة مشاري العفاسي",d:"قرآن كريم",c:"quran",u:"https://qurango.net/radio/mishary_alafasi"},
+{id:"x3",n:"Nogoum FM",d:"أونلاين",c:"online",u:"https://stream-159.zeno.fm/qb1zvsykm98uv"},
+{id:"x4",n:"إذاعة مصطفى إسماعيل",d:"قرآن كريم",c:"quran",u:"https://qurango.net/radio/mustafa_ismail"},
+{id:"x5",n:"Arab Mix Drama",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/egynebf171zuv.acc"},
+{id:"x6",n:"إذاعة القرآن الكريم",d:"قرآن كريم",c:"quran",u:"https://n0a.radiojar.com/0tpy1h0kxtzuv"},
+{id:"x7",n:"Arab Mix 256",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/wvqgc9kb1d0uv"},
+{id:"x8",n:"Elissa FM",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/v7n499m8ckhvv"},
+{id:"x9",n:"محمود خليل الحصري - حفص عن عاصم مرتل - mp3quran",d:"قرآن كريم",c:"quran",u:"https://qurango.net/radio/mahmoud_khalil_alhussary"},
+{id:"x10",n:"Diab FM",d:"أونلاين",c:"online",u:"https://stream-34.zeno.fm/rf64mx02qa0uv?zs=-xjlLLwRS8uKrffFxK4vLA"},
+{id:"x11",n:"OmniRadio - Holy Quran Radio Cairo (إذاعة القرآن الكريم (القاهرة))",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/quran-cairo"},
+{id:"x12",n:"Abdulrasheed Soufi",d:"قرآن كريم",c:"quran",u:"https://qurango.net/radio/abdulrasheed_soufi_assosi.mp3"},
+{id:"x13",n:"X_X",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/n63xpx3o8imuv"},
+{id:"x14",n:"S_O_L_L_Y",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/juwfhuodjgmuv"},
+{id:"x15",n:"Aravic rao",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/frvxg7wgeq8uv"},
+{id:"x16",n:"Rebel Radio Online",d:"أونلاين",c:"online",u:"https://azuracast-nuremberg.myautodj.com/listen/station_660_1777579648/radio.mp3"},
+{id:"x17",n:"OmniRadio - Sheikh Mahmoud Ali Al-Banna (الشيخ محمود علي البنا)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/albanna"},
+{id:"x18",n:"IVIeshal",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/smdswgy1rbmtv"},
+{id:"x19",n:"OmniRadio - Sheikh Abdulbasit Abdulsamad (الشيخ عبد الباسط عبد الصمد)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/abdulbasit"},
+{id:"x20",n:"Solly",d:"أونلاين",c:"online",u:"https://stream.zeno.fm/vo4dh4tlesivv"},
+{id:"x21",n:"OmniRadio - Sheikh Mohammed Siddiq Al-Minshawi (الشيخ محمد صديق المنشاوي)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/alminshawi"},
+{id:"x22",n:"OmniRadio - Ruqyah Shariah Radio (الرقية الشرعية المطولة)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/roqya"},
+{id:"x23",n:"OmniRadio - Sheikh Bandar Balila (الشيخ بندر بليلة)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/bandar-balila"},
+{id:"x24",n:"OmniRadio - Salah Bukhatir (صلاح بوخاطر)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/salah-bukhatir"},
+{id:"x25",n:"OmniRadio - Abu Bakr Al-Shatri (أبوبكر الشاطري)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/abubakr-shatri"},
+{id:"x26",n:"OmniRadio - Khalid Abu Shadi (خالد أبو شادي)",d:"قرآن كريم",c:"quran",u:"https://radio.xecod.com/station/khaledabushady"},
 {id:"n1",n:"الجزيرة",d:"شبكة الجزيرة · قطر · صوت القناة",c:"news",u:"https://live-hls-apps-aja-fa.getaj.net/AJA/index.m3u8"},
 {id:"n2",n:"الجزيرة مباشر",d:"شبكة الجزيرة · قطر · صوت القناة",c:"news",u:"https://live-hls-apps-ajm-fa.getaj.net/AJM/index.m3u8"},
-{id:"n3",n:"Al Jazeera English",d:"شبكة الجزيرة · قطر · بالإنجليزية",c:"news",u:"https://live-hls-web-aje.getaj.net/AJE/index.m3u8"},
-{id:"n4",n:"الجزيرة الوثائقية",d:"شبكة الجزيرة · قطر",c:"news",u:""},
 {id:"n5",n:"العربية",d:"السعودية · صوت القناة",c:"news",u:"https://live.alarabiya.net/alarabiapublish/alarabiya.smil/playlist.m3u8"},
 {id:"n6",n:"الحدث",d:"العربية · السعودية · صوت القناة",c:"news",u:"https://live.alarabiya.net/alarabiapublish/alhadath.smil/playlist.m3u8"},
-{id:"n7",n:"العربية Business",d:"السعودية · صوت القناة",c:"news",u:""},
-{id:"n8",n:"الشرق للأخبار",d:"السعودية · صوت القناة",c:"news",u:""}
 ];
 const $=s=>document.getElementById(s);
 const au=$("au_el"),list=$("list"),tabs=$("tabs");
@@ -142,7 +173,7 @@ function ld(k,f){try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}ca
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 let custom=ld("eg_custom",[]),favs=ld("eg_favs",[]),tab="all",cur=null;
 const all=()=>BASE.concat(custom);
-let urls=ld("eg_urls",{});const url=s=>urls[s.id]||s.u;let editing=null;
+let urls=ld("eg_urls",{});const url=s=>s.c==="custom"?(urls[s.id]||s.u):s.u;let webs=ld("eg_webs",{});const web=s=>s.c==="custom"?(webs[s.id]||s.w||""):(s.w||"");let editing=null;
 const TABS=[["all","الكل"],["fav","المفضلة"],["music","أغاني"],["ertu","حكومية"],["local","إقليمية"],["online","أونلاين"],["sport","رياضة"],["news","أخبار"],["quran","قرآن"],["custom","إضافاتي"]];
 function vis(){
   const q=$("q").value.trim();
@@ -167,28 +198,121 @@ function render(){
     const f=document.createElement("button");f.className="fav"+(favs.includes(s.id)?" on":"");f.textContent=favs.includes(s.id)?"★":"☆";f.setAttribute("aria-label","مفضلة");
     f.onclick=()=>{favs=favs.includes(s.id)?favs.filter(x=>x!==s.id):favs.concat(s.id);sv("eg_favs",favs);render()};
     li.append(m);
-    const ed=document.createElement("button");ed.className="del";ed.style.color="var(--mut)";ed.textContent="✎";ed.setAttribute("aria-label","تعديل الرابط");ed.onclick=()=>edit(s);li.append(ed);
-    if(s.c==="custom"){const d=document.createElement("button");d.className="del";d.textContent="🗑";d.setAttribute("aria-label","حذف");d.onclick=()=>{custom=custom.filter(x=>x.id!==s.id);sv("eg_custom",custom);render()};li.append(d)}
     li.append(f);list.appendChild(li);
   });
 }
+let trash=ld("eg_trash",[]);
+let theme=ld("eg_theme","auto");
+function delStation(s){
+  if(s.c!=="custom")return false;
+  if(!confirm("حذف محطة «"+s.n+"»؟"))return false;
+  if(cur&&cur.id===s.id){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause();cur=null;$("cn").textContent="اختر محطة";status("جاهز")}
+  if(s.c!=="custom")return false;
+  custom=custom.filter(x=>x.id!==s.id);sv("eg_custom",custom);
+  trash=trash.filter(x=>x.id!==s.id).concat(s);sv("eg_trash",trash);
+  favs=favs.filter(x=>x!==s.id);sv("eg_favs",favs);render();return true;
+}
+function renderManage(){
+  const ml=$("ml");ml.innerHTML="";
+  const mine=custom.slice();
+  if(!mine.length){ml.innerHTML='<div class="empty" style="padding:12px 0">لا توجد محطات مضافة بعد</div>';return}
+  mine.forEach(s=>{
+    const r=document.createElement("div");r.className="mr";
+    const t=document.createElement("span");t.textContent=s.n;
+    const e=document.createElement("button");e.className="del";e.style.color="var(--mut)";e.textContent="✎";e.setAttribute("aria-label","تعديل");e.onclick=()=>edit(s);
+    const d=document.createElement("button");d.className="del";d.textContent="🗑";d.setAttribute("aria-label","حذف");d.onclick=()=>{if(delStation(s)){renderManage();renderTrash()}};
+    r.append(t,e,d);ml.appendChild(r);
+  });
+}
+function renderTrash(){
+  const mt=$("mt");mt.innerHTML="";
+  if(!trash.length){mt.innerHTML='<div class="empty" style="padding:12px 0">لا توجد محطات محذوفة</div>';return}
+  trash.forEach(s=>{
+    const r=document.createElement("div");r.className="mr";
+    const t=document.createElement("span");t.textContent=s.n;
+    const b=document.createElement("button");b.className="rs";b.textContent="↩ استعادة";
+    b.onclick=()=>{trash=trash.filter(x=>x.id!==s.id);sv("eg_trash",trash);if(!custom.some(x=>x.id===s.id)){custom.push(s);sv("eg_custom",custom)}render();renderManage();renderTrash()};
+    r.append(t,b);mt.appendChild(r);
+  });
+}
+function applyTheme(t){
+  const r=document.documentElement;
+  if(t==="light"||t==="dark")r.setAttribute("data-theme",t);else r.removeAttribute("data-theme");
+  document.querySelectorAll("#th button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+}
+document.querySelectorAll("#th button").forEach(b=>{b.onclick=()=>{theme=b.dataset.t;sv("eg_theme",theme);applyTheme(theme)}});
+let rbBase=null;
+async function rbHosts(){
+  try{const r=await fetch("https://all.api.radio-browser.info/json/servers");const j=await r.json();
+    const n=[...new Set(j.map(x=>x.name).filter(Boolean))].sort(()=>Math.random()-.5);if(n.length)return n}catch(e){}
+  return ["de1.api.radio-browser.info","de2.api.radio-browser.info","fi1.api.radio-browser.info","nl1.api.radio-browser.info"];
+}
+async function rb(path){
+  const hosts=(rbBase?[rbBase]:[]).concat(await rbHosts());let err;
+  for(const h of hosts){
+    try{const r=await fetch("https://"+h+path);if(!r.ok)throw new Error(r.status);const j=await r.json();rbBase=h;return j}catch(e){err=e}
+  }
+  throw err||new Error("fail");
+}
+const hasUrl=u=>all().some(x=>url(x)===u);
+async function doSearch(){
+  const q=$("sq").value.trim(),cc=$("sc").value,box=$("sres");
+  if(!q&&!cc){box.innerHTML='<div class="empty" style="padding:14px 0">اكتب اسم المحطة للبحث في كل الدول</div>';return}
+  box.innerHTML='<div class="empty" style="padding:14px 0">جاري البحث…</div>';
+  let list;
+  try{list=await rb("/json/stations/search?hidebroken=true&order=clickcount&reverse=true&limit=80"+(q?"&name="+encodeURIComponent(q):"")+(cc?"&countrycode="+cc:""))}
+  catch(e){box.innerHTML='<div class="empty" style="padding:14px 0">تعذّر الاتصال بدليل المحطات. تأكد من الإنترنت وجرّب مرة أخرى</div>';return}
+  const seen=new Set(),out=[];
+  list.forEach(x=>{const u=(x.url_resolved||x.url||"").trim();if(!/^https:\/\//i.test(u)||seen.has(u))return;seen.add(u);out.push({n:(x.name||"").trim()||"محطة",u:u,w:/^https?:\/\//i.test(x.homepage||"")?x.homepage.trim():"",i:[x.country,x.codec,x.bitrate?x.bitrate+"k":""].filter(Boolean).join(" · ")})});
+  box.innerHTML="";
+  if(!out.length){box.innerHTML='<div class="empty" style="padding:14px 0">لا توجد نتائج بروابط https</div>';return}
+  out.slice(0,40).forEach(x=>{
+    const r=document.createElement("div");r.className="mr";
+    const t=document.createElement("span");t.textContent=x.n;const sm=document.createElement("small");sm.textContent=x.i;t.appendChild(sm);
+    const pl=document.createElement("button");pl.className="rs";pl.textContent="▶ تجربة";pl.onclick=()=>play({id:"t"+Date.now(),n:x.n,d:"",c:"search",u:x.u});
+    const ad=document.createElement("button");ad.className="rs";
+    if(hasUrl(x.u)){ad.textContent="✓ موجودة";ad.disabled=true}
+    else{ad.textContent="＋ إضافة";ad.onclick=()=>{custom.push({id:"c"+Date.now()+Math.floor(Math.random()*1000),n:x.n,d:"محطة مضافة",c:"custom",u:x.u,w:x.w});sv("eg_custom",custom);ad.textContent="✓ أُضيفت";ad.disabled=true;render()}}
+    r.append(t,pl,ad);box.appendChild(r);
+  });
+}
+$("sb").onclick=()=>{$("sg").hidden=false;if(!$("sres").children.length)doSearch()};
+$("sgo").onclick=doSearch;
+$("sq").onkeydown=e=>{if(e.key==="Enter")doSearch()};
+$("sc").onchange=doSearch;
+$("sgx").onclick=()=>{$("sg").hidden=true};
+$("sg").onclick=e=>{if(e.target===$("sg"))$("sg").hidden=true};
+function openSettings(){renderManage();renderTrash();applyTheme(theme);$("mg").hidden=false}
+$("ex").onclick=()=>{
+  if(!custom.length){alert("لا توجد محطات مضافة لتصديرها");return}
+  const txt=custom.map(x=>x.n+"\n"+url(x)).join("\n\n")+"\n";
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["\ufeff"+txt],{type:"text/plain;charset=utf-8"}));
+  a.download="my-stations.txt";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+$("mgb").onclick=openSettings;
+$("mgx").onclick=()=>{$("mg").hidden=true};
+$("mg").onclick=e=>{if(e.target===$("mg"))$("mg").hidden=true};
 function status(t,e){const el=$("cs");el.textContent=t;el.className="st"+(e?" err":"")}
 function edit(s){
+  openSettings();
   editing=s.id;const box=$("addbox");box.open=true;
-  $("an").value=s.n;$("au").value=url(s)||"";
+  $("an").value=s.n;$("au").value=url(s)||"";$("aw").value=web(s);
   const sl=$("sl");sl.href="https://www.google.com/search?q="+encodeURIComponent(s.n+" بث مباشر رابط");sl.style.display="block";
-  status("عدّل رابط «"+s.n+"» في الخانة بالأسفل ثم احفظ");
+  status("عدّل رابط «"+s.n+"» في الإعدادات ثم احفظ");
   box.scrollIntoView({behavior:"smooth",block:"center"});
 }
 $("addbox").ontoggle=()=>{if(!$("addbox").open){editing=null;$("sl").style.display="none"}};
 function play(s){
   if(!url(s)){
-    editing=s.id;$("addbox").open=true;$("an").value=s.n;$("au").value="";
+    if(web(s)){showWeb(s,"لا يوجد رابط بث لهذه المحطة، ");return}
+    openSettings();editing=s.id;$("addbox").open=true;$("an").value=s.n;$("au").value="";
     const sl=$("sl");sl.href="https://www.google.com/search?q="+encodeURIComponent(s.n+" بث مباشر");sl.style.display="block";
-    $("cn").textContent=s.n;status("هذه المحطة بحاجة لرابط بث، الصقه في خانة الإضافة بالأسفل",true);
+    $("cn").textContent=s.n;status("هذه المحطة بحاجة لرابط بث، الصقه في الإعدادات",true);
     $("addbox").scrollIntoView({behavior:"smooth",block:"center"});return;
   }
-  cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");
+  if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");
   const u=url(s);
   if(hls){hls.destroy();hls=null}
   if(/\.m3u8/i.test(u)&&!au.canPlayType("application/vnd.apple.mpegurl")&&window.Hls&&Hls.isSupported()){
@@ -199,22 +323,45 @@ function play(s){
   render();
 }
 function step(d){const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
-$("pp").onclick=()=>{if(!cur){const v=vis();if(v.length)play(v[0]);return}au.paused?au.play().catch(()=>{}):au.pause()};
+$("pp").onclick=()=>{if(!cur){const v=vis();if(v.length)play(v[0]);return}if(au.paused){wantPlay=true;tries=0;play(cur)}else{wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}};
 $("next").onclick=()=>step(-1);$("prev").onclick=()=>step(1);
-au.onplaying=()=>{$("pp").textContent="❚❚";status("يعمل الآن 🔴 مباشر")};
-au.onpause=()=>{$("pp").textContent="▶";if(cur&&!au.error)status("متوقف")};
-au.onwaiting=()=>status("جاري التحميل…");
-au.onerror=()=>{$("pp").textContent="▶";status("تعذّر تشغيل هذه المحطة. جرّب محطة أخرى أو حدّث الرابط.",true)};
+au.onplaying=()=>{loading=false;tries=0;clearTimeout(wt);$("pp").textContent="❚❚";status("يعمل الآن 🔴 مباشر");setWake()};
+au.onpause=()=>{$("pp").textContent="▶";if(cur&&!au.error&&!loading){wantPlay=false;status("متوقف")}setWake()};
+au.onwaiting=()=>{status("جاري التحميل…");clearTimeout(wt);wt=setTimeout(()=>{if(wantPlay){loading=false;reconnect()}},15000)};
+au.onended=()=>reconnect();
+au.onerror=()=>{loading=false;reconnect()};
 $("vol").oninput=e=>{au.volume=+e.target.value};au.volume=.8;
 $("q").oninput=render;
 $("ab").onclick=()=>{
   const n=$("an").value.trim(),u=$("au").value.trim();
-  if(!n||!/^https?:\/\//i.test(u)){alert("اكتب اسم المحطة ورابط بث صحيحًا يبدأ بـ https://");return}
-  if(editing){urls[editing]=u;sv("eg_urls",urls);const s=all().find(x=>x.id===editing);editing=null;$("an").value="";$("au").value="";$("sl").style.display="none";render();if(s)play(s);return}
-  custom.push({id:"c"+Date.now(),n:n,d:"محطة مضافة",c:"custom",u:u});sv("eg_custom",custom);
-  $("an").value="";$("au").value="";tab="custom";render();
+  if(!n||(!/^https?:\/\//i.test(u)&&!/^https?:\/\//i.test($("aw").value.trim()))){alert("اكتب اسم المحطة ورابط بث صحيحًا يبدأ بـ https://");return}
+  if(editing){const w=$("aw").value.trim();if(w)webs[editing]=w;else delete webs[editing];sv("eg_webs",webs);urls[editing]=u;sv("eg_urls",urls);const s=all().find(x=>x.id===editing);editing=null;$("an").value="";$("au").value="";$("aw").value="";$("sl").style.display="none";$("mg").hidden=true;render();if(s)play(s);return}
+  custom.push({id:"c"+Date.now(),n:n,d:"محطة مضافة",c:"custom",u:u,w:$("aw").value.trim()});sv("eg_custom",custom);
+  $("an").value="";$("au").value="";$("aw").value="";tab="custom";$("mg").hidden=true;render();
 };
 if("mediaSession"in navigator){try{navigator.mediaSession.setActionHandler("nexttrack",()=>step(1));navigator.mediaSession.setActionHandler("previoustrack",()=>step(-1))}catch(e){}}
+function showWeb(s,msg){
+  const el=$("cs");el.className="st err";el.textContent=msg||"تعذّر البث داخل التطبيق، ";
+  const a=document.createElement("a");a.href=web(s);a.target="_blank";a.rel="noopener";a.textContent="افتح موقع المحطة ↗";a.style.color="inherit";a.style.fontWeight="600";el.append(a);
+  $("cn").textContent=s.n;
+  try{window.open(web(s),"_blank","noopener")}catch(e){}
+}
+function reconnect(){
+  clearTimeout(wt);
+  if(!cur||!wantPlay)return;
+  if(tries>=4){wantPlay=false;$("pp").textContent="▶";if(web(cur)){showWeb(cur);return}status("تعذّر تشغيل هذه المحطة. جرّب محطة أخرى أو عدّل الرابط بـ ✎",true);return}
+  tries++;status("انقطع البث، إعادة الاتصال ("+tries+"/4)…",true);
+  clearTimeout(rt);rt=setTimeout(()=>{retrying=true;play(cur)},Math.min(1500*tries,8000));
+}
+window.addEventListener("online",()=>{if(cur&&wantPlay&&(au.paused||au.error)){tries=0;play(cur)}});
+async function setWake(){
+  try{
+    if("wakeLock"in navigator&&!au.paused&&!document.hidden){if(!wl){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",()=>{wl=null})}}
+    else if(wl){await wl.release();wl=null}
+  }catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)setWake()});
+applyTheme(theme);
 render();
 </script>
 </body>
