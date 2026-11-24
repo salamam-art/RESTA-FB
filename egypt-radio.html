@@ -318,14 +318,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <select id="tlm" class="tlsel" aria-label="الرواية" hidden></select>
 <div id="tlbody"></div>
 </div></div>
-<div class="mg" id="lf" hidden role="dialog" aria-modal="true" aria-label="أغاني جهازي"><div class="mgc">
-<div class="mgh"><b>🎵 أغاني جهازي</b><button id="lfx" aria-label="إغلاق">✕</button></div>
-<input type="file" id="lfi" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac" multiple hidden>
-<button class="btn" id="lfa" style="width:100%">＋ اختيار أغاني من الموبايل</button>
-<div class="tlmh" style="gap:8px;flex-wrap:wrap"><button class="tlfo" id="lfs" aria-pressed="false">🔀 عشوائي</button><button class="tlfo" id="lfr" aria-pressed="true">🔁 تكرار القائمة</button><button class="tlfo" id="lfc">🗑 مسح الكل</button></div>
-<div class="st" id="lfn" style="margin-top:8px"></div>
-<div id="lfl"></div>
-</div></div>
 <audio id="au_el" preload="none"></audio>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
@@ -394,7 +386,7 @@ let autoFP=ld("eg_autofp",true),noAuto=false;
 let recent=ld("eg_recent",[]),view=ld("eg_view","grid");
 const all=()=>BASE.concat(custom);
 let urls=ld("eg_urls",{});const url=s=>s.c==="custom"?(urls[s.id]||s.u):s.u;let webs=ld("eg_webs",{});const web=s=>s.c==="custom"?(webs[s.id]||s.w||""):(s.w||"");let editing=null;
-const TABS=[["fav","المفضلة"],["recent","آخر ما سمعت"],["all","الكل"],["music","أغاني"],["ertu","حكومية"],["online","أونلاين"],["sport","رياضة"],["news","أخبار"],["quran","قرآن"],["tilawat","📖 تلاوات"],["local","🎵 أغاني جهازي"],["custom","إضافاتي"]];
+const TABS=[["fav","المفضلة"],["recent","آخر ما سمعت"],["all","الكل"],["music","أغاني"],["ertu","حكومية"],["online","أونلاين"],["sport","رياضة"],["news","أخبار"],["quran","قرآن"],["tilawat","📖 تلاوات"],["custom","إضافاتي"]];
 function vis(){
   const q=$("q").value.trim();
   const r=all().filter(s=>{
@@ -430,7 +422,6 @@ function render(){
     const b=document.createElement("button");b.textContent=l;b.dataset.fk="t:"+k;
     if(k==="settings"){b.className="tab set";b.setAttribute("aria-haspopup","dialog");b.onclick=openSettings}
     else if(k==="tilawat"){b.className="tab tl";b.setAttribute("aria-haspopup","dialog");b.onclick=openTL}
-    else if(k==="local"){b.className="tab tl";b.setAttribute("aria-haspopup","dialog");b.onclick=openLF}
     else{b.className="tab"+(tab===k?" on":"");b.setAttribute("aria-pressed",tab===k?"true":"false");b.onclick=()=>{tab=k;render()}}
     tabs.appendChild(b);
   });
@@ -568,7 +559,7 @@ function play(s){
     $("cn").textContent=s.n;status("هذه المحطة بحاجة لرابط بث، الصقه في الإعدادات",true);
     $("addbox").scrollIntoView({behavior:"smooth",block:"center"});return;
   }
-  const _rt=retrying,_new=!cur||cur.id!==s.id;if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&s.c!=="tilawa"&&s.c!=="local"){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
+  const _rt=retrying,_new=!cur||cur.id!==s.id;if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&s.c!=="tilawa"){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
   const u=url(s);
   if(_new&&!_rt&&autoFP&&!noAuto&&$("fp").hidden)setTimeout(()=>{if($("fp").hidden)openFP()},0);
   noAuto=false;
@@ -578,16 +569,16 @@ function play(s){
     hls=new Hls();hls.on(Hls.Events.ERROR,(e,d)=>{if(d.fatal)au.onerror()});hls.loadSource(u);hls.attachMedia(au);
   }else{au.src=u;if(s.t>0){const t0=s.t;s.t=0;au.addEventListener("loadedmetadata",()=>{try{au.currentTime=t0}catch(e){}},{once:true})}}
   au.play().catch(()=>{});
-  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:s.n,artist:s.c==="tilawa"?s.d:s.c==="local"?"من جهازك":"راديو مصر"})}catch(e){}}
+  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:s.n,artist:s.c==="tilawa"?s.d:"راديو مصر"})}catch(e){}}
   render();
 }
-function step(d){noAuto=true;setTimeout(()=>{noAuto=false},0);if(cur&&cur.c==="local"){lfStep(d);return}if(cur&&cur.c==="tilawa"){tlStep(d);return}const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
-$("pp").onclick=()=>{if(!cur){const v=vis();if(v.length)play(v[0]);return}if(au.paused){wantPlay=true;tries=0;if(isSk(cur)&&au.src&&!au.error&&au.readyState>0){au.play().catch(()=>{})}else{if(isSk(cur)&&au.currentTime>1)cur.t=au.currentTime;play(cur)}}else{wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}};
+function step(d){noAuto=true;setTimeout(()=>{noAuto=false},0);if(cur&&cur.c==="tilawa"){tlStep(d);return}const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
+$("pp").onclick=()=>{if(!cur){const v=vis();if(v.length)play(v[0]);return}if(au.paused){wantPlay=true;tries=0;if(cur.c==="tilawa"&&au.src&&!au.error&&au.readyState>0){au.play().catch(()=>{})}else{if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;play(cur)}}else{wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}};
 $("next").onclick=()=>step(-1);$("prev").onclick=()=>step(1);
-au.onplaying=()=>{loading=false;tries=0;clearTimeout(wt);setPP("❚❚");document.body.classList.add("playing");status(cur&&cur.c==="tilawa"?"يعمل الآن · "+cur.d:cur&&cur.c==="local"?"يعمل الآن · من جهازك":"يعمل الآن 🔴 مباشر");setWake()};
+au.onplaying=()=>{loading=false;tries=0;clearTimeout(wt);setPP("❚❚");document.body.classList.add("playing");status(cur&&cur.c==="tilawa"?"يعمل الآن · "+cur.d:"يعمل الآن 🔴 مباشر");setWake()};
 au.onpause=()=>{setPP("▶");document.body.classList.remove("playing");if(cur&&!au.error&&!loading){wantPlay=false;status("متوقف")}setWake()};
 au.onwaiting=()=>{document.body.classList.remove("playing");status("جاري التحميل…");clearTimeout(wt);wt=setTimeout(()=>{if(wantPlay){loading=false;reconnect()}},15000)};
-au.onended=()=>{if(cur&&cur.c==="tilawa")tlEnded();else if(cur&&cur.c==="local")lfEnded();else reconnect()};
+au.onended=()=>{if(cur&&cur.c==="tilawa")tlEnded();else reconnect()};
 au.onerror=()=>{document.body.classList.remove("playing");loading=false;reconnect()};
 $("vol").oninput=e=>{au.volume=+e.target.value};au.volume=.8;
 $("q").oninput=render;
@@ -607,7 +598,6 @@ function showWeb(s,msg){
 }
 function reconnect(){
   clearTimeout(wt);
-  if(cur&&cur.c==="local"){wantPlay=false;clearTimeout(rt);setPP("▶");document.body.classList.remove("playing");status("تعذّر تشغيل هذا الملف. جرّب ملفًا آخر",true);return}
   if(cur&&cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
   if(!cur||!wantPlay)return;
   if(tries>=4){wantPlay=false;setPP("▶");document.body.classList.remove("playing");if(cur.c==="tilawa"){status("تعذّر تشغيل هذه السورة. جرّب سورة أخرى أو قارئًا آخر",true);return}if(web(cur)){showWeb(cur);return}status("تعذّر تشغيل هذه المحطة. جرّب محطة أخرى أو عدّل الرابط بـ ✎",true);return}
@@ -633,7 +623,7 @@ function syncFP(){
   fxMount(s?(s.c==="tilawa"?{n:s.d,id:"tl"}:s):{n:""});
   const m=$("fpm");m.hidden=!p.f;m.textContent=p.f;$("fpd").textContent=p.t;
   const on=!!s&&favs.includes(s.id),b=$("fpf");
-  b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||s.c==="tilawa"||s.c==="local";
+  b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||s.c==="tilawa";
 }
 function openFP(){$("fp").hidden=false;$("xp").setAttribute("aria-expanded","true");syncFP();mirrorStatus();$("fpx").focus()}
 function closeFP(){exitFS();fxMenu(false);$("fp").hidden=true;$("xp").setAttribute("aria-expanded","false");$("xp").focus()}
@@ -643,7 +633,7 @@ $("fpx").onclick=closeFP;
 $("fpf").onclick=()=>{if(cur)toggleFav(cur.id)};
 $("fnext").onclick=()=>step(-1);$("fprev").onclick=()=>step(1);
 $("fpp").onclick=$("pp").onclick;
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("lf").hidden){$("lf").hidden=true;return}if(!$("tl").hidden){$("tl").hidden=true;return}if(!$("fp").hidden&&$("mg").hidden&&$("sg").hidden)closeFP()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("tl").hidden){$("tl").hidden=true;return}if(!$("fp").hidden&&$("mg").hidden&&$("sg").hidden)closeFP()});
 let sleepAt=0,sleepI=null,sleepT=null;
 function sleepTxt(){const t=$("slt");if(!sleepAt){t.textContent="";return}const r=Math.max(0,Math.round((sleepAt-Date.now())/1000));t.textContent="سيتوقف البث بعد "+Math.floor(r/60)+":"+String(r%60).padStart(2,"0")}
 function markSleep(m){document.querySelectorAll("#slp button").forEach(b=>{const on=+b.dataset.m===m;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false")})}
@@ -659,61 +649,6 @@ function setSleep(m){
 }
 document.querySelectorAll("#slp button").forEach(b=>{b.onclick=()=>setSleep(+b.dataset.m)});
 markSleep(0);applyView();
-/* ===== أغاني من الموبايل (ملفات صوت يختارها المستخدم، تُشغَّل محليًا بدون رفع) ===== */
-function isSk(s){return !!s&&(s.c==="tilawa"||s.c==="local")}
-let LF=[],lfN=0,lfShuf=ld("eg_lfs",false),lfRep=ld("eg_lfr",true);
-const lfOk=f=>/^audio\//.test(f.type)||/\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|weba)$/i.test(f.name);
-function lfAdd(files){
-  const fl=[...files],ok=fl.filter(lfOk);let n=0;
-  ok.forEach(f=>{
-    const k=f.name+"|"+f.size+"|"+f.lastModified;if(LF.some(x=>x.k===k))return;
-    LF.push({id:"lf:"+(++lfN),k:k,n:f.name.replace(/\.[^.]+$/,"").replace(/_+/g," "),d:"من جهازك",c:"local",u:URL.createObjectURL(f)});n++;
-  });
-  lfRender();
-  if(fl.length&&!ok.length)$("lfn").textContent="الملفات المختارة ليست ملفات صوت";
-  return n;
-}
-function lfRender(){
-  const b=$("lfl");b.replaceChildren();
-  $("lfn").textContent=LF.length?LF.length+" أغنية — اضغط على أغنية لتشغيلها":"اختر ملفات صوت من موبايلك وستُشغَّل هنا مباشرة بدون رفعها لأي مكان. القائمة تُمحى عند إغلاق التطبيق.";
-  LF.forEach(s=>{
-    const w=document.createElement("div");w.className="tlw";
-    const r=document.createElement("button");r.className="tlrow"+(cur&&cur.id===s.id?" cur":"");
-    const t=document.createElement("span");t.className="tx2";t.textContent=s.n;
-    r.append(avatar(s,36),t);r.onclick=()=>{play(s);$("lf").hidden=true};
-    const x=document.createElement("button");x.className="tlstar";x.textContent="✕";x.setAttribute("aria-label","إزالة: "+s.n);x.onclick=()=>lfDel(s);
-    w.append(r,x);b.appendChild(w);
-  });
-  $("lfs").setAttribute("aria-pressed",lfShuf?"true":"false");$("lfr").setAttribute("aria-pressed",lfRep?"true":"false");
-}
-function lfStop(){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause();au.removeAttribute("src");au.load();cur=null;$("cn").textContent="اختر محطة";status("جاهز");render()}
-function lfDel(s){
-  if(cur&&cur.id===s.id)lfStop();
-  try{URL.revokeObjectURL(s.u)}catch(e){}
-  LF=LF.filter(x=>x.id!==s.id);lfRender();
-}
-function lfStep(d){
-  const i=LF.findIndex(x=>cur&&x.id===cur.id);if(i<0||!LF.length)return;
-  let j=(i+d+LF.length)%LF.length;
-  if(lfShuf&&LF.length>1){do{j=Math.floor(Math.random()*LF.length)}while(j===i)}
-  play(LF[j]);lfRender();
-}
-function lfEnded(){
-  noAuto=true;setTimeout(()=>{noAuto=false},0);
-  const i=LF.findIndex(x=>cur&&x.id===cur.id);
-  if(lfShuf&&LF.length>1){lfStep(1);return}
-  if(i>=0&&i<LF.length-1){play(LF[i+1]);lfRender();return}
-  if(lfRep&&LF.length){play(LF[0]);lfRender();return}
-  wantPlay=false;setPP("▶");document.body.classList.remove("playing");status("انتهت القائمة");
-}
-function openLF(){lfRender();$("lf").hidden=false;$("lfa").focus()}
-$("lfa").onclick=()=>$("lfi").click();
-$("lfi").onchange=e=>{const n=lfAdd(e.target.files);e.target.value="";if(n&&!(cur&&cur.c==="local")){play(LF[LF.length-n]);$("lf").hidden=true}};
-$("lfs").onclick=()=>{lfShuf=!lfShuf;sv("eg_lfs",lfShuf);lfRender()};
-$("lfr").onclick=()=>{lfRep=!lfRep;sv("eg_lfr",lfRep);lfRender()};
-$("lfc").onclick=()=>{if(!LF.length)return;if(!confirm("مسح كل الأغاني من القائمة؟ (الملفات على موبايلك لن تُحذف)"))return;if(cur&&cur.c==="local")lfStop();LF.forEach(s=>{try{URL.revokeObjectURL(s.u)}catch(e){}});LF=[];lfRender()};
-$("lfx").onclick=()=>{$("lf").hidden=true};
-$("lf").onclick=e=>{if(e.target===$("lf"))$("lf").hidden=true};
 /* ===== تلاوات حسب السورة (mp3quran.net) ===== */
 const SUR=["الفاتحة","البقرة","آل عمران","النساء","المائدة","الأنعام","الأعراف","الأنفال","التوبة","يونس","هود","يوسف","الرعد","إبراهيم","الحجر","النحل","الإسراء","الكهف","مريم","طه","الأنبياء","الحج","المؤمنون","النور","الفرقان","الشعراء","النمل","القصص","العنكبوت","الروم","لقمان","السجدة","الأحزاب","سبأ","فاطر","يس","الصافات","ص","الزمر","غافر","فصلت","الشورى","الزخرف","الدخان","الجاثية","الأحقاف","محمد","الفتح","الحجرات","ق","الذاريات","الطور","النجم","القمر","الرحمن","الواقعة","الحديد","المجادلة","الحشر","الممتحنة","الصف","الجمعة","المنافقون","التغابن","الطلاق","التحريم","الملك","القلم","الحاقة","المعارج","نوح","الجن","المزمل","المدثر","القيامة","الإنسان","المرسلات","النبأ","النازعات","عبس","التكوير","الانفطار","المطففين","الانشقاق","البروج","الطارق","الأعلى","الغاشية","الفجر","البلد","الشمس","الليل","الضحى","الشرح","التين","العلق","القدر","البينة","الزلزلة","العاديات","القارعة","التكاثر","العصر","الهمزة","الفيل","قريش","الماعون","الكوثر","الكافرون","النصر","المسد","الإخلاص","الفلق","الناس"];
 const nrm=s=>String(s||"").replace(/[\u064B-\u065F\u0670\u0640]/g,"").replace(/[أإآٱ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).toLowerCase();
@@ -744,7 +679,7 @@ function tlSave(){
   sv("eg_tl_last",tlLast);
 }
 function updProg(){
-  const on=isSk(cur),d=au.duration,ok=isFinite(d)&&d>0;
+  const on=!!cur&&cur.c==="tilawa",d=au.duration,ok=isFinite(d)&&d>0;
   $("skw").hidden=!on;$("pg").hidden=!on;
   if(!on)return;
   const t=au.currentTime||0;
@@ -752,7 +687,7 @@ function updProg(){
   $("skc").textContent=fmt(t);$("skd").textContent=ok?fmt(d):"--:--";
   $("pg").firstChild.style.width=ok?Math.min(100,t/d*100)+"%":"0";
 }
-au.addEventListener("timeupdate",()=>{if(!isSk(cur))return;updProg();if(cur.c!=="tilawa")return;const n=Date.now();if(n-tlSaveAt>5000){tlSaveAt=n;tlSave()}});
+au.addEventListener("timeupdate",()=>{if(!cur||cur.c!=="tilawa")return;updProg();const n=Date.now();if(n-tlSaveAt>5000){tlSaveAt=n;tlSave()}});
 ["loadedmetadata","durationchange","emptied"].forEach(ev=>au.addEventListener(ev,()=>updProg()));
 au.addEventListener("pause",()=>{if(cur&&cur.c==="tilawa")tlSave()});
 $("sk").addEventListener("pointerdown",()=>{skd=true});
