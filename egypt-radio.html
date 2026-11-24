@@ -134,6 +134,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .tlrow .no{flex:none;min-width:34px;text-align:center;font-size:12px;color:var(--mut)}
 .tlrow .no:empty{display:none}
 .tlrow.cur{color:var(--ac2);font-weight:600}
+.tlw{display:flex;align-items:center;border-top:1px solid var(--bd)}
+.tlw .tlrow{border-top:0;flex:1;min-width:0}
+.tlstar{flex:none;min-width:44px;min-height:44px;background:none;border:0;font-size:22px;color:var(--mut);cursor:pointer;padding:0}
+.tlstar.on{color:var(--ac)}
+.tlmh{display:flex;align-items:center;margin-top:8px}
+.tlfo{min-height:44px;padding:0 14px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);font-family:inherit;font-size:14px;cursor:pointer}
+.tlfo[aria-pressed="true"]{background:var(--ac);color:#fff;border-color:var(--ac)}
+.tlsec{font-size:12px;color:var(--mut);padding:8px 4px 2px}
 #tlbody{margin-top:8px}
 .pg{position:absolute;top:0;left:0;right:0;height:3px;background:var(--bd)}
 .pg[hidden]{display:none}
@@ -254,9 +262,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <button class="btn" id="sgo" style="width:100%;margin-top:8px">بحث</button>
 <div id="sres"></div></div></div>
 <div class="mg" id="tl" hidden role="dialog" aria-modal="true" aria-label="تلاوات القرآن"><div class="mgc">
-<div class="mgh"><button id="tlb" aria-label="رجوع إلى القرّاء" hidden>→</button><b id="tlt">📖 تلاوات</b><button id="tlx" aria-label="إغلاق">✕</button></div>
+<div class="mgh"><button id="tlb" aria-label="رجوع إلى القرّاء" hidden>→</button><b id="tlt">📖 تلاوات</b><button id="tlfs" class="tlstar" aria-pressed="false" hidden>☆</button><button id="tlx" aria-label="إغلاق">✕</button></div>
 <div id="tlr"></div>
 <input type="search" id="tlq" placeholder="ابحث عن قارئ…" aria-label="بحث" style="width:100%">
+<div class="tlmh" id="tlfw"><button id="tlfo" class="tlfo" aria-pressed="false">★ المفضلة فقط</button></div>
 <select id="tlm" class="tlsel" aria-label="الرواية" hidden></select>
 <div id="tlbody"></div>
 </div></div>
@@ -264,7 +273,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.2.0";
+const APP_VERSION="1.3.0";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -593,6 +602,7 @@ const SUR=["الفاتحة","البقرة","آل عمران","النساء","ا�
 const nrm=s=>String(s||"").replace(/[\u064B-\u065F\u0670\u0640]/g,"").replace(/[أإآٱ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).toLowerCase();
 const p3=n=>String(n).padStart(3,"0");
 function fmt(t){t=Math.max(0,Math.floor(t||0));const h=Math.floor(t/3600),m=Math.floor(t%3600/60),r=t%60;return(h?h+":"+String(m).padStart(2,"0"):m)+":"+String(r).padStart(2,"0")}
+let favRec=ld("eg_favrec",[]),tlOnlyFav=false;
 let TLR=null,tlCtx=null,tlv={view:"rec",rec:null,mos:0},tlLast=ld("eg_tl_last",null),tlSaveAt=0,skd=false;
 if(!(tlLast&&tlLast.sura>=1&&tlLast.sura<=114&&Array.isArray(tlLast.list)&&/^https:\/\//i.test(tlLast.server||"")))tlLast=null;
 function mkCtx(r,m){return{rid:r.id,rn:r.n,mid:m.id,mn:m.n,server:m.s,list:m.l}}
@@ -660,6 +670,14 @@ function tlRes(){
   box.appendChild(b);
 }
 function tlDefMos(r){let i=r.m.findIndex(m=>/حفص/.test(m.n)&&/مرتل/.test(m.n));if(i<0)i=r.m.findIndex(m=>/حفص/.test(m.n));return i<0?0:i}
+function tlFavToggle(id){favRec=favRec.includes(id)?favRec.filter(x=>x!==id):favRec.concat(id);sv("eg_favrec",favRec)}
+function tlFavHdr(){
+  const r=tlv.rec,b=$("tlfs");
+  if(tlv.view!=="sur"||!r){b.hidden=true;return}
+  const on=favRec.includes(r.id);
+  b.hidden=false;b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");
+  b.setAttribute("aria-label",on?"إزالة القارئ من المفضلة":"إضافة القارئ إلى المفضلة");
+}
 function tlRender(){
   const box=$("tlbody"),q0=nrm($("tlq").value.trim()),q=q0.replace(/^سوره\s*/,"");box.innerHTML="";
   const row=(no,t,sub,ic,cls,fn)=>{
@@ -672,9 +690,24 @@ function tlRender(){
   };
   const none=()=>{box.innerHTML='<div class="empty">لا توجد نتائج</div>'};
   if(tlv.view==="rec"){
-    const v=TLR.filter(r=>!q0||nrm(r.n).includes(q0));
-    if(!v.length){none();return}
-    v.forEach(r=>row("",r.n,r.m[0].n+(r.m.length>1?" · +"+(r.m.length-1):""),"‹","",()=>{tlv.rec=r;tlv.mos=tlDefMos(r);tlShowSur()}));
+    const fo=$("tlfo");fo.setAttribute("aria-pressed",tlOnlyFav?"true":"false");
+    let v=TLR.filter(r=>(!q0||nrm(r.n).includes(q0))&&(!tlOnlyFav||favRec.includes(r.id)));
+    if(!v.length){if(tlOnlyFav&&!q0)box.innerHTML='<div class="empty">لم تضف قرّاء مفضلين بعد — اضغط ☆ بجانب أي قارئ</div>';else none();return}
+    const fv=v.filter(r=>favRec.includes(r.id)),ov=tlOnlyFav?[]:v.filter(r=>!favRec.includes(r.id));
+    const add=r=>{
+      const n0=box.children.length,isF=favRec.includes(r.id);
+      row("",r.n,r.m[0].n+(r.m.length>1?" · +"+(r.m.length-1):""),"‹","",()=>{tlv.rec=r;tlv.mos=tlDefMos(r);tlShowSur()});
+      const rb=box.lastChild,w=document.createElement("div");w.className="tlw";
+      box.replaceChild(w,rb);w.appendChild(rb);
+      const st=document.createElement("button");st.className="tlstar"+(isF?" on":"");st.textContent=isF?"★":"☆";
+      st.setAttribute("aria-pressed",isF?"true":"false");st.setAttribute("aria-label",(isF?"إزالة من المفضلة: ":"إضافة إلى المفضلة: ")+r.n);
+      st.onclick=()=>{tlFavToggle(r.id);const y=$("tlbody").parentNode.scrollTop;tlRender();$("tlbody").parentNode.scrollTop=y};
+      w.appendChild(st);
+    };
+    if(fv.length&&ov.length){const h=document.createElement("div");h.className="tlsec";h.textContent="★ المفضلة";box.appendChild(h)}
+    fv.forEach(add);
+    if(fv.length&&ov.length){const h=document.createElement("div");h.className="tlsec";h.textContent="كل القرّاء";box.appendChild(h)}
+    ov.forEach(add);
   }else{
     const m=tlv.rec.m[tlv.mos]||tlv.rec.m[0];
     const v=m.l.filter(n=>!q||String(n)===q||nrm(SUR[n-1]).includes(q));
@@ -686,7 +719,7 @@ function tlRender(){
   }
 }
 function tlShowRec(){
-  tlv.view="rec";$("tlb").hidden=true;$("tlt").textContent="📖 تلاوات";$("tlm").hidden=true;
+  tlv.view="rec";$("tlb").hidden=true;$("tlt").textContent="📖 تلاوات";$("tlm").hidden=true;$("tlfw").hidden=false;$("tlfs").hidden=true;
   const q=$("tlq");q.hidden=false;q.value="";q.placeholder="ابحث عن قارئ…";
   tlRender();
 }
@@ -695,7 +728,7 @@ function tlShowSur(){
   const q=$("tlq");q.hidden=false;q.value="";q.placeholder="ابحث عن سورة (اسم أو رقم)…";
   const s=$("tlm");s.innerHTML="";
   r.m.forEach((m,i)=>{const o=document.createElement("option");o.value=i;o.textContent=m.n;s.appendChild(o)});
-  s.value=tlv.mos;s.hidden=r.m.length<2;
+  s.value=tlv.mos;s.hidden=r.m.length<2;$("tlfw").hidden=true;tlFavHdr();
   tlRender();
   const c=$("tlbody").querySelector(".tlrow.cur");if(c&&c.scrollIntoView)c.scrollIntoView({block:"center"});
 }
@@ -703,13 +736,15 @@ async function openTL(){
   $("tl").hidden=false;$("tlx").focus();
   tlRes();
   if(!TLR){
-    $("tlq").hidden=true;$("tlm").hidden=true;$("tlb").hidden=true;
+    $("tlq").hidden=true;$("tlm").hidden=true;$("tlb").hidden=true;$("tlfw").hidden=true;$("tlfs").hidden=true;
     tlMsg("جاري تحميل القرّاء…");
     try{await tlLoad()}catch(e){tlMsg("تعذّر الاتصال بموقع التلاوات. تأكد من الإنترنت وجرّب مرة أخرى",true);return}
   }
   if(tlv.rec)tlShowSur();else tlShowRec();
 }
 $("tlq").oninput=()=>tlRender();
+$("tlfo").onclick=()=>{tlOnlyFav=!tlOnlyFav;tlRender()};
+$("tlfs").onclick=()=>{if(tlv.rec){tlFavToggle(tlv.rec.id);tlFavHdr()}};
 $("tlm").onchange=e=>{tlv.mos=+e.target.value;tlRender()};
 $("tlb").onclick=()=>{tlv.rec=null;tlShowRec()};
 $("tlx").onclick=()=>{$("tl").hidden=true};
