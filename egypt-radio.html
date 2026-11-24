@@ -142,6 +142,25 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .skw[hidden]{display:none}
 .skw input{width:100%;accent-color:var(--ac)}
 .skt{display:flex;justify-content:space-between;font-size:12px;color:var(--mut)}
+
+/* light effects stage */
+.fxs{position:relative;width:min(70vw,280px);aspect-ratio:1;margin:0 auto;border-radius:26%;overflow:hidden;background:#0c0a07;border:1px solid var(--bd);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fxs canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.fxs .lg{position:absolute;inset:0;width:100%;height:100%;border-radius:0;font-size:110px}
+.fxs[data-m="logo"] canvas{display:none}
+.fxs:not([data-m="logo"]) .lg{display:none}
+.fxc{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;width:100%}
+.fxc button{min-height:44px;padding:6px 14px;border:1px solid var(--bd);border-radius:22px;background:var(--card);color:var(--tx);font-family:inherit;font-size:13px}
+.fxc button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+
+/* equalizer */
+.eqp{flex-wrap:wrap}
+.eqp button{font-size:13px;min-width:0;flex:1 0 28%}
+.eqr{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.eqr label{width:96px;flex:none;color:var(--mut)}
+.eqr input{flex:1;min-width:0;accent-color:var(--ac)}
+.eqr output{width:52px;flex:none;direction:ltr;text-align:end;font-size:12px;color:var(--ac2)}
+#eqbox[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -178,6 +197,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   <div class="fph"><button class="fx" id="fpx" aria-label="إغلاق المشغل" style="font-size:14px">▼</button><span>يُبث الآن</span><button class="fx" id="fpf" aria-pressed="false" aria-label="المفضلة">☆</button></div>
   <div class="fpb">
     <div id="fpl"></div>
+    <div class="fxc" id="fxc" role="group" aria-label="مؤثرات الإضاءة"></div>
     <h2 id="fpn">اختر محطة</h2>
     <div><span class="fmb" id="fpm" hidden></span><span class="st" id="fpd"></span></div>
     <div class="st" id="fps"></div>
@@ -192,6 +212,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <div class="mg" id="mg" hidden><div class="mgc"><div class="mgh"><b>الإعدادات</b><button id="mgx" aria-label="إغلاق">✕</button></div>
 <div class="sh">المظهر</div>
 <div class="th" id="th"><button data-t="light">☀️ نهاري</button><button data-t="dark">🌙 ليلي</button><button data-t="auto">🖥 تلقائي</button></div>
+<div class="sh">الإيكولايزر (التحكم بالصوت)</div>
+<div class="th"><button id="eqt" aria-pressed="false">🎚 تشغيل الإيكولايزر</button></div>
+<div id="eqbox" hidden>
+  <div class="th eqp" id="eqp" style="margin-top:8px"></div>
+  <div id="eqsl" style="margin-top:8px"></div>
+  <button class="rs" id="eqr">↺ إعادة الضبط</button>
+</div>
+<div class="st" id="eqs" role="status"></div>
 <div class="sh">إضافة محطة</div>
 <details class="add" id="addbox">
   <summary>＋ أضف محطة بنفسك (رابط بث)</summary>
@@ -236,7 +264,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.0.2";
+const APP_VERSION="1.2.0";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -474,6 +502,7 @@ function play(s){
   }
   if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&s.c!=="tilawa"){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
   const u=url(s);
+  if(eqPre(u,s))return;
   if(hls){hls.destroy();hls=null}
   if(/\.m3u8/i.test(u)&&!au.canPlayType("application/vnd.apple.mpegurl")&&window.Hls&&Hls.isSupported()){
     hls=new Hls();hls.on(Hls.Events.ERROR,(e,d)=>{if(d.fatal)au.onerror()});hls.loadSource(u);hls.attachMedia(au);
@@ -530,7 +559,7 @@ function syncFP(){
   if($("fp").hidden)return;
   const s=cur,p=s?fm(s):{f:"",t:""};
   $("fpn").textContent=s?s.n:"اختر محطة";
-  $("fpl").replaceChildren(avatar(s?(s.c==="tilawa"?{n:s.d}:s):{n:""},140));
+  fxMount(s?(s.c==="tilawa"?{n:s.d,id:"tl"}:s):{n:""});
   const m=$("fpm");m.hidden=!p.f;m.textContent=p.f;$("fpd").textContent=p.t;
   const on=!!s&&favs.includes(s.id),b=$("fpf");
   b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||s.c==="tilawa";
@@ -719,6 +748,206 @@ if(/^https?:$/.test(location.protocol)){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkUpdate(false)});
   setInterval(()=>checkUpdate(false),30*60*1000);
 }
+
+/* ===== light effects (simulated, no AudioContext so streams never break) ===== */
+const FX=[["logo","الشعار"],["aurora","شفق"],["rings","نبضات"],["bars","طيف"],["wave","موجات"],["spark","شرارات"]];
+let fxm=ld("eg_fx","aurora");if(!FX.some(f=>f[0]===fxm))fxm="aurora";
+let fxRaf=0,fxStage=null,fxCv=null,fxCx=null,fxKey="",fxHue=40,fxE=0.1,fxRings=[],fxPart=[],fxLastBeat=0;
+const fxRM=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
+function fxHueOf(s){const nm=(s.n||"").replace(/^(OmniRadio\s*-\s*|إذاعة\s+|راديو\s+|Radio\s+)/i,"").replace(/^ال(?=\S)/,"");let h=0;for(const c of nm)h=(h*31+c.charCodeAt(0))%360;return h}
+function fxBuildChips(){
+  const c=$("fxc");c.replaceChildren();
+  FX.forEach(([k,l])=>{const b=document.createElement("button");b.textContent=l;b.dataset.k=k;b.setAttribute("aria-pressed",k===fxm?"true":"false");b.className=k===fxm?"on":"";b.onclick=()=>fxSet(k);c.appendChild(b)});
+}
+function fxSet(k){
+  fxm=k;sv("eg_fx",k);fxRings=[];fxPart=[];
+  document.querySelectorAll("#fxc button").forEach(b=>{const on=b.dataset.k===k;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false")});
+  if(fxStage)fxStage.dataset.m=k;
+  fxStart();
+}
+function fxMount(s){
+  const box=$("fpl");
+  const key=(s.id||s.n||"")+"|"+(s.f||"");
+  if(!fxStage||!box.contains(fxStage)){
+    fxStage=document.createElement("div");fxStage.className="fxs";fxStage.setAttribute("role","img");fxStage.setAttribute("aria-label","مؤثرات إضاءة — اضغط لتغيير المؤثر");
+    fxCv=document.createElement("canvas");fxStage.appendChild(fxCv);fxCx=fxCv.getContext("2d");
+    fxStage.onclick=()=>{const i=FX.findIndex(f=>f[0]===fxm);fxSet(FX[(i+1)%FX.length][0])};
+    box.replaceChildren(fxStage);fxBuildChips();fxKey="";
+  }
+  if(key!==fxKey){
+    fxKey=key;fxHue=fxHueOf(s);
+    const old=fxStage.querySelector(".lg");if(old)old.remove();
+    fxStage.appendChild(avatar(s,280));
+  }
+  fxStage.dataset.m=fxm;
+  fxStart();
+}
+function fxSize(){
+  const r=fxCv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(r.width*d));
+  if(fxCv.width!==w){fxCv.width=w;fxCv.height=w}
+  return fxCv.width;
+}
+function fxStart(){
+  if(fxRaf){cancelAnimationFrame(fxRaf);fxRaf=0}
+  if(!fxStage||$("fp").hidden||fxm==="logo")return;
+  if(fxRM){fxFrame(performance.now(),true);return}
+  fxRaf=requestAnimationFrame(fxFrame);
+}
+function fxFrame(now,once){
+  if(!fxStage||$("fp").hidden||fxm==="logo"){fxRaf=0;return}
+  const S=fxSize(),x=fxCx,t=now/1000,pl=document.body.classList.contains("playing");
+  const tg=pl?Math.min(1,Math.max(.15,.55+.3*Math.sin(t*2.1)+.18*Math.sin(t*5.3+1)+.12*Math.sin(t*9.7+2))):.07;
+  fxE+=(tg-fxE)*.08;
+  const e=fxE,h=fxHue;
+  x.globalCompositeOperation="source-over";x.shadowBlur=0;x.clearRect(0,0,S,S);
+  x.fillStyle="#0c0a07";x.fillRect(0,0,S,S);
+  const c=S/2;
+  if(fxm==="aurora"){
+    x.globalCompositeOperation="lighter";
+    for(let i=0;i<4;i++){
+      const a=t*(.25+i*.11)+i*1.7,px=c+Math.cos(a)*S*.26,py=c+Math.sin(a*1.3+i)*S*.26,r=S*(.32+.22*e+.04*Math.sin(t+i));
+      const g=x.createRadialGradient(px,py,0,px,py,r);
+      g.addColorStop(0,"hsla("+((h+i*38)%360)+",85%,58%,"+(.35+.4*e)+")");g.addColorStop(1,"hsla("+((h+i*38)%360)+",85%,50%,0)");
+      x.fillStyle=g;x.fillRect(0,0,S,S);
+    }
+  }else if(fxm==="rings"){
+    const g=x.createRadialGradient(c,c,0,c,c,S*.35);
+    g.addColorStop(0,"hsla("+h+",90%,60%,"+(.35+.5*e)+")");g.addColorStop(1,"hsla("+h+",90%,50%,0)");
+    x.fillStyle=g;x.fillRect(0,0,S,S);
+    if(pl&&t-fxLastBeat>.75-.4*e){fxLastBeat=t;fxRings.push({r:S*.05,a:.9})}
+    x.globalCompositeOperation="lighter";x.lineWidth=S*.012;x.shadowBlur=S*.04;
+    fxRings=fxRings.filter(o=>o.a>.02);
+    fxRings.forEach((o,i)=>{o.r+=S*.004*(1+e);o.a*=.985;x.shadowColor="hsl("+h+",90%,60%)";x.strokeStyle="hsla("+((h+o.r/S*120)%360)+",90%,62%,"+o.a+")";x.beginPath();x.arc(c,c,o.r,0,6.2832);x.stroke()});
+    x.shadowBlur=S*.06;x.fillStyle="hsl("+h+",90%,70%)";x.shadowColor="hsl("+h+",90%,60%)";x.beginPath();x.arc(c,c,S*(.04+.02*e),0,6.2832);x.fill();
+  }else if(fxm==="bars"){
+    const N=56,r0=S*.2;
+    x.globalCompositeOperation="lighter";x.lineCap="round";x.lineWidth=S*.026;x.shadowBlur=S*.03;
+    for(let i=0;i<N;i++){
+      const a=i/N*6.2832-1.5708,v=e*(.45+.55*Math.abs(Math.sin(t*(1.4+(i%7)*.33)+i*.9)))*(.6+.4*Math.sin(i*.5+t*.7)),L=S*.04+S*.2*v,hh=(h+i/N*140)%360;
+      x.strokeStyle="hsl("+hh+",90%,62%)";x.shadowColor=x.strokeStyle;
+      x.beginPath();x.moveTo(c+Math.cos(a)*r0,c+Math.sin(a)*r0);x.lineTo(c+Math.cos(a)*(r0+L),c+Math.sin(a)*(r0+L));x.stroke();
+    }
+    const g=x.createRadialGradient(c,c,0,c,c,r0);g.addColorStop(0,"hsla("+h+",90%,60%,"+(.25+.5*e)+")");g.addColorStop(1,"hsla("+h+",90%,50%,0)");x.fillStyle=g;x.beginPath();x.arc(c,c,r0,0,6.2832);x.fill();
+  }else if(fxm==="wave"){
+    x.globalCompositeOperation="lighter";x.lineWidth=S*.014;x.shadowBlur=S*.05;
+    for(let k=0;k<3;k++){
+      const hh=(h+k*50)%360;x.strokeStyle="hsl("+hh+",90%,60%)";x.shadowColor=x.strokeStyle;x.beginPath();
+      for(let i=0;i<=80;i++){
+        const u=i/80,env=Math.sin(u*Math.PI),y=c+Math.sin(u*9+t*(2+k*.8)+k*2)*S*.2*e*env+Math.sin(u*17-t*3+k)*S*.05*e*env;
+        i?x.lineTo(u*S,y):x.moveTo(u*S,y);
+      }
+      x.stroke();
+    }
+  }else if(fxm==="spark"){
+    const g=x.createRadialGradient(c,c,0,c,c,S*.3);g.addColorStop(0,"hsla("+h+",90%,60%,"+(.25+.45*e)+")");g.addColorStop(1,"hsla("+h+",90%,50%,0)");x.fillStyle=g;x.fillRect(0,0,S,S);
+    const n=pl?Math.round(1+4*e):0;
+    for(let i=0;i<n&&fxPart.length<160;i++){const a=Math.random()*6.2832,v=S*(.0015+Math.random()*.004)*(.6+e);fxPart.push({x:c,y:c,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1,hh:(h+Math.random()*90)%360,r:S*(.006+Math.random()*.012)})}
+    x.globalCompositeOperation="lighter";x.shadowBlur=S*.03;
+    fxPart=fxPart.filter(o=>o.l>0);
+    fxPart.forEach(o=>{o.x+=o.vx;o.y+=o.vy;o.l-=.008;x.shadowColor="hsl("+o.hh+",95%,60%)";x.fillStyle="hsla("+o.hh+",95%,65%,"+Math.max(0,o.l)+")";x.beginPath();x.arc(o.x,o.y,o.r,0,6.2832);x.fill()});
+  }
+  if(!once)fxRaf=requestAnimationFrame(fxFrame);
+}
+au.addEventListener("playing",fxStart);au.addEventListener("pause",()=>setTimeout(fxStart,0));
+window.addEventListener("resize",fxStart);
+
+/* ===== equalizer (Web Audio, only active when enabled; needs CORS-enabled streams) ===== */
+const EQB=[[60,"lowshelf","60 هرتز · باس عميق"],[230,"peaking","230 هرتز · باس"],[910,"peaking","910 هرتز · متوسط"],[3600,"peaking","3.6 كيلو · وضوح"],[14000,"highshelf","14 كيلو · حدة"]];
+const EQP=[["flat","مسطّح",[0,0,0,0,0]],["bass","باس",[7,5,0,-1,-1]],["clear","وضوح",[-2,-1,3,4,1]],["news","أخبار",[-5,-2,2,4,0]],["full","ممتلئ",[5,2,-1,2,4]]];
+let eq=ld("eg_eqs",null);
+if(!eq||!Array.isArray(eq.g)||eq.g.length!==5)eq={on:false,g:[0,0,0,0,0],p:"flat"};
+eq.g=eq.g.map(v=>Math.max(-12,Math.min(12,+v||0)));
+let eqNo=ld("eg_eqno",[]),eqCtx=null,eqF=[],eqPreG=null,eqComp=null,eqBuilt=false;
+const eqHost=u=>{try{return new URL(u,location.href).hostname}catch(e){return""}};
+function eqSave(){sv("eg_eqs",eq)}
+function eqApply(){
+  if(!eqBuilt)return;
+  const t=eqCtx.currentTime,g=eq.on?eq.g:[0,0,0,0,0],mx=Math.max(0,...g);
+  eqF.forEach((f,i)=>f.gain.setTargetAtTime(g[i],t,.03));
+  eqPreG.gain.setTargetAtTime(eq.on?Math.pow(10,-(mx*.6)/20):1,t,.03);
+  eqComp.threshold.value=eq.on?-3:0;eqComp.knee.value=eq.on?6:0;eqComp.ratio.value=eq.on?8:1;
+}
+function eqBuild(){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    eqCtx=new AC();const src=eqCtx.createMediaElementSource(au);
+    eqF=EQB.map(([f,ty])=>{const b=eqCtx.createBiquadFilter();b.type=ty;b.frequency.value=f;b.Q.value=1.1;b.gain.value=0;return b});
+    eqPreG=eqCtx.createGain();eqComp=eqCtx.createDynamicsCompressor();
+    src.connect(eqPreG);let n=eqPreG;eqF.forEach(f=>{n.connect(f);n=f});n.connect(eqComp);eqComp.connect(eqCtx.destination);
+    eqBuilt=true;eqApply();eqCtx.resume().catch(()=>{});
+  }catch(e){eqBuilt=false}
+}
+function eqPre(u,s){
+  const bad=eqNo.includes(eqHost(u));
+  if(eqBuilt){
+    if(bad){try{if(s.c!=="tilawa")sessionStorage.setItem("eg_resume",s.id)}catch(e){}status("هذه المحطة لا تدعم الإيكولايزر، جاري إعادة تحميل التطبيق…");setTimeout(()=>location.reload(),600);return true}
+    au.crossOrigin="anonymous";return false;
+  }
+  if(eq.on&&!bad)au.crossOrigin="anonymous";else au.removeAttribute("crossorigin");
+  return false;
+}
+async function eqProbe(u){
+  const a=new AbortController();
+  try{await fetch(u,{mode:"cors",signal:a.signal});a.abort();return true}
+  catch(e){
+    if(e&&e.name==="AbortError")return true;
+    const b=new AbortController();
+    try{await fetch(u,{mode:"no-cors",signal:b.signal});b.abort();return false}catch(e2){return true}
+  }
+}
+au.addEventListener("error",async()=>{
+  if(!au.crossOrigin||!cur||hls)return;
+  const u=au.currentSrc||au.src,h=eqHost(u);if(!h||eqNo.includes(h))return;
+  if(await eqProbe(u))return;
+  eqNo.push(h);sv("eg_eqno",eqNo);eqStatus();
+});
+au.addEventListener("playing",()=>{
+  if(eq.on&&!eqBuilt&&au.crossOrigin==="anonymous")eqBuild();
+  if(eqCtx&&eqCtx.state==="suspended")eqCtx.resume().catch(()=>{});
+  eqStatus();
+});
+function eqStatus(){
+  const el=$("eqs");if(!el)return;
+  let t="";
+  if(!eq.on)t="متوقف. الصوت يعمل بدون أي معالجة.";
+  else if(cur&&eqNo.includes(eqHost(url(cur)||"")))t="هذه المحطة لا تدعم الإيكولايزر (خادم البث لا يسمح بذلك). يعمل الإيكولايزر مع المحطات الأخرى المتوافقة.";
+  else if(eqBuilt)t="يعمل ✓";
+  else t="مفعّل. سيبدأ مع المحطة عند التشغيل إن كانت تدعمه.";
+  el.textContent=t;
+}
+function eqUI(){
+  const on=eq.on;$("eqt").textContent=on?"🎚 الإيكولايزر: مفعّل (اضغط للإيقاف)":"🎚 تشغيل الإيكولايزر";
+  $("eqt").classList.toggle("on",on);$("eqt").setAttribute("aria-pressed",on?"true":"false");
+  $("eqbox").hidden=!on;
+  document.querySelectorAll("#eqp button").forEach(b=>{const o=b.dataset.p===eq.p;b.classList.toggle("on",o);b.setAttribute("aria-pressed",o?"true":"false")});
+  document.querySelectorAll("#eqsl input").forEach((r,i)=>{r.value=eq.g[i];r.nextElementSibling.textContent=(eq.g[i]>0?"+":"")+eq.g[i]+" dB"});
+  eqStatus();
+}
+function eqInit(){
+  const p=$("eqp");EQP.forEach(([k,l,g])=>{const b=document.createElement("button");b.textContent=l;b.dataset.p=k;b.onclick=()=>{eq.g=g.slice();eq.p=k;eqSave();eqApply();eqUI()};p.appendChild(b)});
+  const sl=$("eqsl");EQB.forEach(([f,ty,l],i)=>{
+    const r=document.createElement("div");r.className="eqr";
+    const lb=document.createElement("label");lb.textContent=l;
+    const inp=document.createElement("input");inp.type="range";inp.min=-12;inp.max=12;inp.step=1;inp.dir="ltr";inp.setAttribute("aria-label",l);
+    const o=document.createElement("output");
+    inp.oninput=()=>{eq.g[i]=+inp.value;eq.p="custom";eqSave();eqApply();eqUI()};
+    r.append(lb,inp,o);sl.appendChild(r);
+  });
+  $("eqr").onclick=()=>{eq.g=[0,0,0,0,0];eq.p="flat";eqSave();eqApply();eqUI()};
+  $("eqt").onclick=()=>{
+    eq.on=!eq.on;eqSave();eqApply();eqUI();
+    if(eq.on&&!eqBuilt&&cur&&!au.paused&&au.crossOrigin!=="anonymous"){
+      if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
+      status("جاري إعادة الاتصال لتفعيل الإيكولايزر…");play(cur);
+    }
+  };
+  new MutationObserver(eqStatus).observe($("mg"),{attributes:true,attributeFilter:["hidden"]});
+  eqUI();
+  try{const r=sessionStorage.getItem("eg_resume");
+    if(r){sessionStorage.removeItem("eg_resume");const st=all().find(x=>x.id===r);
+      if(st){play(st);setTimeout(()=>{if(au.paused&&cur)status("اضغط ▶ لمتابعة التشغيل")},1800)}}}catch(e){}
+}
+eqInit();
 </script>
 </body>
 </html>
