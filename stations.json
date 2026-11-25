@@ -2,6 +2,7 @@
   "version": 2,
   "stations": [
     {"id":"nile","n":"نايل إف إم","d":"104.2 · أغاني أجنبية","c":"music","u":"https://audio.nrpstream.com/listen/nile_fm/radio.mp3","w":"https://www.nilefm.com/listen-live"},
+    {"id":"s_z1sbed","n":"راديو مصر على الهوا","d":"","c":"music","u":"https://radio.socialgenix.com/8004/stream","w":"https://radio.socialgenix.com/8004/stream"},
     {"id":"s_w8c327","n":"Nogoum FM","d":"","c":"music","u":"https://www.nogoumfm.net/live-radio-stream/","w":"https://www.nogoumfm.net/live-radio-stream/"},
     {"id":"s_rigjsd","n":"نجوم إف إم 100.6","d":"100.6","c":"music","u":"https://audio.nrpstream.com/listen/nogoumfm/radio.mp3","w":"https://audio.nrpstream.com/listen/nogoumfm/radio.mp3"},
     {"id":"s_1e3il2","n":"راديو مصر على الهوا","d":"","c":"music","u":"https://radio.socialgenix.com/8004/stream","w":"https://radio.socialgenix.com/8004/stream"},
