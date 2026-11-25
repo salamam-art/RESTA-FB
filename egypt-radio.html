@@ -326,7 +326,7 @@ ul.lv li.nofav .eq{left:14px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.8.0";
+const APP_VERSION="1.8.1";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -746,6 +746,7 @@ function tabGo(k){
   if(now&&tlv.view==="sur"&&tlv.rec)tlPushH();
   render();
 }
+function tlMatch(name,q){const n=nrm(name),w=q.split(/\s+/).filter(Boolean);return w.every(x=>n.includes(x))||n.replace(/\s+/g,"").includes(q.replace(/\s+/g,""))}
 function tlTop(sur){
   $("tlb").hidden=!sur;
   $("tlt").textContent=sur?tlv.rec.n:"📖 قرّاء القرآن";
@@ -758,7 +759,7 @@ function tlTop(sur){
     ms.value=tlv.mos;ms.hidden=false;
   }else{ms.hidden=true;ms.dataset.rid=""}
   const fo=$("tlfo");fo.hidden=!TLR||sur;fo.setAttribute("aria-pressed",tlOnlyFav?"true":"false");
-  $("q").placeholder=sur?"ابحث عن سورة (اسم أو رقم)…":"ابحث عن قارئ…";
+  $("q").placeholder=sur?"ابحث عن سورة (اسم أو رقم)…":"🔎 ابحث عن قارئ بالاسم…";
 }
 function renderTL(){
   if(tlv.view==="sur"&&!tlv.rec)tlv.view="rec";
@@ -783,7 +784,7 @@ function renderTL(){
       b.onclick=()=>{const l=tlLast;tlCtx={rid:l.rid,rn:l.rn,mid:l.mid,mn:l.mn,server:l.server,list:l.list};tlPlay(l.sura,l.t);render()};
       list.appendChild(b);
     }
-    const v=TLR.filter(r=>(!q0||nrm(r.n).includes(q0))&&(!tlOnlyFav||favRec.includes(r.id)));
+    const v=TLR.filter(r=>(!q0||tlMatch(r.n,q0))&&(!tlOnlyFav||favRec.includes(r.id)));
     if(!v.length){if(tlOnlyFav&&!q0)msg("لم تضف قرّاء مفضلين بعد — اضغط ☆ على أي قارئ");else none();return}
     const fv=v.filter(r=>favRec.includes(r.id)),ov=tlOnlyFav?[]:v.filter(r=>!favRec.includes(r.id));
     const card=r=>{
