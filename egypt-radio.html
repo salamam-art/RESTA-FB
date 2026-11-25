@@ -38,10 +38,12 @@ li.cur{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
 .mg[hidden]{display:none}
 .mgc{background:var(--card);width:100%;max-width:560px;max-height:80vh;overflow:auto;border-radius:18px 18px 0 0;padding:14px 16px calc(14px + 0px)}
 .sh{font-size:13px;color:var(--mut);margin:16px 0 6px}
-#mg .mgc{background:var(--bg)}
-#mg .mgh{position:sticky;top:-14px;z-index:2;background:var(--bg);margin:-14px -16px 8px;padding:14px 16px 6px}
-#mg .sc{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:12px 14px 14px;margin:0 0 14px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-#mg .sc>.sh{margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--bd);font-size:14px;font-weight:700;color:var(--ac2)}
+#mg .mgc,#fxs .mgc{background:var(--bg)}
+#fxs{background:transparent}
+#fxs .mgc{max-height:54vh;box-shadow:0 -6px 24px rgba(0,0,0,.35)}
+#mg .mgh,#fxs .mgh{position:sticky;top:-14px;z-index:2;background:var(--bg);margin:-14px -16px 8px;padding:14px 16px 6px}
+#mg .sc,#fxs .sc{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:12px 14px 14px;margin:0 0 14px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+#mg .sc>.sh,#fxs .sc>.sh{margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--bd);font-size:14px;font-weight:700;color:var(--ac2)}
 #mg .sc .abt{padding-top:0}
 .th{display:flex;gap:8px}
 .th button{flex:1;min-height:44px;padding:10px 4px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);font-family:inherit;font-size:14px}
@@ -171,17 +173,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .fxm .fxc button.on{background:var(--ac);color:#fff}
 .fx.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 /* وضع ملء الشاشة بالعرض للمؤثر فقط */
-.fp.fs{padding:0}
-.fp.fs .fph{position:absolute;top:10px;inset-inline:10px;z-index:6;justify-content:flex-end;gap:10px;pointer-events:none}
-.fp.fs .fph>*{pointer-events:auto}
-.fp.fs #fpx,.fp.fs #fpt,.fp.fs #fpf{display:none}
-.fp.fs .fph2{gap:10px}
-.fp.fs .fx{background:rgba(20,18,14,.55);border-color:rgba(255,255,255,.25);color:#fff;backdrop-filter:blur(4px)}
-.fp.fs .fpq{display:none}
-.fp.fs .fpb{display:block;padding:0;max-width:none;width:100%;height:100%}
-.fp.fs #fpl{height:100%}
-.fp.fs #fpl .fxs{border-radius:0;border:0}
-.fp.fs.rot{inset:auto;top:0;left:0;width:100vh;height:100vw;width:100dvh;height:100dvw;transform-origin:top left;transform:rotate(90deg) translateY(-100%)}
 /* شاشة المشغل: ثلثان للمؤثرات وثلث للأزرار */
 .fp{overflow:hidden}
 .fpb{min-height:0;display:grid;grid-template-rows:minmax(0,2fr) minmax(0,1fr);gap:6px;padding:6px 0 0;justify-content:stretch;align-items:stretch}
@@ -245,7 +236,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   </div>
 </div>
 <div class="fp" id="fp" hidden role="dialog" aria-modal="true" aria-label="المشغل">
-  <div class="fph"><button class="fx" id="fpx" aria-label="إغلاق المشغل" style="font-size:14px">▼</button><button class="fx" id="fpr" aria-pressed="false" aria-label="عرض المؤثر بملء الشاشة بالعرض" style="font-size:18px">🔄</button><span id="fpt">يُبث الآن</span><span class="fph2"><button class="fx" id="fpe" aria-haspopup="true" aria-expanded="false" aria-label="اختيار المؤثر" style="font-size:18px">✨</button><button class="fx" id="fpf" aria-pressed="false" aria-label="المفضلة">☆</button></span>
+  <div class="fph"><button class="fx" id="fpx" aria-label="إغلاق المشغل" style="font-size:14px">▼</button><button class="fx" id="fpc" aria-haspopup="dialog" aria-label="إعدادات المؤثرات" style="font-size:18px">🎛</button><span id="fpt">يُبث الآن</span><span class="fph2"><button class="fx" id="fpe" aria-haspopup="true" aria-expanded="false" aria-label="اختيار المؤثر" style="font-size:18px">✨</button><button class="fx" id="fpf" aria-pressed="false" aria-label="المفضلة">☆</button></span>
   <div class="fxm" id="fxm" hidden><div class="fxc" id="fxc" role="group" aria-label="مؤثرات الإضاءة"></div></div></div>
   <div class="fpb">
     <div id="fpl"></div>
@@ -273,10 +264,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   <button class="rs" id="eqr">↺ إعادة الضبط</button>
 </div>
 <div class="st" id="eqs" role="status"></div></section>
-<section class="sc"><div class="sh">✨ المؤثرات البصرية</div>
-<div class="th"><button id="fxlt" aria-pressed="false">✨ اجعل المؤثرات تتفاعل مع الصوت</button></div>
-<div class="st" id="fxls" role="status" style="margin-top:6px"></div>
-<div class="th" style="margin-top:10px"><button id="fpa" aria-pressed="true">🖼 فتح شاشة المؤثرات تلقائيًا عند التشغيل: مفعّل</button></div></section>
 <section class="sc"><div class="sh">➕ إضافة محطة</div>
 <details class="add" id="addbox">
   <summary>＋ أضف محطة بنفسك (رابط بث)</summary>
@@ -317,6 +304,22 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <div class="tlmh" id="tlfw"><button id="tlfo" class="tlfo" aria-pressed="false">★ المفضلة فقط</button></div>
 <select id="tlm" class="tlsel" aria-label="الرواية" hidden></select>
 <div id="tlbody"></div>
+</div></div>
+<div class="mg" id="fxs" hidden role="dialog" aria-modal="true" aria-label="إعدادات المؤثرات"><div class="mgc">
+<div class="mgh"><b>🎛 إعدادات المؤثرات</b><button id="fxsx" aria-label="إغلاق">✕</button></div>
+<section class="sc"><div class="sh">✨ المؤثرات البصرية</div>
+<div class="th"><button id="fxlt" aria-pressed="false">✨ اجعل المؤثرات تتفاعل مع الصوت</button></div>
+<div class="st" id="fxls" role="status" style="margin-top:6px"></div>
+<div class="th" style="margin-top:10px"><button id="fpa" aria-pressed="true">🖼 فتح شاشة المؤثرات تلقائيًا عند التشغيل: مفعّل</button></div></section>
+<section class="sc"><div class="sh">🎛 التحكم في المؤثرات</div>
+<div id="fxcl"></div>
+<div class="th" style="margin-top:8px"><button id="fxah" aria-pressed="true">🎨 اللون تلقائي حسب المحطة</button></div>
+<div class="eqr" id="fxhr"></div>
+<div class="sh" style="margin:12px 0 6px;font-size:13px;font-weight:400">سلاسة الحركة (الأقل يوفّر البطارية)</div>
+<div class="th" id="fxfps"><button data-v="20">موفّر</button><button data-v="30">متوسط</button><button data-v="60">عالٍ</button></div>
+<div class="sh" style="margin:12px 0 6px;font-size:13px;font-weight:400">تبديل المؤثر تلقائيًا كل</div>
+<div class="th" id="fxcyc"><button data-v="0">بدون</button><button data-v="15">15 ث</button><button data-v="30">30 ث</button><button data-v="60">60 ث</button></div>
+<div style="display:flex;gap:8px;margin-top:10px"><button class="rs" id="fxrs">↺ إعادة الضبط</button></div></section>
 </div></div>
 <audio id="au_el" preload="none"></audio>
 
@@ -626,14 +629,14 @@ function syncFP(){
   b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||s.c==="tilawa";
 }
 function openFP(){$("fp").hidden=false;$("xp").setAttribute("aria-expanded","true");syncFP();mirrorStatus();$("fpx").focus()}
-function closeFP(){exitFS();fxMenu(false);$("fp").hidden=true;$("xp").setAttribute("aria-expanded","false");$("xp").focus()}
+function closeFP(){fxMenu(false);$("fp").hidden=true;$("xp").setAttribute("aria-expanded","false");$("xp").focus()}
 $("xp").onclick=openFP;
 $("inf").onclick=e=>{if(!e.target.closest("a"))openFP()};
 $("fpx").onclick=closeFP;
 $("fpf").onclick=()=>{if(cur)toggleFav(cur.id)};
 $("fnext").onclick=()=>step(-1);$("fprev").onclick=()=>step(1);
 $("fpp").onclick=$("pp").onclick;
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("tl").hidden){$("tl").hidden=true;return}if(!$("fp").hidden&&$("mg").hidden&&$("sg").hidden)closeFP()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("fxs").hidden){$("fxs").hidden=true;return}if(!$("tl").hidden){$("tl").hidden=true;return}if(!$("fp").hidden&&$("mg").hidden&&$("sg").hidden)closeFP()});
 let sleepAt=0,sleepI=null,sleepT=null;
 function sleepTxt(){const t=$("slt");if(!sleepAt){t.textContent="";return}const r=Math.max(0,Math.round((sleepAt-Date.now())/1000));t.textContent="سيتوقف البث بعد "+Math.floor(r/60)+":"+String(r%60).padStart(2,"0")}
 function markSleep(m){document.querySelectorAll("#slp button").forEach(b=>{const on=+b.dataset.m===m;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false")})}
@@ -804,7 +807,7 @@ $("tlx").onclick=()=>{$("tl").hidden=true};
 $("tl").onclick=e=>{if(e.target===$("tl"))$("tl").hidden=true};
 /* ===== زر الرجوع في الموبايل: يقفل الشاشة المفتوحة بدل الخروج من التطبيق ===== */
 (function(){
-  const OV=["fp","mg","sg","tl"].map($),stack=[];let back=false,queue=[];
+  const OV=["fp","mg","sg","tl","fxs"].map($),stack=[];let back=false,queue=[];
   const open=o=>!o.hidden;
   function push(o){stack.push(o);try{history.pushState({ov:o.id},"")}catch(e){}}
   function closeEl(o){
@@ -824,7 +827,6 @@ $("tl").onclick=e=>{if(e.target===$("tl"))$("tl").hidden=true};
   window.addEventListener("popstate",()=>{
     if(back){back=false;const q=queue.splice(0);q.forEach(o=>{if(open(o))push(o)});return}
     const o=stack[stack.length-1];if(!o)return;
-    if(o===$("fp")&&fsOn){try{history.pushState({ov:"fp"},"")}catch(e){}exitFS();return}
     if(o===$("tl")&&tlv.view==="sur"){try{history.pushState({ov:"tl"},"")}catch(e){}$("tlb").click();return}
     stack.pop();closeEl(o);
   });
@@ -865,13 +867,17 @@ if(/^https?:$/.test(location.protocol)){
 }
 
 /* ===== light effects (simulated by default; follow the real audio when "fxLive" is on and the stream allows it) ===== */
+/* ===== إعدادات التحكم في المؤثرات (تُحفظ على الجهاز) ===== */
+const FXD={sens:1,resp:1,speed:1,bright:1,size:1,dens:1,ah:true,hue:40,fps:60,cyc:0};
+let FXC=Object.assign({},FXD,ld("eg_fxc",{})),fxLD=0,fxCycT=Date.now();
+(function(){const R={sens:[.3,2.5],resp:[.3,1.5],speed:[.3,2.5],bright:[.5,1.6],size:[.6,1],dens:[.3,2],hue:[0,359]};for(const k in R){const v=+FXC[k];FXC[k]=isFinite(v)?Math.min(R[k][1],Math.max(R[k][0],v)):FXD[k]}FXC.ah=FXC.ah!==false;if(![20,30,60].includes(+FXC.fps))FXC.fps=60;FXC.fps=+FXC.fps;if(![0,15,30,60].includes(+FXC.cyc))FXC.cyc=0;FXC.cyc=+FXC.cyc})();
 const FX=[["logo","الشعار"],["aurora","شفق"],["rings","نبضات"],["bars","طيف"],["wave","موجات"],["spark","شرارات"],["eqb","أعمدة"],["led","أعمدة LED"]];
 let fxm=ld("eg_fx","aurora");if(!FX.some(f=>f[0]===fxm))fxm="aurora";
 let fxRaf=0,fxStage=null,fxCv=null,fxCx=null,fxKey="",fxHue=40,fxE=0.1,fxRings=[],fxPart=[],fxLastBeat=0;
 let fxLive=ld("eg_fxlive",false),fxAn=null,fxD=new Uint8Array(512),fxSp=new Float32Array(56),fxBeat=false,fxBassAvg=0,fxKick=0,fxTs=1,fxPh=0,fxLT=0,fxIv=0,fxLB=0;
 let fxPk=new Float32Array(64),fxBv=new Float32Array(64);
-function fxBar(i,N){const idx=1+Math.floor(Math.pow(i/N,1.6)*300),v=Math.min(1,Math.pow(fxD[idx]/255,1.25)*1.3);fxBv[i]+=(v-fxBv[i])*(v>fxBv[i]?.8:.3);return fxBv[i]}
-function fxSpec(i,N){const j=i<N/2?i:N-1-i,idx=1+Math.floor(Math.pow(j/(N/2),1.7)*280),v=Math.pow(fxD[idx]/255,1.3)*1.25;fxSp[i]+=(v-fxSp[i])*(v>fxSp[i]?.75:.28);return Math.min(1,fxSp[i])}
+function fxBar(i,N){const idx=1+Math.floor(Math.pow(i/N,1.6)*300),v=Math.min(1,Math.pow(fxD[idx]/255,1.25)*1.3*FXC.sens);fxBv[i]+=(v-fxBv[i])*Math.min(.95,(v>fxBv[i]?.8:.3)*FXC.resp);return fxBv[i]}
+function fxSpec(i,N){const j=i<N/2?i:N-1-i,idx=1+Math.floor(Math.pow(j/(N/2),1.7)*280),v=Math.pow(fxD[idx]/255,1.3)*1.25*FXC.sens;fxSp[i]+=(v-fxSp[i])*Math.min(.95,(v>fxSp[i]?.75:.28)*FXC.resp);return Math.min(1,fxSp[i])}
 const fxRM=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
 function fxHueOf(s){const nm=(s.n||"").replace(/^(OmniRadio\s*-\s*|إذاعة\s+|راديو\s+|Radio\s+)/i,"").replace(/^ال(?=\S)/,"");let h=0;for(const c of nm)h=(h*31+c.charCodeAt(0))%360;return h}
 function fxBuildChips(){
@@ -879,29 +885,11 @@ function fxBuildChips(){
   FX.forEach(([k,l])=>{const b=document.createElement("button");b.textContent=l;b.dataset.k=k;b.setAttribute("aria-pressed",k===fxm?"true":"false");b.className=k===fxm?"on":"";b.onclick=()=>fxSet(k);c.appendChild(b)});
 }
 function fxSet(k){
-  fxm=k;sv("eg_fx",k);fxRings=[];fxPart=[];
+  fxm=k;sv("eg_fx",k);fxCycT=Date.now();fxRings=[];fxPart=[];
   document.querySelectorAll("#fxc button").forEach(b=>{const on=b.dataset.k===k;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false")});
   if(fxStage)fxStage.dataset.m=k;
   fxMenu(false);fxStart();
 }
-let fsOn=false;
-function fsRot(){const f=$("fp");f.classList.toggle("rot",fsOn&&innerHeight>innerWidth);fxStart()}
-async function enterFS(){
-  if(fsOn)return;fsOn=true;const f=$("fp");f.classList.add("fs");$("fpr").textContent="↩";$("fpr").setAttribute("aria-pressed","true");$("fpr").setAttribute("aria-label","إعادة الشاشة للوضع الأصلي");fxMenu(false);
-  const de=document.documentElement;/* الصفحة كلها هي عنصر ملء الشاشة حتى يعمل التدوير بـ CSS لو القفل غير مدعوم */
-  try{if(de.requestFullscreen)await de.requestFullscreen();else if(de.webkitRequestFullscreen)de.webkitRequestFullscreen()}catch(e){}
-  try{if(screen.orientation&&screen.orientation.lock)await screen.orientation.lock("landscape")}catch(e){}
-  fsRot();setTimeout(fsRot,350);
-}
-function exitFS(){
-  if(!fsOn)return;fsOn=false;const f=$("fp");f.classList.remove("fs","rot");$("fpr").textContent="🔄";$("fpr").setAttribute("aria-pressed","false");$("fpr").setAttribute("aria-label","عرض المؤثر بملء الشاشة بالعرض");fxMenu(false);
-  try{if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock()}catch(e){}
-  try{if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{})}catch(e){}
-  fxStart();
-}
-$("fpr").onclick=()=>{fsOn?exitFS():enterFS()};
-window.addEventListener("resize",()=>{if(fsOn)fsRot()});
-document.addEventListener("fullscreenchange",()=>{if(fsOn&&!document.fullscreenElement)exitFS()});
 function fxMenu(on){const m=$("fxm");if(!m)return;m.hidden=!on;$("fpe").setAttribute("aria-expanded",on?"true":"false");$("fpe").classList.toggle("on",on)}
 $("fpe").onclick=e=>{e.stopPropagation();fxMenu($("fxm").hidden)};
 document.addEventListener("click",e=>{if(!$("fxm").hidden&&!$("fxm").contains(e.target))fxMenu(false)});
@@ -910,7 +898,7 @@ function fxMount(s){
   const key=(s.id||s.n||"")+"|"+(s.f||"");
   if(!fxStage||!box.contains(fxStage)){
     fxStage=document.createElement("div");fxStage.className="fxs";fxStage.setAttribute("role","img");fxStage.setAttribute("aria-label","مؤثرات إضاءة — اضغط لتغيير المؤثر");
-    fxCv=document.createElement("canvas");fxStage.appendChild(fxCv);fxCx=fxCv.getContext("2d");
+    fxCv=document.createElement("canvas");fxStage.appendChild(fxCv);fxCx=fxCv.getContext("2d");fxcCss();
     fxStage.onclick=()=>{const i=FX.findIndex(f=>f[0]===fxm);fxSet(FX[(i+1)%FX.length][0])};
     box.replaceChildren(fxStage);fxBuildChips();fxKey="";
   }
@@ -935,31 +923,33 @@ function fxStart(){
 }
 function fxFrame(now,once){
   if(!fxStage||$("fp").hidden||fxm==="logo"){fxRaf=0;return}
+  if(!once&&FXC.fps<60&&now-fxLD<1000/FXC.fps-3){fxRaf=requestAnimationFrame(fxFrame);return}fxLD=now;/* تحديد الإطارات لتوفير البطارية */
   const S=fxSize(),x=fxCx,rt=now/1000,pl=document.body.classList.contains("playing");
   const dt=Math.min(.05,Math.max(0,rt-fxLT));fxLT=rt;
   let live=false,tg;
   if(fxLive&&eqBuilt&&fxAn&&pl&&au.crossOrigin==="anonymous"&&eqCtx&&eqCtx.state==="running"){live=true;fxAn.getByteFrequencyData(fxD)}
   if(live){
     let sm=0,b=0;for(let i=1;i<120;i++)sm+=fxD[i];for(let i=1;i<6;i++)b+=fxD[i];
-    tg=Math.min(1,Math.max(.06,sm/119/255*2.6));b/=5*255;
+    tg=Math.min(1,Math.max(.06,sm/119/255*2.6));b=Math.min(1,b/(5*255)*FXC.sens);
     fxBeat=b>.22&&b>fxBassAvg*1.22&&rt-fxLB>.2;fxBassAvg+=(b-fxBassAvg)*.12;
     if(fxBeat){const iv=rt-fxLB;if(iv>.25&&iv<1.3)fxIv=fxIv?fxIv*.65+iv*.35:iv;fxLB=rt;fxKick=1}
     if(rt-fxLB>2.5)fxIv=0;
   }else{
     fxBeat=false;fxIv=0;tg=pl?Math.min(1,Math.max(.15,.55+.3*Math.sin(rt*3.1)+.18*Math.sin(rt*7.3+1)+.12*Math.sin(rt*12.7+2))):.07;
   }
+  tg=Math.min(1,tg*FXC.sens);
   fxKick*=.86;
   /* سرعة الحركة تتبع إيقاع الموسيقى: سريعة مع الإيقاع السريع وبطيئة مع الهادئ */
   const tsT=!pl?.5:live?(fxIv?Math.min(2.6,Math.max(.55,60/fxIv/95)):.5+fxE*1.3):1.35;
-  fxTs+=(tsT-fxTs)*.06;fxPh+=dt*fxTs;
+  fxTs+=(tsT-fxTs)*.06;const TS=fxTs*FXC.speed;fxPh+=dt*TS;
   const t=fxPh;
-  fxE+=(tg-fxE)*(live?(tg>fxE?.7:.2):.1);
-  const e=Math.min(1,fxE+(live?fxKick*.45:0)),h=fxHue;
+  fxE+=(tg-fxE)*Math.min(.95,(live?(tg>fxE?.7:.2):.1)*FXC.resp);
+  const e=Math.min(1,fxE+(live?fxKick*.45:0)),h=FXC.ah?fxHue:FXC.hue;
   x.globalCompositeOperation="source-over";x.shadowBlur=0;x.clearRect(0,0,S,S);
   x.fillStyle="#0c0a07";x.fillRect(0,0,S,S);
   const c=S/2;
   /* الـ canvas مربع بضلع = أكبر بعد للمسرح، فالجزء الظاهر فعلًا VW×VH؛ كل المؤثرات تتحجم على M (الأصغر) عشان ما تتقصش */
-  const rw0=fxStage.offsetWidth||1,rh0=fxStage.offsetHeight||1,VW=S*Math.min(1,rw0/rh0),VH=S*Math.min(1,rh0/rw0),M=Math.min(VW,VH);
+  const rw0=fxStage.offsetWidth||1,rh0=fxStage.offsetHeight||1,VW=S*Math.min(1,rw0/rh0),VH=S*Math.min(1,rh0/rw0),M=Math.min(VW,VH)*FXC.size;
   if(fxm==="aurora"){
     x.globalCompositeOperation="lighter";
     for(let i=0;i<4;i++){
@@ -972,11 +962,11 @@ function fxFrame(now,once){
     const g=x.createRadialGradient(c,c,0,c,c,M*.35);
     g.addColorStop(0,"hsla("+h+",90%,60%,"+(.35+.5*e)+")");g.addColorStop(1,"hsla("+h+",90%,50%,0)");
     x.fillStyle=g;x.fillRect(0,0,S,S);
-    if(pl&&(live?fxBeat:rt-fxLastBeat>.6-.35*e)){fxLastBeat=rt;fxRings.push({r:M*.05,a:.9})}
+    if(pl&&(live?(fxBeat&&Math.random()<FXC.dens):rt-fxLastBeat>(.6-.35*e)/FXC.dens)){fxLastBeat=rt;fxRings.push({r:M*.05,a:.9})}
     x.globalCompositeOperation="lighter";x.lineWidth=M*.012;x.shadowBlur=M*.04;
     const maxR=M*.46;/* الحلقة تخفت قبل ما توصل لحافة الشاشة الأصغر */
     fxRings=fxRings.filter(o=>o.a>.02&&o.r<maxR);
-    fxRings.forEach((o,i)=>{o.r+=M*.005*(1+e)*fxTs;o.a*=.985;const fd=Math.max(0,Math.min(1,(maxR-o.r)/(M*.12)));x.shadowColor="hsl("+h+",90%,60%)";x.strokeStyle="hsla("+((h+o.r/M*120)%360)+",90%,62%,"+(o.a*fd)+")";x.beginPath();x.arc(c,c,o.r,0,6.2832);x.stroke()});
+    fxRings.forEach((o,i)=>{o.r+=M*.005*(1+e)*TS;o.a*=.985;const fd=Math.max(0,Math.min(1,(maxR-o.r)/(M*.12)));x.shadowColor="hsl("+h+",90%,60%)";x.strokeStyle="hsla("+((h+o.r/M*120)%360)+",90%,62%,"+(o.a*fd)+")";x.beginPath();x.arc(c,c,o.r,0,6.2832);x.stroke()});
     x.shadowBlur=M*.06;x.fillStyle="hsl("+h+",90%,70%)";x.shadowColor="hsl("+h+",90%,60%)";x.beginPath();x.arc(c,c,M*(.04+.02*e),0,6.2832);x.fill();
   }else if(fxm==="bars"){
     const N=56,r0=M*.2;
@@ -992,31 +982,31 @@ function fxFrame(now,once){
     for(let k=0;k<3;k++){
       const hh=(h+k*50)%360;x.strokeStyle="hsl("+hh+",90%,60%)";x.shadowColor=x.strokeStyle;x.beginPath();
       for(let i=0;i<=80;i++){
-        const u=i/80,env=Math.sin(u*Math.PI),y=c+Math.sin(u*9+t*(2+k*.8)+k*2)*VH*.2*e*env+Math.sin(u*17-t*3+k)*VH*.05*e*env,wx=c-VW/2+u*VW;
+        const u=i/80,env=Math.sin(u*Math.PI),y=c+Math.sin(u*9+t*(2+k*.8)+k*2)*VH*FXC.size*.2*e*env+Math.sin(u*17-t*3+k)*VH*FXC.size*.05*e*env,wx=c-VW/2+u*VW;
         i?x.lineTo(wx,y):x.moveTo(wx,y);
       }
       x.stroke();
     }
   }else if(fxm==="spark"){
     const g=x.createRadialGradient(c,c,0,c,c,M*.3);g.addColorStop(0,"hsla("+h+",90%,60%,"+(.25+.45*e)+")");g.addColorStop(1,"hsla("+h+",90%,50%,0)");x.fillStyle=g;x.fillRect(0,0,S,S);
-    const n=pl?Math.round(1+4*e)+(live&&fxBeat?6:0):0;
-    for(let i=0;i<n&&fxPart.length<160;i++){const a=Math.random()*6.2832,v=M*(.0015+Math.random()*.004)*(.6+e);fxPart.push({x:c,y:c,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1,hh:(h+Math.random()*90)%360,r:M*(.006+Math.random()*.012)})}
+    const n=pl?Math.round((1+4*e)*FXC.dens)+(live&&fxBeat?Math.round(6*FXC.dens):0):0;
+    for(let i=0;i<n&&fxPart.length<Math.round(160*Math.max(1,FXC.dens));i++){const a=Math.random()*6.2832,v=M*(.0015+Math.random()*.004)*(.6+e);fxPart.push({x:c,y:c,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1,hh:(h+Math.random()*90)%360,r:M*(.006+Math.random()*.012)})}
     x.globalCompositeOperation="lighter";x.shadowBlur=M*.03;
     const hx=VW/2,hy=VH/2,fz=M*.08;/* الشرارات تخفت وتختفي قبل حافة الشاشة */
     fxPart=fxPart.filter(o=>o.l>0&&Math.abs(o.x-c)<hx&&Math.abs(o.y-c)<hy);
-    fxPart.forEach(o=>{o.x+=o.vx*fxTs;o.y+=o.vy*fxTs;o.l-=.008;const ef=Math.max(0,Math.min(1,(hx-Math.abs(o.x-c))/fz,(hy-Math.abs(o.y-c))/fz));x.shadowColor="hsl("+o.hh+",95%,60%)";x.fillStyle="hsla("+o.hh+",95%,65%,"+(Math.max(0,o.l)*ef)+")";x.beginPath();x.arc(o.x,o.y,o.r,0,6.2832);x.fill()});
+    fxPart.forEach(o=>{o.x+=o.vx*TS;o.y+=o.vy*TS;o.l-=.008;const ef=Math.max(0,Math.min(1,(hx-Math.abs(o.x-c))/fz,(hy-Math.abs(o.y-c))/fz));x.shadowColor="hsl("+o.hh+",95%,60%)";x.fillStyle="hsla("+o.hh+",95%,65%,"+(Math.max(0,o.l)*ef)+")";x.beginPath();x.arc(o.x,o.y,o.r,0,6.2832);x.fill()});
   }
   if(fxm==="eqb"||fxm==="led"){
     const led=fxm==="led";
     const rw=fxStage.offsetWidth,rh=fxStage.offsetHeight,vw=Math.min(1,rw/Math.max(1,rh)),vh=Math.min(1,rh/Math.max(1,rw));
-    const W=S*vw*.92,H=S*vh*.9,x0=(S-W)/2,yb=S/2+H/2;
+    const W=S*vw*.92*FXC.size,H=S*vh*.9*FXC.size,x0=(S-W)/2,yb=S/2+H/2;
     const N=led?Math.max(10,Math.min(24,Math.round(W/S*34))):Math.max(14,Math.min(40,Math.round(W/S*58))),NS=led?Math.max(14,Math.round(H/S*30)):Math.max(10,Math.round(H/S*34));
     const bw=W/N,sh=H/NS;
     x.globalCompositeOperation="lighter";x.shadowBlur=0;
     for(let i=0;i<N;i++){
       let v=live?fxBar(i,N):1.8*e*(.35+.65*Math.abs(Math.sin(t*(1.3+(i%5)*.45)+i*.8)))*(.55+.45*Math.sin(i*.42+t*.9))*(1.15-.5*i/N);
       v=Math.max(0,Math.min(1,v));
-      fxPk[i]=Math.max(v,fxPk[i]-.01*fxTs);
+      fxPk[i]=Math.max(v,fxPk[i]-.01*TS);
       const n=Math.round(v*NS),bx=x0+i*bw+bw*(led?.08:.12),w=bw*(led?.84:.76);
       if(led){
         /* شكل LED: أخضر ← أصفر ← برتقالي ← أحمر حسب الارتفاع، والخانات غير المضيئة باهتة */
@@ -1041,6 +1031,37 @@ function fxFrame(now,once){
 }
 au.addEventListener("playing",fxStart);au.addEventListener("pause",()=>setTimeout(fxStart,0));
 window.addEventListener("resize",fxStart);
+/* ===== أدوات التحكم في المؤثرات (الإعدادات) ===== */
+function fxcSave(){sv("eg_fxc",FXC)}
+function fxcCss(){if(fxCv)fxCv.style.filter=FXC.bright===1?"":"brightness("+FXC.bright+")"}
+const FXR=[["sens","الحساسية للصوت",.3,2.5,.1],["resp","سرعة التقاط الصوت",.3,1.5,.1],["speed","سرعة الحركة",.3,2.5,.1],["bright","السطوع",.5,1.6,.1],["size","حجم المؤثر",.6,1,.05],["dens","كثافة الشرارات والنبضات",.3,2,.1]];
+function fxcRow(l,mn,mx,st,v,fmt,on){
+  const r=document.createElement("div");r.className="eqr";
+  const lb=document.createElement("label");lb.textContent=l;lb.style.width="124px";
+  const i=document.createElement("input");i.type="range";i.min=mn;i.max=mx;i.step=st;i.dir="ltr";i.value=v;i.setAttribute("aria-label",l);
+  const o=document.createElement("output");o.innerHTML=fmt(v);
+  i.oninput=()=>{o.innerHTML=fmt(+i.value);on(+i.value)};
+  r.append(lb,i,o);return{r,i,o};
+}
+function fxcUI(){
+  const box=$("fxcl");box.replaceChildren();
+  FXR.forEach(([k,l,mn,mx,st])=>{box.appendChild(fxcRow(l,mn,mx,st,FXC[k],v=>Math.round(v*100)+"%",v=>{FXC[k]=v;fxcSave();if(k==="bright")fxcCss()}).r)});
+  const hr=$("fxhr");hr.replaceChildren();
+  const h=fxcRow("درجة اللون",0,359,1,FXC.hue,v=>'<span style="color:hsl('+v+',90%,60%);font-size:18px">●</span>',v=>{FXC.hue=v;fxcSave()});
+  h.i.disabled=FXC.ah;hr.append(...h.r.childNodes);
+  const ah=$("fxah");ah.classList.toggle("on",FXC.ah);ah.setAttribute("aria-pressed",FXC.ah?"true":"false");
+  ah.onclick=()=>{FXC.ah=!FXC.ah;fxcSave();fxcUI()};
+  [["fxfps","fps"],["fxcyc","cyc"]].forEach(([id,k])=>document.querySelectorAll("#"+id+" button").forEach(b=>{
+    const on=+b.dataset.v===FXC[k];b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");
+    b.onclick=()=>{FXC[k]=+b.dataset.v;fxCycT=Date.now();fxcSave();fxcUI()};
+  }));
+}
+$("fxrs").onclick=()=>{FXC=Object.assign({},FXD);fxcSave();fxcCss();fxcUI()};
+$("fpc").onclick=()=>{fxMenu(false);fxcUI();$("fxs").hidden=false;$("fxsx").focus()};
+$("fxsx").onclick=()=>{$("fxs").hidden=true};
+$("fxs").onclick=e=>{if(e.target===$("fxs"))$("fxs").hidden=true};
+fxcUI();
+setInterval(()=>{if(FXC.cyc&&!$("fp").hidden&&fxm!=="logo"&&Date.now()-fxCycT>=FXC.cyc*1000){const L=FX.filter(f=>f[0]!=="logo"),i=L.findIndex(f=>f[0]===fxm);fxSet(L[(i+1)%L.length][0])}},1000);
 
 /* ===== equalizer (Web Audio, only active when enabled; needs CORS-enabled streams) ===== */
 const EQB=[[60,"lowshelf","60 هرتز · باس عميق"],[230,"peaking","230 هرتز · باس"],[910,"peaking","910 هرتز · متوسط"],[3600,"peaking","3.6 كيلو · وضوح"],[14000,"highshelf","14 كيلو · حدة"]];
@@ -1143,7 +1164,7 @@ function eqInit(){
       status("جاري إعادة الاتصال لتفعيل الإيكولايزر…");play(cur);
     }
   };
-  new MutationObserver(eqStatus).observe($("mg"),{attributes:true,attributeFilter:["hidden"]});
+  [$("mg"),$("fxs")].forEach(m=>new MutationObserver(eqStatus).observe(m,{attributes:true,attributeFilter:["hidden"]}));
   const fpaUI=()=>{const b=$("fpa");b.textContent="🖼 فتح شاشة المؤثرات تلقائيًا عند التشغيل: "+(autoFP?"مفعّل":"متوقف");b.classList.toggle("on",autoFP);b.setAttribute("aria-pressed",autoFP?"true":"false")};
   $("fpa").onclick=()=>{autoFP=!autoFP;sv("eg_autofp",autoFP);fpaUI()};fpaUI();
   $("fxlt").onclick=()=>{
