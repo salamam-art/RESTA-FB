@@ -199,6 +199,10 @@ ul.lv li.nofav .eq{left:14px}
 .fpq .vol{margin-top:0}
 .fpq .sh{margin:0;font-size:11px}
 .fpq .th button{min-height:34px;padding:4px;font-size:12px}
+/* تشغيل القرآن: شريط التلاوة يزيد المحتوى، فنعطي أزرار التحكم ارتفاعها الكامل ونلغي التمرير */
+.fp.tl .fpb{grid-template-rows:minmax(0,1fr) auto}
+.fp.tl .fpq{overflow:hidden;justify-content:flex-start;gap:6px;padding-bottom:10px}
+.fp .fpq>*{min-width:0;max-width:100%;box-sizing:border-box}
 @media (max-height:700px){.fpq .sh{display:none}.fpq h2{font-size:17px}.fpq .play.big{width:48px;height:48px;font-size:20px}.fpq .nav.big{width:38px;height:38px}.fpq .fxc button,.fpq .th button{min-height:30px}.fpq{gap:2px}}
 .fxc button{min-height:44px;padding:6px 14px;border:1px solid var(--bd);border-radius:22px;background:var(--card);color:var(--tx);font-family:inherit;font-size:13px}
 .fxc button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
@@ -728,7 +732,7 @@ function tlSave(){
 }
 function updProg(){
   const on=!!cur&&cur.c==="tilawa",d=au.duration,ok=isFinite(d)&&d>0;
-  $("skw").hidden=!on;$("pg").hidden=!on;
+  $("skw").hidden=!on;$("pg").hidden=!on;$("fp").classList.toggle("tl",on);
   if(!on)return;
   const t=au.currentTime||0;
   if(!skd){$("sk").max=ok?d:0;$("sk").value=t}
