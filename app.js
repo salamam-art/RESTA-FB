@@ -7164,7 +7164,7 @@ ${pages}
                         <div class="flex shrink-0 bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-sm">
                             <button onclick="${isWeekMode() ? 'changeWeek(-1)' : 'changeMonth(-1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, -1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="-1" class="p-1 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
                             <span class="px-1 py-0.5 md:px-4 text-xs md:text-sm font-black text-[#6E1418] flex items-center justify-center tracking-wide">
-                                ${isWeekMode() ? weekRangeLabel() : new Date(state.currentYear, state.currentMonth).toLocaleString('ar-EG', { month: 'long', year: 'numeric' })}
+                                ${isWeekMode() ? weekRangeLabel() : (() => { const _d = new Date(state.currentYear, state.currentMonth); return _d.toLocaleString('ar-EG', { month: 'long' }) + ' (' + (state.currentMonth + 1).toLocaleString('ar-EG') + ') ' + _d.toLocaleString('ar-EG', { year: 'numeric' }); })()}
                             </span>
                             <button onclick="${isWeekMode() ? 'changeWeek(1)' : 'changeMonth(1)'}" ${isWeekMode() ? '' : `ondragover="handleMonthNavDragOver(event, 1)" ondragleave="handleMonthNavDragLeave(event)"`} data-month-nav="1" class="p-1 hover:bg-white rounded-lg shadow-sm hover:shadow text-slate-600 hover:text-[#6E1418] transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
                         </div>
