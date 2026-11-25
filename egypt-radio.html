@@ -201,8 +201,9 @@ ul.lv li.nofav .eq{left:14px}
 .fpq .sh{margin:0;font-size:11px}
 .fpq .th button{min-height:34px;padding:4px;font-size:12px}
 /* تشغيل القرآن: شريط التلاوة يزيد المحتوى، فنعطي أزرار التحكم ارتفاعها الكامل ونلغي التمرير */
-.fp.tl .fpb{grid-template-rows:minmax(0,1fr) auto}
-.fp.tl .fpq{overflow:hidden;justify-content:flex-start;gap:6px;padding-bottom:10px}
+.fp.tl .fpb,.fp.hasnp .fpb{grid-template-rows:minmax(0,1fr) auto}
+.np{font-size:13px;color:var(--ac2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fp.tl .fpq,.fp.hasnp .fpq{overflow:hidden;justify-content:flex-start;gap:6px;padding-bottom:10px}
 .fp .fpq>*{min-width:0;max-width:100%;box-sizing:border-box}
 @media (max-height:700px){.fpq .sh{display:none}.fpq h2{font-size:17px}.fpq .play.big{width:48px;height:48px;font-size:20px}.fpq .nav.big{width:38px;height:38px}.fpq .fxc button,.fpq .th button{min-height:30px}.fpq{gap:2px}}
 .fxc button{min-height:44px;padding:6px 14px;border:1px solid var(--bd);border-radius:22px;background:var(--card);color:var(--tx);font-family:inherit;font-size:13px}
@@ -262,6 +263,7 @@ ul.lv li.nofav .eq{left:14px}
     <div id="fpl"></div>
     <div class="fpq">
     <h2 id="fpn">اختر محطة</h2>
+    <div class="np" id="fpnp" dir="auto" hidden></div>
     <div><span class="fmb" id="fpm" hidden></span><span class="st" id="fpd"></span></div>
     <div class="st" id="fps"></div>
     <div class="skw" id="skw" hidden><input type="range" id="sk" min="0" max="0" step="1" value="0" aria-label="موضع التلاوة"><div class="skt"><span id="skc">0:00</span><span id="skd">--:--</span></div></div>
@@ -341,7 +343,7 @@ ul.lv li.nofav .eq{left:14px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.11.0";
+const APP_VERSION="1.12.0";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE_DEFAULT=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -604,6 +606,46 @@ function edit(s){
   box.scrollIntoView({behavior:"smooth",block:"center"});
 }
 $("addbox").ontoggle=()=>{if(!$("addbox").open){editing=null;$("sl").style.display="none"}};
+/* ===== اسم الأغنية الحالية (بأفضل جهد: يظهر فقط للمحطات التي يسمح سيرفرها بذلك) ===== */
+let npTok=0,npTimer=0,npES=null,npLast="",npId="";
+function npClean(t,s){t=String(t||"").replace(/\s+/g," ").trim();if(t.length<2||/^[-–—_.|]+$/.test(t))return"";if(s&&t===(s.n||"").trim())return"";return t.slice(0,140)}
+function npShow(t){const el=$("fpnp");if(el){el.textContent=t?"🎵 "+t:"";el.hidden=!t}const f=$("fp");if(f)f.classList.toggle("hasnp",!!t)}
+function npSet(t,tok,s){
+  if(tok!==npTok)return;t=npClean(t,s);if(t===npLast)return;npLast=t;npShow(t);
+  if("mediaSession"in navigator&&cur&&cur.id===s.id){try{navigator.mediaSession.metadata=new MediaMetadata({title:t||s.n,artist:t?s.n:"راديو مصر"})}catch(e){}}
+}
+function npStop(){npTok++;npId="";clearTimeout(npTimer);if(npES){try{npES.close()}catch(e){}npES=null}npLast="";npShow("")}
+async function npJ(u){const c=new AbortController(),t=setTimeout(()=>c.abort(),6000);try{const r=await fetch(u,{cache:"no-store",signal:c.signal});if(!r.ok)throw 0;return await r.json()}finally{clearTimeout(t)}}
+const NPS={
+  az:async(o,u)=>{const m=/^\/listen\/([^/]+)\//.exec(u.pathname);if(!m)throw 0;const j=await npJ(o+"/api/nowplaying/"+m[1]),x=Array.isArray(j)?j[0]:j,g=x&&x.now_playing&&x.now_playing.song;if(!g)throw 0;return g.text||((g.artist||"")+" - "+(g.title||""))},
+  ice:async(o,u)=>{const j=await npJ(o+"/status-json.xsl");let a=j&&j.icestats&&j.icestats.source;if(!a)throw 0;if(!Array.isArray(a))a=[a];const m=a.find(x=>x.listenurl&&x.listenurl.endsWith(u.pathname))||a[0];return m.title?(m.artist?m.artist+" - ":"")+m.title:(m.yp_currently_playing||"")},
+  sc:async(o)=>{const j=await npJ(o+"/stats?sid=1&json=1");if(!j||j.songtitle==null)throw 0;return j.songtitle}
+};
+function npStart(s){
+  if(!s||s.c==="tilawa"){npStop();return}
+  if(npId===s.id)return;
+  npStop();npId=s.id;const tok=npTok;
+  let u;try{u=new URL(url(s))}catch(e){return}
+  if(u.protocol!=="https:")return;
+  const o=u.origin;
+  if(/(^|\.)zeno\.fm$/.test(u.hostname)){
+    const m=/^\/([A-Za-z0-9]+)/.exec(u.pathname);
+    if(m&&window.EventSource){try{const es=new EventSource("https://api.zeno.fm/mounts/metadata/subscribe/"+m[1]);npES=es;es.onmessage=ev=>{try{npSet(JSON.parse(ev.data).streamTitle,tok,s)}catch(e){}}}catch(e){}}
+    return;
+  }
+  const order=/^\/listen\/[^/]+\//.test(u.pathname)?["az","ice"]:["ice","sc"];
+  let fails=0,good=null;
+  const run=async()=>{
+    if(tok!==npTok)return;
+    if(au.paused&&good){npTimer=setTimeout(run,15000);return}
+    let ok=false;
+    for(const k of(good?[good]:order)){try{const t=await NPS[k](o,u);if(tok!==npTok)return;good=k;ok=true;npSet(t,tok,s);break}catch(e){}}
+    if(tok!==npTok)return;
+    if(ok)fails=0;else if(++fails>=2&&!good)return;
+    npTimer=setTimeout(run,15000);
+  };
+  run();
+}
 function play(s){
   if(!url(s)){
     if(web(s)){showWeb(s,"لا يوجد رابط بث لهذه المحطة، ");return}
@@ -615,14 +657,14 @@ function play(s){
   const _rt=retrying,_new=!cur||cur.id!==s.id;if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&s.c!=="tilawa"){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
   const u=url(s);
   if(_new&&!_rt&&autoFP&&!noAuto&&$("fp").hidden)setTimeout(()=>{if($("fp").hidden)openFP()},0);
-  noAuto=false;
+  noAuto=false;npStart(s);
   if(eqPre(u,s))return;
   if(hls){hls.destroy();hls=null}
   if(/\.m3u8/i.test(u)&&!au.canPlayType("application/vnd.apple.mpegurl")&&window.Hls&&Hls.isSupported()){
     hls=new Hls();hls.on(Hls.Events.ERROR,(e,d)=>{if(d.fatal)au.onerror()});hls.loadSource(u);hls.attachMedia(au);
   }else{au.src=u;if(s.t>0){const t0=s.t;s.t=0;au.addEventListener("loadedmetadata",()=>{try{au.currentTime=t0}catch(e){}},{once:true})}}
   au.play().catch(()=>{});
-  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:s.n,artist:s.c==="tilawa"?s.d:"راديو مصر"})}catch(e){}}
+  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:(s.c!=="tilawa"&&npLast)||s.n,artist:s.c==="tilawa"?s.d:(npLast?s.n:"راديو مصر")})}catch(e){}}
   render();
 }
 function step(d){noAuto=true;setTimeout(()=>{noAuto=false},0);if(cur&&cur.c==="tilawa"){tlStep(d);return}const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
