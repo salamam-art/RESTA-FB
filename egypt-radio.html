@@ -319,6 +319,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <div class="th" id="fxfps"><button data-v="20">موفّر</button><button data-v="30">متوسط</button><button data-v="60">عالٍ</button></div>
 <div class="sh" style="margin:12px 0 6px;font-size:13px;font-weight:400">تبديل المؤثر تلقائيًا كل</div>
 <div class="th" id="fxcyc"><button data-v="0">بدون</button><button data-v="15">15 ث</button><button data-v="30">30 ث</button><button data-v="60">60 ث</button></div>
+<div class="th" style="margin-top:12px"><button id="fxrm" aria-pressed="false">▶ تحريك المؤثرات حتى مع «تقليل الحركة» في النظام</button></div>
+<div class="st" id="fxrmn" style="margin-top:6px"></div>
 <div style="display:flex;gap:8px;margin-top:10px"><button class="rs" id="fxrs">↺ إعادة الضبط</button></div></section>
 </div></div>
 <audio id="au_el" preload="none"></audio>
@@ -868,9 +870,9 @@ if(/^https?:$/.test(location.protocol)){
 
 /* ===== light effects (simulated by default; follow the real audio when "fxLive" is on and the stream allows it) ===== */
 /* ===== إعدادات التحكم في المؤثرات (تُحفظ على الجهاز) ===== */
-const FXD={sens:1,resp:1,speed:1,bright:1,size:1,dens:1,ah:true,hue:40,fps:60,cyc:0};
+const FXD={sens:1,resp:1,speed:1,bright:1,size:1,dens:1,ah:true,hue:40,fps:60,cyc:0,rm:false};
 let FXC=Object.assign({},FXD,ld("eg_fxc",{})),fxLD=0,fxCycT=Date.now();
-(function(){const R={sens:[.3,2.5],resp:[.3,1.5],speed:[.3,2.5],bright:[.5,1.6],size:[.6,1],dens:[.3,2],hue:[0,359]};for(const k in R){const v=+FXC[k];FXC[k]=isFinite(v)?Math.min(R[k][1],Math.max(R[k][0],v)):FXD[k]}FXC.ah=FXC.ah!==false;if(![20,30,60].includes(+FXC.fps))FXC.fps=60;FXC.fps=+FXC.fps;if(![0,15,30,60].includes(+FXC.cyc))FXC.cyc=0;FXC.cyc=+FXC.cyc})();
+(function(){const R={sens:[.3,2.5],resp:[.3,1.5],speed:[.3,2.5],bright:[.5,1.6],size:[.6,1],dens:[.3,2],hue:[0,359]};for(const k in R){const v=+FXC[k];FXC[k]=isFinite(v)?Math.min(R[k][1],Math.max(R[k][0],v)):FXD[k]}FXC.ah=FXC.ah!==false;FXC.rm=FXC.rm===true;if(![20,30,60].includes(+FXC.fps))FXC.fps=60;FXC.fps=+FXC.fps;if(![0,15,30,60].includes(+FXC.cyc))FXC.cyc=0;FXC.cyc=+FXC.cyc})();
 const FX=[["logo","الشعار"],["aurora","شفق"],["rings","نبضات"],["bars","طيف"],["wave","موجات"],["spark","شرارات"],["eqb","أعمدة"],["led","أعمدة LED"]];
 let fxm=ld("eg_fx","aurora");if(!FX.some(f=>f[0]===fxm))fxm="aurora";
 let fxRaf=0,fxStage=null,fxCv=null,fxCx=null,fxKey="",fxHue=40,fxE=0.1,fxRings=[],fxPart=[],fxLastBeat=0;
@@ -918,7 +920,7 @@ function fxSize(){
 function fxStart(){
   if(fxRaf){cancelAnimationFrame(fxRaf);fxRaf=0}
   if(!fxStage||$("fp").hidden||fxm==="logo")return;
-  if(fxRM){fxFrame(performance.now(),true);return}
+  if(fxRM&&!FXC.rm){fxFrame(performance.now(),true);return}
   fxRaf=requestAnimationFrame(fxFrame);
 }
 function fxFrame(now,once){
@@ -1049,6 +1051,9 @@ function fxcUI(){
   const hr=$("fxhr");hr.replaceChildren();
   const h=fxcRow("درجة اللون",0,359,1,FXC.hue,v=>'<span style="color:hsl('+v+',90%,60%);font-size:18px">●</span>',v=>{FXC.hue=v;fxcSave()});
   h.i.disabled=FXC.ah;hr.append(...h.r.childNodes);
+  const rm=$("fxrm");rm.classList.toggle("on",FXC.rm);rm.setAttribute("aria-pressed",FXC.rm?"true":"false");
+  rm.onclick=()=>{FXC.rm=!FXC.rm;fxcSave();fxcUI();fxStart()};
+  $("fxrmn").textContent=fxRM?(FXC.rm?"نظامك مفعّل عليه «تقليل الحركة»، وتم تجاوزه فالمؤثرات تتحرك.":"نظامك مفعّل عليه «تقليل الحركة» ولذلك المؤثرات ثابتة. فعّل الزر أعلاه لتحريكها."):"";
   const ah=$("fxah");ah.classList.toggle("on",FXC.ah);ah.setAttribute("aria-pressed",FXC.ah?"true":"false");
   ah.onclick=()=>{FXC.ah=!FXC.ah;fxcSave();fxcUI()};
   [["fxfps","fps"],["fxcyc","cyc"]].forEach(([id,k])=>document.querySelectorAll("#"+id+" button").forEach(b=>{
