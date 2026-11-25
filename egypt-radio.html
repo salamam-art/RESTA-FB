@@ -135,21 +135,21 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 /* tilawat */
 .tab.tl{border-color:var(--ac2);color:var(--ac2);font-weight:600}
 .tlsel{width:100%;min-height:44px;margin-top:8px;padding:8px 10px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);font-family:inherit;font-size:15px}
-.tlrow{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:6px 4px;background:none;border:0;border-top:1px solid var(--bd);color:var(--tx);font-family:inherit;font-size:15px;text-align:start;cursor:pointer}
-.tlrow .tx2{flex:1;min-width:0}
-.tlrow small{display:block;color:var(--mut);font-size:11px;margin-top:2px}
-.tlrow .no{flex:none;min-width:34px;text-align:center;font-size:12px;color:var(--mut)}
-.tlrow .no:empty{display:none}
-.tlrow.cur{color:var(--ac2);font-weight:600}
-.tlw{display:flex;align-items:center;border-top:1px solid var(--bd)}
-.tlw .tlrow{border-top:0;flex:1;min-width:0}
 .tlstar{flex:none;min-width:44px;min-height:44px;background:none;border:0;font-size:22px;color:var(--mut);cursor:pointer;padding:0}
 .tlstar.on{color:var(--ac)}
-.tlmh{display:flex;align-items:center;margin-top:8px}
 .tlfo{min-height:44px;padding:0 14px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);font-family:inherit;font-size:14px;cursor:pointer}
 .tlfo[aria-pressed="true"]{background:var(--ac);color:#fff;border-color:var(--ac)}
 .tlsec{font-size:12px;color:var(--mut);padding:8px 4px 2px}
-#tlbody{margin-top:8px}
+.tab.tl.on{color:#fff;border-color:var(--ac)}
+.tlbar{display:flex;align-items:center;gap:8px;padding:0 16px 8px}
+.tlbar[hidden]{display:none}
+.tlbar b{flex:1;min-width:0;overflow:hidden;font-size:15px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tlbar .tlsel{width:auto;max-width:38%;margin-top:0}
+.tlsec{grid-column:1/-1}
+body.istl #sb,body.istl .note{display:none}
+li.nofav .main{padding-top:14px}
+ul.lv li.nofav .main{padding-left:12px}
+ul.lv li.nofav .eq{left:14px}
 .pg{position:absolute;top:0;left:0;right:0;height:3px;background:var(--bd)}
 .pg[hidden]{display:none}
 .pg i{display:block;height:100%;width:0;background:var(--ac)}
@@ -218,6 +218,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 </header>
 <div class="bar"><input type="search" id="q" placeholder="ابحث عن محطة…" aria-label="بحث"><button class="btn" id="sb" style="flex:none;padding:11px 14px">🔎 محطات جديدة</button><button class="tg" id="vt" aria-label="عرض قائمة">☰</button></div>
 <div class="tabs" id="tabs"></div>
+<div class="tlbar" id="tlbar" hidden>
+  <button class="tg" id="tlb" aria-label="رجوع إلى القرّاء" hidden>→</button>
+  <b id="tlt">📖 قرّاء القرآن</b>
+  <select id="tlm" class="tlsel" aria-label="الرواية" hidden></select>
+  <button id="tlfs" class="tlstar" aria-pressed="false" hidden>☆</button>
+  <button id="tlfo" class="tlfo" aria-pressed="false">★ المفضلة فقط</button>
+</div>
 </div>
 <div class="scr" id="scr">
 <ul id="list"></ul>
@@ -297,14 +304,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <div class="sr"><input type="search" id="sq" placeholder="اسم المحطة…"><select id="sc"><option value="EG">مصر</option><option value="">كل الدول</option></select></div>
 <button class="btn" id="sgo" style="width:100%;margin-top:8px">بحث</button>
 <div id="sres"></div></div></div>
-<div class="mg" id="tl" hidden role="dialog" aria-modal="true" aria-label="تلاوات القرآن"><div class="mgc">
-<div class="mgh"><button id="tlb" aria-label="رجوع إلى القرّاء" hidden>→</button><b id="tlt">📖 تلاوات</b><button id="tlfs" class="tlstar" aria-pressed="false" hidden>☆</button><button id="tlx" aria-label="إغلاق">✕</button></div>
-<div id="tlr"></div>
-<input type="search" id="tlq" placeholder="ابحث عن قارئ…" aria-label="بحث" style="width:100%">
-<div class="tlmh" id="tlfw"><button id="tlfo" class="tlfo" aria-pressed="false">★ المفضلة فقط</button></div>
-<select id="tlm" class="tlsel" aria-label="الرواية" hidden></select>
-<div id="tlbody"></div>
-</div></div>
 <div class="mg" id="fxs" hidden role="dialog" aria-modal="true" aria-label="إعدادات المؤثرات"><div class="mgc">
 <div class="mgh"><b>🎛 إعدادات المؤثرات</b><button id="fxsx" aria-label="إغلاق">✕</button></div>
 <section class="sc"><div class="sh">✨ المؤثرات البصرية</div>
@@ -327,7 +326,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.7.0";
+const APP_VERSION="1.8.0";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -420,19 +419,21 @@ function avatar(s,sz){
 }
 function toggleFav(id){favs=favs.includes(id)?favs.filter(x=>x!==id):favs.concat(id);sv("eg_favs",favs);render()}
 function render(){
-  const ae=document.activeElement,fk=ae&&ae.dataset&&ae.dataset.fk;
+  const ae=document.activeElement,fk=ae&&ae.dataset&&ae.dataset.fk,sy=$("scr").scrollTop;
   syncFP();updProg();
   tabs.innerHTML="";
   TABS.forEach(([k,l])=>{
     const b=document.createElement("button");b.textContent=l;b.dataset.fk="t:"+k;
     if(k==="settings"){b.className="tab set";b.setAttribute("aria-haspopup","dialog");b.onclick=openSettings}
-    else if(k==="tilawat"){b.className="tab tl";b.setAttribute("aria-haspopup","dialog");b.onclick=openTL}
-    else{b.className="tab"+(tab===k?" on":"");b.setAttribute("aria-pressed",tab===k?"true":"false");b.onclick=()=>{tab=k;render()}}
+    else{b.className="tab"+(k==="tilawat"?" tl":"")+(tab===k?" on":"");b.setAttribute("aria-pressed",tab===k?"true":"false");b.onclick=()=>tabGo(k)}
     tabs.appendChild(b);
   });
   list.innerHTML="";
-  const v=vis();
-  if(!v.length){list.innerHTML='<div class="empty"></div>';list.firstChild.textContent=EMPTY[tab]||"لا توجد محطات هنا"}
+  const isTL=tab==="tilawat";
+  document.body.classList.toggle("istl",isTL);$("tlbar").hidden=!isTL;
+  if(!isTL)$("q").placeholder="ابحث عن محطة…";
+  const v=isTL?(renderTL(),[]):vis();
+  if(!isTL&&!v.length){list.innerHTML='<div class="empty"></div>';list.firstChild.textContent=EMPTY[tab]||"لا توجد محطات هنا"}
   v.forEach(s=>{
     const on=!!cur&&cur.id===s.id,isFav=favs.includes(s.id);
     const li=document.createElement("li");if(on)li.className="cur";
@@ -451,6 +452,7 @@ function render(){
     if(on){const eq=document.createElement("div");eq.className="eq";eq.setAttribute("aria-hidden","true");eq.innerHTML="<i></i><i></i><i></i>";li.append(eq)}
     list.appendChild(li);
   });
+  $("scr").scrollTop=sy;
   if(fk){const el=document.querySelector('[data-fk="'+CSS.escape(fk)+'"]');if(el&&el!==document.activeElement)el.focus({preventScroll:true})}
 }
 let trash=ld("eg_trash",[]);
@@ -638,7 +640,7 @@ $("fpx").onclick=closeFP;
 $("fpf").onclick=()=>{if(cur)toggleFav(cur.id)};
 $("fnext").onclick=()=>step(-1);$("fprev").onclick=()=>step(1);
 $("fpp").onclick=$("pp").onclick;
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("fxs").hidden){$("fxs").hidden=true;return}if(!$("tl").hidden){$("tl").hidden=true;return}if(!$("fp").hidden&&$("mg").hidden&&$("sg").hidden)closeFP()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("fxs").hidden){$("fxs").hidden=true;return}if(!$("fp").hidden&&$("mg").hidden&&$("sg").hidden)closeFP()});
 let sleepAt=0,sleepI=null,sleepT=null;
 function sleepTxt(){const t=$("slt");if(!sleepAt){t.textContent="";return}const r=Math.max(0,Math.round((sleepAt-Date.now())/1000));t.textContent="سيتوقف البث بعد "+Math.floor(r/60)+":"+String(r%60).padStart(2,"0")}
 function markSleep(m){document.querySelectorAll("#slp button").forEach(b=>{const on=+b.dataset.m===m;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false")})}
@@ -714,102 +716,119 @@ async function tlLoad(){
   }
   throw err;
 }
-function tlMsg(t,retry){
-  const b=$("tlbody");b.innerHTML="";
-  const d=document.createElement("div");d.className="empty";d.textContent=t;b.appendChild(d);
-  if(retry){const r=document.createElement("button");r.className="btn";r.style.width="100%";r.textContent="إعادة المحاولة";r.onclick=openTL;b.appendChild(r)}
-}
-function tlRes(){
-  const box=$("tlr");box.innerHTML="";
-  if(!tlLast)return;
-  const b=document.createElement("button");b.className="btn";b.style.cssText="width:100%;margin-bottom:8px";
-  b.textContent="▶ كمّل: سورة "+SUR[tlLast.sura-1]+" — "+tlLast.rn+(tlLast.t>5?" ("+fmt(tlLast.t)+")":"");
-  b.onclick=()=>{const l=tlLast;tlCtx={rid:l.rid,rn:l.rn,mid:l.mid,mn:l.mn,server:l.server,list:l.list};tlPlay(l.sura,l.t);$("tl").hidden=true};
-  box.appendChild(b);
-}
 function tlDefMos(r){let i=r.m.findIndex(m=>/حفص/.test(m.n)&&/مرتل/.test(m.n));if(i<0)i=r.m.findIndex(m=>/حفص/.test(m.n));return i<0?0:i}
 function tlFavToggle(id){favRec=favRec.includes(id)?favRec.filter(x=>x!==id):favRec.concat(id);sv("eg_favrec",favRec)}
-function tlFavHdr(){
-  const r=tlv.rec,b=$("tlfs");
-  if(tlv.view!=="sur"||!r){b.hidden=true;return}
-  const on=favRec.includes(r.id);
-  b.hidden=false;b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");
-  b.setAttribute("aria-label",on?"إزالة القارئ من المفضلة":"إضافة القارئ إلى المفضلة");
+let tlLoading=false,tlErr=false,tlHist=false,tlIgn=false;
+function tlEnsure(){
+  if(TLR||tlLoading)return;
+  tlLoading=true;tlErr=false;
+  tlLoad().then(()=>{tlLoading=false;render()}).catch(()=>{tlLoading=false;tlErr=true;render()});
 }
-function tlRender(){
-  const box=$("tlbody"),q0=nrm($("tlq").value.trim()),q=q0.replace(/^سوره\s*/,"");box.innerHTML="";
-  const row=(no,t,sub,ic,cls,fn)=>{
-    const b=document.createElement("button");b.className="tlrow"+(cls?" "+cls:"");
-    const n=document.createElement("span");n.className="no";n.textContent=no;
-    const x=document.createElement("span");x.className="tx2";x.textContent=t;
-    if(sub){const sm=document.createElement("small");sm.textContent=sub;x.appendChild(sm)}
-    const i=document.createElement("span");i.setAttribute("aria-hidden","true");i.textContent=ic;
-    b.append(n,x,i);b.onclick=fn;box.appendChild(b);
+function tlPushH(){if(!tlHist){tlHist=true;try{history.pushState({tl:1},"")}catch(e){tlHist=false}}}
+function tlToTop(){$("scr").scrollTop=0}
+function tlOpen(r){
+  tlv.rec=r;tlv.mos=tlDefMos(r);tlv.view="sur";$("q").value="";tlPushH();render();
+  const c=list.querySelector("li.cur");if(c&&c.scrollIntoView)c.scrollIntoView({block:"center"});else tlToTop();
+}
+function tlBackUI(){tlv.rec=null;tlv.view="rec";$("q").value="";render();tlToTop()}
+function tlBack(){if(tlHist){try{history.back();return}catch(e){tlHist=false}}tlBackUI()}
+window.addEventListener("popstate",e=>{
+  if(tlIgn){tlIgn=false;return}
+  if(!tlHist||(e.state&&e.state.tl))return;
+  tlHist=false;
+  if(tab==="tilawat"&&tlv.view==="sur")tlBackUI();
+});
+function tabGo(k){
+  const was=tab==="tilawat",now=k==="tilawat";
+  if(was!==now)$("q").value="";
+  if(was&&!now&&tlHist){tlHist=false;tlIgn=true;try{history.back()}catch(e){tlIgn=false}}
+  tab=k;
+  if(now&&tlv.view==="sur"&&tlv.rec)tlPushH();
+  render();
+}
+function tlTop(sur){
+  $("tlb").hidden=!sur;
+  $("tlt").textContent=sur?tlv.rec.n:"📖 قرّاء القرآن";
+  const fs=$("tlfs");
+  if(sur){const on=favRec.includes(tlv.rec.id);fs.hidden=false;fs.textContent=on?"★":"☆";fs.classList.toggle("on",on);fs.setAttribute("aria-pressed",on?"true":"false");fs.setAttribute("aria-label",on?"إزالة القارئ من المفضلة":"إضافة القارئ إلى المفضلة")}
+  else fs.hidden=true;
+  const ms=$("tlm");
+  if(sur&&tlv.rec.m.length>1){
+    if(ms.dataset.rid!==String(tlv.rec.id)){ms.innerHTML="";tlv.rec.m.forEach((m,i)=>{const o=document.createElement("option");o.value=i;o.textContent=m.n;ms.appendChild(o)});ms.dataset.rid=String(tlv.rec.id)}
+    ms.value=tlv.mos;ms.hidden=false;
+  }else{ms.hidden=true;ms.dataset.rid=""}
+  const fo=$("tlfo");fo.hidden=!TLR||sur;fo.setAttribute("aria-pressed",tlOnlyFav?"true":"false");
+  $("q").placeholder=sur?"ابحث عن سورة (اسم أو رقم)…":"ابحث عن قارئ…";
+}
+function renderTL(){
+  if(tlv.view==="sur"&&!tlv.rec)tlv.view="rec";
+  const sur=tlv.view==="sur";
+  tlTop(sur);
+  const msg=(t,retry)=>{
+    const d=document.createElement("div");d.className="empty";d.textContent=t;list.appendChild(d);
+    if(retry){const b=document.createElement("button");b.className="btn";b.style.gridColumn="1/-1";b.textContent="إعادة المحاولة";b.onclick=()=>{tlErr=false;render()};list.appendChild(b)}
   };
-  const none=()=>{box.innerHTML='<div class="empty">لا توجد نتائج</div>'};
-  if(tlv.view==="rec"){
-    const fo=$("tlfo");fo.setAttribute("aria-pressed",tlOnlyFav?"true":"false");
-    let v=TLR.filter(r=>(!q0||nrm(r.n).includes(q0))&&(!tlOnlyFav||favRec.includes(r.id)));
-    if(!v.length){if(tlOnlyFav&&!q0)box.innerHTML='<div class="empty">لم تضف قرّاء مفضلين بعد — اضغط ☆ بجانب أي قارئ</div>';else none();return}
+  if(!TLR){
+    if(tlErr)msg("تعذّر الاتصال بموقع التلاوات. تأكد من الإنترنت وجرّب مرة أخرى",true);
+    else{msg("جاري تحميل القرّاء…");tlEnsure()}
+    return;
+  }
+  const q0=nrm($("q").value.trim()),q=q0.replace(/^سوره\s*/,"");
+  const sec=t=>{const h=document.createElement("div");h.className="tlsec";h.textContent=t;list.appendChild(h)};
+  const none=()=>msg("لا توجد نتائج");
+  if(!sur){
+    if(tlLast&&!q0&&!tlOnlyFav){
+      const b=document.createElement("button");b.className="btn";b.style.gridColumn="1/-1";
+      b.textContent="▶ كمّل: سورة "+SUR[tlLast.sura-1]+" — "+tlLast.rn+(tlLast.t>5?" ("+fmt(tlLast.t)+")":"");
+      b.onclick=()=>{const l=tlLast;tlCtx={rid:l.rid,rn:l.rn,mid:l.mid,mn:l.mn,server:l.server,list:l.list};tlPlay(l.sura,l.t);render()};
+      list.appendChild(b);
+    }
+    const v=TLR.filter(r=>(!q0||nrm(r.n).includes(q0))&&(!tlOnlyFav||favRec.includes(r.id)));
+    if(!v.length){if(tlOnlyFav&&!q0)msg("لم تضف قرّاء مفضلين بعد — اضغط ☆ على أي قارئ");else none();return}
     const fv=v.filter(r=>favRec.includes(r.id)),ov=tlOnlyFav?[]:v.filter(r=>!favRec.includes(r.id));
-    const add=r=>{
-      const n0=box.children.length,isF=favRec.includes(r.id);
-      row("",r.n,r.m[0].n+(r.m.length>1?" · +"+(r.m.length-1):""),"‹","",()=>{tlv.rec=r;tlv.mos=tlDefMos(r);tlShowSur()});
-      const rb=box.lastChild,w=document.createElement("div");w.className="tlw";
-      box.replaceChild(w,rb);w.appendChild(rb);
-      const st=document.createElement("button");st.className="tlstar"+(isF?" on":"");st.textContent=isF?"★":"☆";
-      st.setAttribute("aria-pressed",isF?"true":"false");st.setAttribute("aria-label",(isF?"إزالة من المفضلة: ":"إضافة إلى المفضلة: ")+r.n);
-      st.onclick=()=>{tlFavToggle(r.id);const y=$("tlbody").parentNode.scrollTop;tlRender();$("tlbody").parentNode.scrollTop=y};
-      w.appendChild(st);
+    const card=r=>{
+      const isF=favRec.includes(r.id),li=document.createElement("li");
+      const m=document.createElement("button");m.className="main";m.dataset.fk="r:"+r.id;
+      const tx=document.createElement("div"),nm=document.createElement("div"),ds=document.createElement("div");
+      tx.className="tx";nm.className="nm";ds.className="ds";nm.textContent=r.n;
+      ds.textContent=r.m[0].n+(r.m.length>1?" · +"+(r.m.length-1):"");
+      tx.append(nm,ds);m.append(avatar({n:r.n},44),tx);m.onclick=()=>tlOpen(r);
+      const f=document.createElement("button");f.className="fav"+(isF?" on":"");f.dataset.fk="rf:"+r.id;f.textContent=isF?"★":"☆";
+      f.setAttribute("aria-pressed",isF?"true":"false");f.setAttribute("aria-label",(isF?"إزالة من المفضلة: ":"إضافة إلى المفضلة: ")+r.n);
+      f.onclick=()=>{tlFavToggle(r.id);render()};
+      li.append(m,f);list.appendChild(li);
     };
-    if(fv.length&&ov.length){const h=document.createElement("div");h.className="tlsec";h.textContent="★ المفضلة";box.appendChild(h)}
-    fv.forEach(add);
-    if(fv.length&&ov.length){const h=document.createElement("div");h.className="tlsec";h.textContent="كل القرّاء";box.appendChild(h)}
-    ov.forEach(add);
+    if(fv.length&&ov.length)sec("★ المفضلة");
+    fv.forEach(card);
+    if(fv.length&&ov.length)sec("كل القرّاء");
+    ov.forEach(card);
   }else{
     const m=tlv.rec.m[tlv.mos]||tlv.rec.m[0];
     const v=m.l.filter(n=>!q||String(n)===q||nrm(SUR[n-1]).includes(q));
     if(!v.length){none();return}
     v.forEach(n=>{
       const on=!!cur&&cur.c==="tilawa"&&!!tlCtx&&tlCtx.mid===m.id&&cur.sura===n;
-      row(n,"سورة "+SUR[n-1],"",on?"🔊":"▶",on?"cur":"",()=>{tlCtx=mkCtx(tlv.rec,m);tlPlay(n);$("tl").hidden=true});
+      const li=document.createElement("li");li.className="nofav"+(on?" cur":"");
+      const b=document.createElement("button");b.className="main";b.dataset.fk="s:"+n;
+      if(on)b.setAttribute("aria-current","true");
+      const a=document.createElement("div");a.className="lg";a.style.setProperty("--sz","44px");a.textContent=n;a.style.background="hsl("+((n*47)%360)+" 40% 34%)";
+      const tx=document.createElement("div"),nm=document.createElement("div"),ds=document.createElement("div");
+      tx.className="tx";nm.className="nm";ds.className="ds";nm.textContent="سورة "+SUR[n-1];ds.textContent=on?"🔊 يعمل الآن":"▶ تشغيل";
+      tx.append(nm,ds);b.append(a,tx);
+      b.onclick=()=>{tlCtx=mkCtx(tlv.rec,m);tlPlay(n);render()};
+      li.appendChild(b);
+      if(on){const eq=document.createElement("div");eq.className="eq";eq.setAttribute("aria-hidden","true");eq.innerHTML="<i></i><i></i><i></i>";li.appendChild(eq)}
+      list.appendChild(li);
     });
   }
 }
-function tlShowRec(){
-  tlv.view="rec";$("tlb").hidden=true;$("tlt").textContent="📖 تلاوات";$("tlm").hidden=true;$("tlfw").hidden=false;$("tlfs").hidden=true;
-  const q=$("tlq");q.hidden=false;q.value="";q.placeholder="ابحث عن قارئ…";
-  tlRender();
-}
-function tlShowSur(){
-  const r=tlv.rec;tlv.view="sur";$("tlb").hidden=false;$("tlt").textContent=r.n;
-  const q=$("tlq");q.hidden=false;q.value="";q.placeholder="ابحث عن سورة (اسم أو رقم)…";
-  const s=$("tlm");s.innerHTML="";
-  r.m.forEach((m,i)=>{const o=document.createElement("option");o.value=i;o.textContent=m.n;s.appendChild(o)});
-  s.value=tlv.mos;s.hidden=r.m.length<2;$("tlfw").hidden=true;tlFavHdr();
-  tlRender();
-  const c=$("tlbody").querySelector(".tlrow.cur");if(c&&c.scrollIntoView)c.scrollIntoView({block:"center"});
-}
-async function openTL(){
-  $("tl").hidden=false;$("tlx").focus();
-  tlRes();
-  if(!TLR){
-    $("tlq").hidden=true;$("tlm").hidden=true;$("tlb").hidden=true;$("tlfw").hidden=true;$("tlfs").hidden=true;
-    tlMsg("جاري تحميل القرّاء…");
-    try{await tlLoad()}catch(e){tlMsg("تعذّر الاتصال بموقع التلاوات. تأكد من الإنترنت وجرّب مرة أخرى",true);return}
-  }
-  if(tlv.rec)tlShowSur();else tlShowRec();
-}
-$("tlq").oninput=()=>tlRender();
-$("tlfo").onclick=()=>{tlOnlyFav=!tlOnlyFav;tlRender()};
-$("tlfs").onclick=()=>{if(tlv.rec){tlFavToggle(tlv.rec.id);tlFavHdr()}};
-$("tlm").onchange=e=>{tlv.mos=+e.target.value;tlRender()};
-$("tlb").onclick=()=>{tlv.rec=null;tlShowRec()};
-$("tlx").onclick=()=>{$("tl").hidden=true};
-$("tl").onclick=e=>{if(e.target===$("tl"))$("tl").hidden=true};
+$("tlb").onclick=tlBack;
+$("tlfs").onclick=()=>{if(tlv.rec){tlFavToggle(tlv.rec.id);render()}};
+$("tlm").onchange=e=>{tlv.mos=+e.target.value;render()};
+$("tlfo").onclick=()=>{tlOnlyFav=!tlOnlyFav;render()};
 /* ===== زر الرجوع في الموبايل: يقفل الشاشة المفتوحة بدل الخروج من التطبيق ===== */
 (function(){
-  const OV=["fp","mg","sg","tl","fxs"].map($),stack=[];let back=false,queue=[];
+  const OV=["fp","mg","sg","fxs"].map($),stack=[];let back=false,queue=[];
   const open=o=>!o.hidden;
   function push(o){stack.push(o);try{history.pushState({ov:o.id},"")}catch(e){}}
   function closeEl(o){
@@ -829,7 +848,6 @@ $("tl").onclick=e=>{if(e.target===$("tl"))$("tl").hidden=true};
   window.addEventListener("popstate",()=>{
     if(back){back=false;const q=queue.splice(0);q.forEach(o=>{if(open(o))push(o)});return}
     const o=stack[stack.length-1];if(!o)return;
-    if(o===$("tl")&&tlv.view==="sur"){try{history.pushState({ov:"tl"},"")}catch(e){}$("tlb").click();return}
     stack.pop();closeEl(o);
   });
 })();
