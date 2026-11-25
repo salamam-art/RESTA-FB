@@ -176,8 +176,9 @@ ul.lv li.nofav .eq{left:14px}
 .fph2{display:flex;gap:8px}
 .fxm{position:absolute;top:calc(100% + 4px);inset-inline-end:52px;z-index:5;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .fxm[hidden]{display:none}
-.fxm .fxc{flex-direction:column;flex-wrap:nowrap;gap:4px;width:170px}
-.fxm .fxc button{min-height:44px;border-radius:10px;font-size:15px;text-align:start;padding:6px 14px;border-color:transparent;background:none}
+.fxm{max-height:min(70vh,420px);overflow-y:auto}
+.fxm .fxc{display:grid;grid-template-columns:1fr 1fr;gap:4px;width:min(280px,calc(100vw - 80px))}
+.fxm .fxc button{min-height:42px;border-radius:10px;font-size:14px;text-align:center;padding:6px 8px;border-color:var(--bd);background:none;white-space:nowrap}
 .fxm .fxc button.on{background:var(--ac);color:#fff}
 .fx.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 /* وضع ملء الشاشة بالعرض للمؤثر فقط */
