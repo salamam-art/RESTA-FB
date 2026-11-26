@@ -95,8 +95,17 @@
                 <div class="input-group">
                     <label>كلمة المرور</label>
                     <div class="relative">
-                        <input type="password" id="loginPassword" required class="text-left" dir="ltr" placeholder="••••••••">
+                        <input type="password" id="loginPassword" required class="text-left" dir="ltr" placeholder="••••••••" style="padding-right:2.75rem">
+                        <button type="button" onclick="_setLoginPwVisible(document.getElementById('loginPassword').type === 'password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1" title="إظهار / إخفاء كلمة المرور" aria-label="إظهار / إخفاء كلمة المرور">
+                            <span id="pwEyeOn"><i data-lucide="eye" class="w-5 h-5"></i></span>
+                            <span id="pwEyeOff" class="hidden"><i data-lucide="eye-off" class="w-5 h-5"></i></span>
+                        </button>
                     </div>
+                    <label class="flex items-center gap-2 mt-2 text-sm text-slate-600 cursor-pointer select-none" style="width:auto">
+                        <input type="checkbox" id="loginPwShow" onchange="_setLoginPwVisible(this.checked)" style="width:1rem;height:1rem;padding:0;flex:none">
+                        <span>إظهار كلمة المرور</span>
+                    </label>
+                    <style>#loginPassword::-ms-reveal,#loginPassword::-ms-clear{display:none}</style>
                 </div>
                 <div class="flex items-center gap-3 mt-4">
                     <button type="submit" class="flex-1 bg-[#6E1418] hover:bg-[#5a1013] text-white font-bold py-4 rounded-xl shadow-lg shadow-[#6E1418]/30 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2">
@@ -1215,7 +1224,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261126a"></script>
+    <script src="app.js?v=20261126b"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">

@@ -1656,6 +1656,50 @@
             return code === 'app' ? '📱 تطبيق' : code === 'mobile' ? '📱 موبايل' : code === 'pc' ? '💻 كمبيوتر' : '';
         }
 
+        // وصف مختصر للجهاز (المتصفح + النظام، أو موديل الموبايل لو متاح) — بيظهر في قايمة المتصلين فقط
+        let _uaModel = '';
+        try {
+            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+                navigator.userAgentData.getHighEntropyValues(['model']).then(function (v) { _uaModel = (v && v.model) || ''; }).catch(function () {});
+            }
+        } catch (e) {}
+        function _detectDeviceInfo() {
+            try {
+                const ua = navigator.userAgent || '';
+                let browser = '';
+                if (/Edg\//.test(ua)) browser = 'Edge';
+                else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
+                else if (/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
+                else if (/Firefox|FxiOS/.test(ua)) browser = 'Firefox';
+                else if (/Chrome|CriOS/.test(ua)) browser = 'Chrome';
+                else if (/Safari/.test(ua)) browser = 'Safari';
+                let os = '';
+                if (/Windows/.test(ua)) os = 'Windows';
+                else if (/iPhone|iPod/.test(ua)) os = 'iPhone';
+                else if (/iPad/.test(ua)) os = 'iPad';
+                else if (/Android/.test(ua)) os = 'Android';
+                else if (/Mac OS X|Macintosh/.test(ua)) os = 'Mac';
+                else if (/Linux|X11/.test(ua)) os = 'Linux';
+                let model = '';
+                if (os === 'Android') {
+                    const m = ua.match(/Android [\d.]+;\s*([^;)]+)/);
+                    model = (_uaModel || (m && m[1]) || '').replace(/\s*Build\/.*/i, '').trim();
+                    if (/^(K|Mobile|wv)$/i.test(model)) model = '';
+                }
+                const dev = _detectDevice();
+                let parts;
+                if (dev === 'pc') parts = [browser, os];
+                else if (dev === 'app') parts = [model || os];
+                else parts = [model || os, browser];
+                return parts.filter(Boolean).join(' · ').slice(0, 40);
+            } catch (e) { return ''; }
+        }
+        function _sessDeviceText(s) {
+            const base = _deviceLabel(s && s.device);
+            if (!base) return '';
+            return s.info ? base + ' · ' + String(s.info).slice(0, 40) : base;
+        }
+
         function _publishPresence() {
             const ref = _presenceRef();
             const u = auth.currentUser;
@@ -1697,8 +1741,14 @@
                 const logRef = db.ref('sessionLogs/' + logKey);
                 // وقت الخروج بيتكتب تلقائيًا عند قطع الاتصال
                 logRef.onDisconnect().update({ logoutAt: TS }).catch(() => {});
+                const _pBase = { uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey };
+                const INFO = _detectDeviceInfo();
+                // الوصف (info) اختياري: لو القواعد لسه ما اتحدّثتش بنرجع للشكل المعتاد
+                const _writePresence = () => !INFO ? _setOptName(ref, _pBase)
+                    : ref.set(Object.assign({}, _pBase, gname ? { name: gname } : {}, { device: DEV, info: INFO }))
+                        .catch(() => _setOptName(ref, _pBase));
                 ref.onDisconnect().remove()
-                    .then(() => _setOptName(ref, { uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey }))
+                    .then(_writePresence)
                     .then(() => _presenceBeat(true))
                     .catch(err => console.warn('presence failed:', err && err.code));
             });
@@ -2230,12 +2280,12 @@
                 const idle = _isIdleSession(s);
                 if (s.guest) {
                     if (idle) idleGuests++;
-                    else { guests++; if (s.name) { guestNames.push(String(s.name)); if (s.device) guestNameDev[String(s.name)] = s.device; } }
+                    else { guests++; if (s.name) { guestNames.push(String(s.name)); if (s.device) guestNameDev[String(s.name)] = _sessDeviceText(s); } }
                 } else if (s.email) {
                     const k = String(s.email).toLowerCase();
                     anyUser.add(k);
                     if (!idle) active.add(k);
-                    if (s.device) { const m = idle ? devIdle : devActive; (m[k] = m[k] || new Set()).add(s.device); }
+                    if (s.device) { const m = idle ? devIdle : devActive; (m[k] = m[k] || new Set()).add(_sessDeviceText(s)); }
                 }
             });
             const idleUsers = Array.from(anyUser).filter(k => !active.has(k)).sort();
@@ -2255,7 +2305,7 @@
                 const dot = '<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>';
                 const idleDot = '<span class="w-2 h-2 rounded-full shrink-0" style="background:#94a3b8"></span>';
                 const devTag = (set) => {
-                    const t = set ? Array.from(set).map(_deviceLabel).filter(Boolean).join(' + ') : '';
+                    const t = set ? Array.from(set).filter(Boolean).map(escapeHtml).join(' + ') : '';
                     return t ? ` <span class="text-[11px] font-bold text-slate-500" style="direction:rtl;unicode-bidi:isolate">${t}</span>` : '';
                 };
                 box.innerHTML = sum.users.map(e =>
@@ -2797,6 +2847,17 @@
         // force=true: خروج كامل وإنهاء جلسة Firebase (يُستخدم عند إيقاف الحساب أو انتهاء الصلاحية).
         // خروج عادي: لو البصمة مفعّلة لهذا المستخدم على الجهاز نُبقي جلسة Firebase (مقفولة بالبصمة)
         // عشان الدخول بالبصمة يفضل شغال؛ وإلا بننهي الجلسة بالكامل. جلسة الزائر بتتحفظ لإعادة استخدامها.
+        // إظهار/إخفاء كلمة المرور في شاشة الدخول (العين + الـ checkbox بيتزامنوا)
+        function _setLoginPwVisible(show) {
+            const inp = document.getElementById('loginPassword');
+            if (!inp) return;
+            inp.type = show ? 'text' : 'password';
+            const cb = document.getElementById('loginPwShow'); if (cb) cb.checked = !!show;
+            const on = document.getElementById('pwEyeOn'), off = document.getElementById('pwEyeOff');
+            if (on) on.classList.toggle('hidden', !!show);
+            if (off) off.classList.toggle('hidden', !show);
+        }
+
         function logout(force) {
             if (CLOUD_ENABLED) teardownRealtimeSync();
             stopPresence();
@@ -2811,6 +2872,7 @@
             document.getElementById('app').style.display = 'none';
             document.getElementById('loginEmail').value = '';
             document.getElementById('loginPassword').value = '';
+            _setLoginPwVisible(false);
 
             const stored = getBiometricCredential();
             const keepSession = !force && prevEmail && (
@@ -6398,7 +6460,8 @@ ${pages}
 "",
 "10) إدارة النظام (للأدمن)",
 "   - إدارة القاعات (الأسماء والألوان)، وإعدادات باقات الأفراح.",
-"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر)، وإمكانية حذف سجلات محددة أو حذف الكل من سجل الدخول. الجلسات الخاملة أكتر من 12 ساعة بتتخبّى تلقائيًا من قايمة المتصلين، وزرار «مسح الخاملة» بيمسح الجلسات الخاملة أكتر من ساعة.",
+"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر)، وإمكانية حذف سجلات محددة أو حذف الكل من سجل الدخول. الجلسات الخاملة أكتر من 12 ساعة بتتخبّى تلقائيًا من قايمة المتصلين، وزرار «مسح الخاملة» بيمسح الجلسات الخاملة أكتر من ساعة. وجنب كل حساب متصل بيظهر وصف جهازه (المتصفح والنظام، أو موديل الموبايل لو متاح)، ولو الحساب فاتح من أكتر من جهاز بتظهر كلها مجمّعة.",
+"   - في شاشة تسجيل الدخول: أيقونة العين ظاهرة دايمًا جنب كلمة المرور، ومعاها خانة «إظهار كلمة المرور» تحت الحقل.",
 "",
 "11) الأمان والدخول",
 "   - تسجيل دخول بالبريد وكلمة المرور.",
@@ -6539,7 +6602,8 @@ ${pages}
 "",
 "10) System management (admin)",
 "   - Manage halls (names and colors) and wedding package settings.",
-"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop), and the ability to delete selected login records or all of them. Sessions idle for over 12 hours are hidden automatically from the online list, and the 'Clear idle' button removes sessions idle for over an hour.",
+"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop), and the ability to delete selected login records or all of them. Sessions idle for over 12 hours are hidden automatically from the online list, and the 'Clear idle' button removes sessions idle for over an hour. Next to each online account you also see its device description (browser and OS, or the phone model when available); an account open on several devices shows them all, grouped.",
+"   - On the login screen: an always-visible eye icon next to the password field, plus a 'Show password' checkbox under it.",
 "",
 "11) Security and login",
 "   - Email and password login.",
