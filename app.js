@@ -1606,6 +1606,14 @@
         const PRESENCE_BEAT_MS = 60 * 1000;       // فاصل الـ heartbeat
         let _presenceLastActivity = Date.now();
         let _presenceBeatTimer = null;
+
+        // ─── الغياب عن التطبيق (تطبيق الأندرويد / متصفح الموبايل فقط) ───
+        // لو الصفحة اتخفت (التطبيق راح للخلفية أو الشاشة اتقفلت) لأكتر من الوقت ده، بنشيل الجلسة
+        // من "المتصلين الآن" فورًا بدل ما تستنى انقطاع الاتصال (اللي مبيحصلش والتطبيق شغال في الخلفية).
+        // وبترجع تظهر تاني أول ما المستخدم يفتح التطبيق. الكمبيوتر مش متأثر (بيفضل على منطق الخمول).
+        const PRESENCE_AWAY_MS = 45 * 1000;
+        let _presenceAway = false;
+        let _presenceAwayTimer = null;
         let _serverOffset = 0;
         let _serverOffsetBound = false;
 
@@ -1614,20 +1622,47 @@
         });
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible') {
+                _presenceComeBack();
                 _presenceLastActivity = Date.now();
                 _presenceBeat(true);
+            } else if (_presenceAwayApplies()) {
+                if (_presenceAwayTimer) clearTimeout(_presenceAwayTimer);
+                _presenceAwayTimer = setTimeout(_presenceGoAway, PRESENCE_AWAY_MS);
             }
         });
 
         function _presenceBeat(force) {
             const ref = _presenceRef();
-            if (!ref || !auth.currentUser) return;
+            if (!ref || !auth.currentUser || _presenceAway) return;
             if (_presenceOnline) _touchLastLog();
             if (!force && (Date.now() - _presenceLastActivity) > PRESENCE_IDLE_MS) return; // خامل: ما نكتبش
             ref.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
         }
 
         function _presenceRef() { return _presenceKey ? db.ref('presence/' + _presenceKey) : null; }
+
+        function _presenceAwayApplies() { return !!_presenceKey && _detectDevice() !== 'pc'; }
+
+        // المستخدم سايب التطبيق: نشيله من المتصلين ونسجّل وقت خروجه
+        function _presenceGoAway() {
+            _presenceAwayTimer = null;
+            if (document.visibilityState === 'visible') return; // رجع قبل ما الوقت يخلص
+            const ref = _presenceRef();
+            if (!ref || _presenceAway) return;
+            _presenceAway = true;
+            ref.remove().catch(() => {});
+            if (_sessionLogKey) {
+                db.ref('sessionLogs/' + _sessionLogKey).update({ logoutAt: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+            }
+        }
+
+        // المستخدم رجع للتطبيق: نلغي المؤقت ونرجّعه للمتصلين (ويكمّل على نفس سطر سجل الدخول لو الغياب قصير)
+        function _presenceComeBack() {
+            if (_presenceAwayTimer) { clearTimeout(_presenceAwayTimer); _presenceAwayTimer = null; }
+            if (!_presenceAway) return;
+            _presenceAway = false;
+            if (_presenceOnline && _presenceRef()) _publishPresence();
+        }
 
         // ─── دمج الاتصالات القصيرة: لو نفس الحساب رجع في خلال دقيقتين يكمل على نفس سطر سجل الدخول ───
         // (انقطاع النت لحظة / الخلفية والأمامية / فتح التطبيق من إشعار كانت بتعمل سطر جديد كل مرة)
@@ -1758,7 +1793,7 @@
             if (!_presenceKey) _presenceKey = db.ref('presence').push().key;
             const connRef = db.ref('.info/connected');
             _presenceConnHandler = (snap) => {
-                if (snap.val() === true) { _presenceOnline = true; _publishPresence(); }
+                if (snap.val() === true) { _presenceOnline = true; if (!_presenceAway) _publishPresence(); }
                 else { _touchLastLog(); _presenceOnline = false; }
             };
             connRef.on('value', _presenceConnHandler);
@@ -1776,6 +1811,8 @@
                 _presenceConnHandler = null;
             }
             if (_presenceBeatTimer) { clearInterval(_presenceBeatTimer); _presenceBeatTimer = null; }
+            if (_presenceAwayTimer) { clearTimeout(_presenceAwayTimer); _presenceAwayTimer = null; }
+            _presenceAway = false;
             _presenceOnline = false;
             try { localStorage.removeItem(SESSLOG_LS_KEY); } catch (e) {}
             if (ref) ref.remove().catch(() => {});
