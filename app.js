@@ -1708,10 +1708,12 @@
             const email = isGuest() ? '' : state.currentUserEmail;
             const gname = isGuest() ? getGuestName() : '';
             const DEV = _detectDevice();
-            // لو القواعد رفضت حقل إضافي (الجهاز/الاسم) نرجع تدريجيًا للشكل الأقدم عشان التسجيل ما يتعطلش
+            const INFO = _detectDeviceInfo();
+            // لو القواعد رفضت حقل إضافي (الوصف/الجهاز/الاسم) نرجع تدريجيًا للشكل الأقدم عشان التسجيل ما يتعطلش
             const _setOptName = (r, base) => {
                 const withName = gname ? Object.assign({}, base, { name: gname }) : base;
-                return r.set(Object.assign({}, withName, { device: DEV }))
+                return (INFO ? r.set(Object.assign({}, withName, { device: DEV, info: INFO })) : Promise.reject(new Error('no info')))
+                    .catch(() => r.set(Object.assign({}, withName, { device: DEV })))
                     .catch(() => r.set(withName))
                     .catch(() => gname ? r.set(base) : Promise.reject(new Error('presence write rejected')));
             };
@@ -1725,7 +1727,8 @@
             const prev = _readLastLog();
             const canReuse = !!(prev && prev.k && prev.u === u.uid && (Date.now() - prev.t) < SESSLOG_REUSE_MS);
             const logP = canReuse
-                ? db.ref('sessionLogs/' + prev.k).update({ logoutAt: null, device: DEV })
+                ? (INFO ? db.ref('sessionLogs/' + prev.k).update({ logoutAt: null, device: DEV, info: INFO }) : Promise.reject(new Error('no info')))
+                    .catch(() => db.ref('sessionLogs/' + prev.k).update({ logoutAt: null, device: DEV }))
                     .catch(() => db.ref('sessionLogs/' + prev.k).update({ logoutAt: null }))
                     .then(() => {
                         if (gname) db.ref('sessionLogs/' + prev.k + '/name').set(gname).catch(() => {});
@@ -1742,13 +1745,8 @@
                 // وقت الخروج بيتكتب تلقائيًا عند قطع الاتصال
                 logRef.onDisconnect().update({ logoutAt: TS }).catch(() => {});
                 const _pBase = { uid: u.uid, email: email, guest: isGuest(), since: TS, logId: logKey };
-                const INFO = _detectDeviceInfo();
-                // الوصف (info) اختياري: لو القواعد لسه ما اتحدّثتش بنرجع للشكل المعتاد
-                const _writePresence = () => !INFO ? _setOptName(ref, _pBase)
-                    : ref.set(Object.assign({}, _pBase, gname ? { name: gname } : {}, { device: DEV, info: INFO }))
-                        .catch(() => _setOptName(ref, _pBase));
                 ref.onDisconnect().remove()
-                    .then(_writePresence)
+                    .then(() => _setOptName(ref, _pBase))
                     .then(() => _presenceBeat(true))
                     .catch(err => console.warn('presence failed:', err && err.code));
             });
@@ -1890,7 +1888,7 @@
                     } else { to = '—'; dur = '—'; }
                     const tr = `<tr class="hover:bg-slate-50">
                         <td class="font-bold text-slate-800" style="direction:ltr">${who}</td>
-                        <td class="text-sm text-slate-600">${_deviceLabel(r.device) || '—'}</td>
+                        <td class="text-sm text-slate-600">${escapeHtml(_sessDeviceText(r)) || '—'}</td>
                         <td class="text-sm text-slate-600">${_fmtLogDate(r.loginAt)}</td>
                         <td class="text-sm text-slate-600">${_fmtLogTime(r.loginAt)}</td>
                         <td class="text-sm text-slate-600">${to}</td>
@@ -1909,7 +1907,7 @@
                             <div><span class="block text-slate-400 font-bold mb-0.5">المدة</span><span class="text-slate-700 font-bold">${dur}</span></div>
                             <div><span class="block text-slate-400 font-bold mb-0.5">من</span><span class="text-slate-700 font-bold">${_fmtLogTime(r.loginAt)}</span></div>
                             <div><span class="block text-slate-400 font-bold mb-0.5">إلى</span><span class="text-slate-700 font-bold">${to}</span></div>
-                            <div><span class="block text-slate-400 font-bold mb-0.5">الجهاز</span><span class="text-slate-700 font-bold">${_deviceLabel(r.device) || '—'}</span></div>
+                            <div><span class="block text-slate-400 font-bold mb-0.5">الجهاز</span><span class="text-slate-700 font-bold" style="overflow-wrap:anywhere">${escapeHtml(_sessDeviceText(r)) || '—'}</span></div>
                         </div>
                     </div>`;
                     return { tr: tr, card: card };
@@ -2301,15 +2299,15 @@
             if (cnt) cnt.textContent = `${sum.total} متصل — ${sum.users.length} موظف · ${sum.guests} زائر` + (idleN ? ` · ${idleN} خامل` : '');
             const box = document.getElementById('onlineNowList');
             if (box) {
-                const chip = 'inline-flex items-center gap-2 bg-white border border-emerald-200 text-emerald-900 text-sm font-bold rounded-full px-3 py-1';
+                const chip = 'inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 max-w-full bg-white border border-emerald-200 text-emerald-900 text-sm font-bold rounded-2xl px-3 py-1';
                 const dot = '<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>';
                 const idleDot = '<span class="w-2 h-2 rounded-full shrink-0" style="background:#94a3b8"></span>';
                 const devTag = (set) => {
                     const t = set ? Array.from(set).filter(Boolean).map(escapeHtml).join(' + ') : '';
-                    return t ? ` <span class="text-[11px] font-bold text-slate-500" style="direction:rtl;unicode-bidi:isolate">${t}</span>` : '';
+                    return t ? ` <span class="text-[11px] font-bold text-slate-500" style="direction:rtl;unicode-bidi:isolate;white-space:normal;overflow-wrap:anywhere;min-width:0">${t}</span>` : '';
                 };
                 box.innerHTML = sum.users.map(e =>
-                    `<span class="${chip}" style="direction:ltr">${dot}${escapeHtml(e)}${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}${devTag(sum.devActive[e])}</span>`
+                    `<span class="${chip}" style="direction:ltr">${dot}<span style="overflow-wrap:anywhere;min-width:0">${escapeHtml(e)}</span>${e === ADMIN_EMAIL ? ' <span class="text-emerald-600 font-black">(أنت)</span>' : ''}${devTag(sum.devActive[e])}</span>`
                 ).join('')
                 + sum.guestNames.map(n => `<span class="${chip}">${dot}زائر: ${escapeHtml(n)}${devTag(sum.guestNameDev[n] ? [sum.guestNameDev[n]] : null)}</span>`).join('')
                 + ((sum.guests - sum.guestNames.length) > 0 ? `<span class="${chip}">${dot}زائر × ${sum.guests - sum.guestNames.length}</span>` : '')
@@ -6460,7 +6458,7 @@ ${pages}
 "",
 "10) إدارة النظام (للأدمن)",
 "   - إدارة القاعات (الأسماء والألوان)، وإعدادات باقات الأفراح.",
-"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر)، وإمكانية حذف سجلات محددة أو حذف الكل من سجل الدخول. الجلسات الخاملة أكتر من 12 ساعة بتتخبّى تلقائيًا من قايمة المتصلين، وزرار «مسح الخاملة» بيمسح الجلسات الخاملة أكتر من ساعة. وجنب كل حساب متصل بيظهر وصف جهازه (المتصفح والنظام، أو موديل الموبايل لو متاح)، ولو الحساب فاتح من أكتر من جهاز بتظهر كلها مجمّعة.",
+"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر)، وإمكانية حذف سجلات محددة أو حذف الكل من سجل الدخول. الجلسات الخاملة أكتر من 12 ساعة بتتخبّى تلقائيًا من قايمة المتصلين، وزرار «مسح الخاملة» بيمسح الجلسات الخاملة أكتر من ساعة. وجنب كل حساب متصل بيظهر وصف جهازه (المتصفح والنظام، أو موديل الموبايل لو متاح)، ولو الحساب فاتح من أكتر من جهاز بتظهر كلها مجمّعة. نفس الوصف بيتسجل كمان في سجل الدخول (عمود الجهاز).",
 "   - في شاشة تسجيل الدخول: أيقونة العين ظاهرة دايمًا جنب كلمة المرور، ومعاها خانة «إظهار كلمة المرور» تحت الحقل.",
 "",
 "11) الأمان والدخول",
@@ -6602,7 +6600,7 @@ ${pages}
 "",
 "10) System management (admin)",
 "   - Manage halls (names and colors) and wedding package settings.",
-"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop), and the ability to delete selected login records or all of them. Sessions idle for over 12 hours are hidden automatically from the online list, and the 'Clear idle' button removes sessions idle for over an hour. Next to each online account you also see its device description (browser and OS, or the phone model when available); an account open on several devices shows them all, grouped.",
+"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop), and the ability to delete selected login records or all of them. Sessions idle for over 12 hours are hidden automatically from the online list, and the 'Clear idle' button removes sessions idle for over an hour. Next to each online account you also see its device description (browser and OS, or the phone model when available); an account open on several devices shows them all, grouped. The same description is also saved in the session log (device column).",
 "   - On the login screen: an always-visible eye icon next to the password field, plus a 'Show password' checkbox under it.",
 "",
 "11) Security and login",
