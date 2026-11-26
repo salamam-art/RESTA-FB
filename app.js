@@ -2170,7 +2170,7 @@
             db.ref('presence').on('value', (snap) => {
                 _onlineWatchRetries = 0;
                 const val = snap.val() || {};
-                _onlineSessions = Object.keys(val).map(k => val[k]).filter(Boolean);
+                _onlineSessions = Object.keys(val).filter(k => val[k]).map(k => Object.assign({ _k: k }, val[k]));
                 renderOnlineNow();
             }, (err) => {
                 console.warn('presence listener cancelled:', err && err.code);
@@ -2192,12 +2192,41 @@
             return (Date.now() + _serverOffset - ts) > PRESENCE_IDLE_MS;
         }
 
+        // جلسة خاملة أكتر من 12 ساعة = سجل عالق (التطبيق اتقفل بشكل غير سليم) فنخفيها من القايمة والعدادات
+        const PRESENCE_STALE_MS = 12 * 60 * 60 * 1000;
+        function _isStaleSession(s) {
+            if (!s) return false;
+            const ts = s.lastActive || s.since;
+            if (!ts) return false;
+            return (Date.now() + _serverOffset - ts) > PRESENCE_STALE_MS;
+        }
+
+        // للأدمن: مسح الجلسات الخاملة (أكتر من ساعة بدون نشاط) من قاعدة البيانات
+        async function clearIdlePresence() {
+            if (state.currentUserEmail !== ADMIN_EMAIL) return;
+            const ONE_H = 60 * 60 * 1000;
+            const old = _onlineSessions.filter(s => {
+                const ts = s.lastActive || s.since;
+                return s._k && ts && (Date.now() + _serverOffset - ts) > ONE_H;
+            });
+            if (!old.length) { showToast('مفيش جلسات خاملة لمسحها', 'success'); return; }
+            if (!confirm('مسح ' + old.length + ' جلسة خاملة (أكتر من ساعة بدون نشاط) من قايمة المتصلين؟\nلو أي منها شغالة فعلًا هترجع تظهر أول ما صاحبها يفتح التطبيق أو يدخله من جديد.')) return;
+            let ok = 0, fail = 0, denied = false;
+            for (const s of old) {
+                try { await db.ref('presence/' + s._k).remove(); ok++; }
+                catch (err) { fail++; if (err && err.code === 'PERMISSION_DENIED') denied = true; }
+            }
+            if (fail) showToast('اتمسح ' + ok + ' وفشل ' + fail + (denied ? ' — حدّث قواعد Firebase أولًا' : ''), 'error');
+            else showToast('تم مسح ' + ok + ' جلسة خاملة', 'success');
+        }
+
         function getOnlineSummary() {
             const active = new Set(), anyUser = new Set();
             let guests = 0, idleGuests = 0;
             const guestNames = [], guestNameDev = {};
             const devActive = {}, devIdle = {}; // الإيميل -> أجهزة الجلسات (النشطة / الخاملة)
             _onlineSessions.forEach(s => {
+                if (_isStaleSession(s)) return;
                 const idle = _isIdleSession(s);
                 if (s.guest) {
                     if (idle) idleGuests++;
@@ -6369,7 +6398,7 @@ ${pages}
 "",
 "10) إدارة النظام (للأدمن)",
 "   - إدارة القاعات (الأسماء والألوان)، وإعدادات باقات الأفراح.",
-"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر)، وإمكانية حذف سجلات محددة أو حذف الكل من سجل الدخول.",
+"   - إدارة المستخدمين، ومعرفة المتصلين الآن، وسجلات الجلسات، مع نوع الجهاز لكل جلسة (📱 تطبيق / 📱 موبايل / 💻 كمبيوتر)، وإمكانية حذف سجلات محددة أو حذف الكل من سجل الدخول. الجلسات الخاملة أكتر من 12 ساعة بتتخبّى تلقائيًا من قايمة المتصلين، وزرار «مسح الخاملة» بيمسح الجلسات الخاملة أكتر من ساعة.",
 "",
 "11) الأمان والدخول",
 "   - تسجيل دخول بالبريد وكلمة المرور.",
@@ -6510,7 +6539,7 @@ ${pages}
 "",
 "10) System management (admin)",
 "   - Manage halls (names and colors) and wedding package settings.",
-"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop), and the ability to delete selected login records or all of them.",
+"   - Manage users, see who is online, and view session logs, including each session's device type (📱 app / 📱 mobile / 💻 desktop), and the ability to delete selected login records or all of them. Sessions idle for over 12 hours are hidden automatically from the online list, and the 'Clear idle' button removes sessions idle for over an hour.",
 "",
 "11) Security and login",
 "   - Email and password login.",

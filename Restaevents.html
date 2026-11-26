@@ -240,6 +240,7 @@
                             المتصلون الآن
                         </div>
                         <span id="onlineNowCount" class="text-xs font-bold text-emerald-700">—</span>
+                        <button onclick="clearIdlePresence()" class="text-xs font-bold text-red-700 bg-red-50 border border-red-100 rounded-lg px-2 py-1 whitespace-nowrap">مسح الخاملة</button>
                     </div>
                     <div id="onlineNowList" class="flex flex-wrap gap-2"></div>
                 </div>
@@ -1214,7 +1215,7 @@
         <span id="sync-text" class="text-sm font-bold tracking-wide">جاري المزامنة مع السحابة...</span>
     </div>
 
-    <script src="app.js?v=20261125a"></script>
+    <script src="app.js?v=20261126a"></script>
 
     <!-- Hidden file input for backup restore -->
     <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="handleBackupFileSelected(event)">
