@@ -217,6 +217,12 @@ ul.lv li.nofav .eq{left:14px}
 .eqr input{flex:1;min-width:0;accent-color:var(--ac)}
 .eqr output{width:52px;flex:none;direction:ltr;text-align:end;font-size:12px;color:var(--ac2)}
 #eqbox[hidden]{display:none}
+/* ملفاتي: أغاني من الجهاز */
+.lcbar{display:flex;gap:8px;padding:0 16px 8px;flex-wrap:wrap;align-items:center}
+.lcbar[hidden]{display:none}
+.lcbar .btn{flex:1;min-width:0;padding:8px;font-size:14px}
+.tg[aria-pressed="true"]{background:var(--ac);color:#fff;border-color:var(--ac)}
+body.islc #sb,body.islc .note{display:none}
 </style>
 </head>
 <body>
@@ -239,6 +245,15 @@ ul.lv li.nofav .eq{left:14px}
   <button id="tlfs" class="tlstar" aria-pressed="false" hidden>☆</button>
   <button id="tlfo" class="tlfo" aria-pressed="false">★ المفضلة فقط</button>
 </div>
+<div class="lcbar" id="lcbar" hidden>
+  <button class="btn" id="lcdb">📁 فتح مجلد</button>
+  <button class="btn" id="lcfb">🎵 اختيار ملفات</button>
+  <button class="tg" id="lcsh" aria-pressed="false" aria-label="تشغيل عشوائي">🔀</button>
+  <button class="tg" id="lcrp" aria-pressed="false" aria-label="تكرار القائمة">🔁</button>
+  <button class="tg" id="lcclr" aria-label="مسح القائمة">🗑</button>
+</div>
+<input type="file" id="lcdir" webkitdirectory multiple hidden>
+<input type="file" id="lcfil" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac" multiple hidden>
 </div>
 <div class="scr" id="scr">
 <ul id="list"></ul>
@@ -343,7 +358,7 @@ ul.lv li.nofav .eq{left:14px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.12.0";
+const APP_VERSION="1.13.0";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE_DEFAULT=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -438,7 +453,7 @@ async function refreshStations(){
   }catch(e){}
 }
 let urls=ld("eg_urls",{});const url=s=>s.c==="custom"?(urls[s.id]||s.u):s.u;let webs=ld("eg_webs",{});const web=s=>s.c==="custom"?(webs[s.id]||s.w||""):(s.w||"");let editing=null;
-const TABS=[["fav","المفضلة"],["recent","آخر ما سمعت"],["all","الكل"],["music","أغاني"],["ertu","حكومية"],["online","أونلاين"],["sport","رياضة"],["news","أخبار"],["quran","قرآن"],["tilawat","📖 تلاوات"],["custom","إضافاتي"]];
+const TABS=[["fav","المفضلة"],["recent","آخر ما سمعت"],["all","الكل"],["music","أغاني"],["ertu","حكومية"],["online","أونلاين"],["sport","رياضة"],["news","أخبار"],["quran","قرآن"],["tilawat","📖 تلاوات"],["local","🎵 ملفاتي"],["custom","إضافاتي"]];
 function vis(){
   const q=$("q").value.trim();
   const r=all().filter(s=>{
@@ -473,15 +488,15 @@ function render(){
   TABS.forEach(([k,l])=>{
     const b=document.createElement("button");b.textContent=l;b.dataset.fk="t:"+k;
     if(k==="settings"){b.className="tab set";b.setAttribute("aria-haspopup","dialog");b.onclick=openSettings}
-    else{b.className="tab"+(k==="tilawat"?" tl":"")+(tab===k?" on":"");b.setAttribute("aria-pressed",tab===k?"true":"false");b.onclick=()=>tabGo(k)}
+    else{b.className="tab"+(k==="tilawat"||k==="local"?" tl":"")+(tab===k?" on":"");b.setAttribute("aria-pressed",tab===k?"true":"false");b.onclick=()=>tabGo(k)}
     tabs.appendChild(b);
   });
   list.innerHTML="";
-  const isTL=tab==="tilawat";
-  document.body.classList.toggle("istl",isTL);$("tlbar").hidden=!isTL;
-  if(!isTL)$("q").placeholder="ابحث عن محطة…";
-  const v=isTL?(renderTL(),[]):vis();
-  if(!isTL&&!v.length){list.innerHTML='<div class="empty"></div>';list.firstChild.textContent=EMPTY[tab]||"لا توجد محطات هنا"}
+  const isTL=tab==="tilawat",isLC=tab==="local";
+  document.body.classList.toggle("istl",isTL);document.body.classList.toggle("islc",isLC);$("tlbar").hidden=!isTL;$("lcbar").hidden=!isLC;
+  if(!isTL)$("q").placeholder=isLC?"ابحث في أغانيك…":"ابحث عن محطة…";
+  const v=isTL?(renderTL(),[]):isLC?(renderLC(),[]):vis();
+  if(!isTL&&!isLC&&!v.length){list.innerHTML='<div class="empty"></div>';list.firstChild.textContent=EMPTY[tab]||"لا توجد محطات هنا"}
   v.forEach(s=>{
     const on=!!cur&&cur.id===s.id,isFav=favs.includes(s.id);
     const li=document.createElement("li");if(on)li.className="cur";
@@ -622,7 +637,7 @@ const NPS={
   sc:async(o)=>{const j=await npJ(o+"/stats?sid=1&json=1");if(!j||j.songtitle==null)throw 0;return j.songtitle}
 };
 function npStart(s){
-  if(!s||s.c==="tilawa"){npStop();return}
+  if(!s||isOD(s)){npStop();return}
   if(npId===s.id)return;
   npStop();npId=s.id;const tok=npTok;
   let u;try{u=new URL(url(s))}catch(e){return}
@@ -654,7 +669,7 @@ function play(s){
     $("cn").textContent=s.n;status("هذه المحطة بحاجة لرابط بث، الصقه في الإعدادات",true);
     $("addbox").scrollIntoView({behavior:"smooth",block:"center"});return;
   }
-  const _rt=retrying,_new=!cur||cur.id!==s.id;if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&s.c!=="tilawa"){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
+  const _rt=retrying,_new=!cur||cur.id!==s.id;if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&!isOD(s)){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
   const u=url(s);
   if(_new&&!_rt&&autoFP&&!noAuto&&$("fp").hidden)setTimeout(()=>{if($("fp").hidden)openFP()},0);
   noAuto=false;npStart(s);
@@ -664,16 +679,16 @@ function play(s){
     hls=new Hls();hls.on(Hls.Events.ERROR,(e,d)=>{if(d.fatal)au.onerror()});hls.loadSource(u);hls.attachMedia(au);
   }else{au.src=u;if(s.t>0){const t0=s.t;s.t=0;au.addEventListener("loadedmetadata",()=>{try{au.currentTime=t0}catch(e){}},{once:true})}}
   au.play().catch(()=>{});
-  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:(s.c!=="tilawa"&&npLast)||s.n,artist:s.c==="tilawa"?s.d:(npLast?s.n:"راديو مصر")})}catch(e){}}
+  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:(!isOD(s)&&npLast)||s.n,artist:isOD(s)?s.d:(npLast?s.n:"راديو مصر")})}catch(e){}}
   render();
 }
-function step(d){noAuto=true;setTimeout(()=>{noAuto=false},0);if(cur&&cur.c==="tilawa"){tlStep(d);return}const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
-$("pp").onclick=()=>{if(!cur){const v=vis();if(v.length)play(v[0]);return}if(au.paused){wantPlay=true;tries=0;if(cur.c==="tilawa"&&au.src&&!au.error&&au.readyState>0){au.play().catch(()=>{})}else{if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;play(cur)}}else{wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}};
+function step(d){noAuto=true;setTimeout(()=>{noAuto=false},0);if(cur&&cur.c==="tilawa"){tlStep(d);return}if(cur&&cur.c==="local"){lcNext(d,false);return}const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
+$("pp").onclick=()=>{if(!cur){if(tab==="local"&&lcOrder.length){lcPlay(lcOrder[0]);return}const v=vis();if(v.length)play(v[0]);return}if(au.paused){wantPlay=true;tries=0;if(isOD(cur)&&au.src&&!au.error&&au.readyState>0){au.play().catch(()=>{})}else{if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;play(cur)}}else{wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}};
 $("next").onclick=()=>step(-1);$("prev").onclick=()=>step(1);
-au.onplaying=()=>{loading=false;tries=0;clearTimeout(wt);setPP("❚❚");document.body.classList.add("playing");status(cur&&cur.c==="tilawa"?"يعمل الآن · "+cur.d:"يعمل الآن 🔴 مباشر");setWake()};
+au.onplaying=()=>{loading=false;tries=0;clearTimeout(wt);setPP("❚❚");document.body.classList.add("playing");status(isOD(cur)?"يعمل الآن · "+cur.d:"يعمل الآن 🔴 مباشر");setWake()};
 au.onpause=()=>{setPP("▶");document.body.classList.remove("playing");if(cur&&!au.error&&!loading){wantPlay=false;status("متوقف")}setWake()};
-au.onwaiting=()=>{document.body.classList.remove("playing");status("جاري التحميل…");clearTimeout(wt);wt=setTimeout(()=>{if(wantPlay){loading=false;reconnect()}},15000)};
-au.onended=()=>{if(cur&&cur.c==="tilawa")tlEnded();else reconnect()};
+au.onwaiting=()=>{document.body.classList.remove("playing");status("جاري التحميل…");clearTimeout(wt);if(!(cur&&cur.c==="local"))wt=setTimeout(()=>{if(wantPlay){loading=false;reconnect()}},15000)};
+au.onended=()=>{if(cur&&cur.c==="tilawa")tlEnded();else if(cur&&cur.c==="local")lcEnded();else reconnect()};
 au.onerror=()=>{document.body.classList.remove("playing");loading=false;reconnect()};
 $("vol").oninput=e=>{au.volume=+e.target.value};au.volume=.8;
 $("q").oninput=render;
@@ -692,14 +707,14 @@ function showWeb(s,msg){
   mirrorStatus();try{window.open(web(s),"_blank","noopener")}catch(e){}
 }
 function reconnect(){
-  clearTimeout(wt);
+  clearTimeout(wt);if(cur&&cur.c==="local"){lcFail();return}
   if(cur&&cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
   if(!cur||!wantPlay)return;
   if(tries>=4){wantPlay=false;setPP("▶");document.body.classList.remove("playing");if(cur.c==="tilawa"){status("تعذّر تشغيل هذه السورة. جرّب سورة أخرى أو قارئًا آخر",true);return}if(web(cur)){showWeb(cur);return}status("تعذّر تشغيل هذه المحطة. جرّب محطة أخرى أو عدّل الرابط بـ ✎",true);return}
   tries++;status("انقطع البث، إعادة الاتصال ("+tries+"/4)…",true);
   clearTimeout(rt);rt=setTimeout(()=>{retrying=true;play(cur)},Math.min(1500*tries,8000));
 }
-window.addEventListener("online",()=>{if(cur&&wantPlay&&(au.paused||au.error)){tries=0;if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;play(cur)}});
+window.addEventListener("online",()=>{if(cur&&cur.c!=="local"&&wantPlay&&(au.paused||au.error)){tries=0;if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;play(cur)}});
 async function setWake(){
   try{
     if("wakeLock"in navigator&&!au.paused&&!document.hidden){if(!wl){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",()=>{wl=null})}}
@@ -718,7 +733,7 @@ function syncFP(){
   fxMount(s?(s.c==="tilawa"?{n:s.d,id:"tl"}:s):{n:""});
   const m=$("fpm");m.hidden=!p.f;m.textContent=p.f;$("fpd").textContent=p.t;
   const on=!!s&&favs.includes(s.id),b=$("fpf");
-  b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||s.c==="tilawa";
+  b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||isOD(s);
 }
 function openFP(){$("fp").hidden=false;$("xp").setAttribute("aria-expanded","true");syncFP();mirrorStatus();$("fpx").focus()}
 function closeFP(){fxMenu(false);$("fp").hidden=true;$("xp").setAttribute("aria-expanded","false");$("xp").focus()}
@@ -774,7 +789,7 @@ function tlSave(){
   sv("eg_tl_last",tlLast);
 }
 function updProg(){
-  const on=!!cur&&cur.c==="tilawa",d=au.duration,ok=isFinite(d)&&d>0;
+  const on=isOD(cur),d=au.duration,ok=isFinite(d)&&d>0;
   $("skw").hidden=!on;$("pg").hidden=!on;$("fp").classList.toggle("tl",on);
   if(!on)return;
   const t=au.currentTime||0;
@@ -782,7 +797,7 @@ function updProg(){
   $("skc").textContent=fmt(t);$("skd").textContent=ok?fmt(d):"--:--";
   $("pg").firstChild.style.width=ok?Math.min(100,t/d*100)+"%":"0";
 }
-au.addEventListener("timeupdate",()=>{if(!cur||cur.c!=="tilawa")return;updProg();const n=Date.now();if(n-tlSaveAt>5000){tlSaveAt=n;tlSave()}});
+au.addEventListener("timeupdate",()=>{if(cur&&cur.c==="local"){updProg();return}if(!cur||cur.c!=="tilawa")return;updProg();const n=Date.now();if(n-tlSaveAt>5000){tlSaveAt=n;tlSave()}});
 ["loadedmetadata","durationchange","emptied"].forEach(ev=>au.addEventListener(ev,()=>updProg()));
 au.addEventListener("pause",()=>{if(cur&&cur.c==="tilawa")tlSave()});
 $("sk").addEventListener("pointerdown",()=>{skd=true});
@@ -828,7 +843,7 @@ window.addEventListener("popstate",e=>{
 });
 function tabGo(k){
   const was=tab==="tilawat",now=k==="tilawat";
-  if(was!==now)$("q").value="";
+  if(was!==now||(tab==="local")!==(k==="local"))$("q").value="";
   if(was&&!now&&tlHist){tlHist=false;tlIgn=true;try{history.back()}catch(e){tlIgn=false}}
   tab=k;
   if(now&&tlv.view==="sur"&&tlv.rec)tlPushH();
@@ -915,6 +930,89 @@ $("tlb").onclick=tlBack;
 $("tlfs").onclick=()=>{if(tlv.rec){tlFavToggle(tlv.rec.id);render()}};
 $("tlm").onchange=e=>{tlv.mos=+e.target.value;render()};
 $("tlfo").onclick=()=>{tlOnlyFav=!tlOnlyFav;render()};
+/* ===== ملفاتي: تشغيل أغاني من الجهاز (مجلد أو ملفات) تباعًا ===== */
+function isOD(s){return !!s&&(s.c==="tilawa"||s.c==="local")}
+const LC_EXT=/\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac|weba|aif|aiff)$/i;
+let lcTracks=[],lcOrder=[],lcGen=0,lcBlob="",lcFails=0,lcSkipT=0,lcIgn=0,lcShuf=ld("eg_lc_shuf",false)===true,lcRep=ld("eg_lc_rep",false)===true;
+const lcRel=f=>f.webkitRelativePath||f.name;
+const lcIsAudio=f=>/^audio\//i.test(f.type||"")||LC_EXT.test(f.name);
+const lcK=()=>cur&&cur.c==="local"&&String(cur.id).startsWith("lc"+lcGen+":")?cur.k:-1;
+function lcOrd(first){
+  lcOrder=lcTracks.map((_,i)=>i);
+  if(!lcShuf)return;
+  for(let i=lcOrder.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[lcOrder[i],lcOrder[j]]=[lcOrder[j],lcOrder[i]]}
+  const p=lcOrder.indexOf(first);if(p>0){lcOrder.splice(p,1);lcOrder.unshift(first)}
+}
+function lcPlay(k){
+  const t=lcTracks[k];if(!t)return;
+  clearTimeout(lcSkipT);
+  const old=lcBlob;lcBlob=URL.createObjectURL(t.file);
+  play({id:"lc"+lcGen+":"+k,n:t.n,d:t.d,c:"local",u:lcBlob,k:k});
+  if(old){try{URL.revokeObjectURL(old)}catch(e){}}
+}
+function lcNext(d,auto){
+  const n=lcOrder.length;if(!n)return false;
+  const c=lcOrder.indexOf(lcK());let p=c<0?(d>0?0:n-1):c+d;
+  if(p>=n||p<0){if(auto&&!lcRep)return false;p=(p+n)%n}
+  lcPlay(lcOrder[p]);return true;
+}
+function lcStop(msg){wantPlay=false;setPP("▶");document.body.classList.remove("playing");status(msg)}
+function lcEnded(){
+  noAuto=true;setTimeout(()=>{noAuto=false},0);
+  if(!lcNext(1,true))lcStop("انتهت قائمة التشغيل");
+}
+function lcFail(){
+  loading=false;document.body.classList.remove("playing");
+  const n=lcOrder.length,bad=cur?cur.n:"";
+  if(!n||++lcFails>=Math.min(n,10)){wantPlay=false;setPP("▶");status("تعذّر تشغيل الملفات — قد تكون صيغتها غير مدعومة في متصفحك",true);return}
+  status("تعذّر تشغيل «"+bad+"» — جاري التخطي",true);
+  lcSkipT=setTimeout(()=>{noAuto=true;setTimeout(()=>{noAuto=false},0);if(!lcNext(1,true))lcStop("انتهت قائمة التشغيل")},700);
+}
+function lcLoad(fl){
+  const fs=[...fl],aud=fs.filter(lcIsAudio);lcIgn=fs.length-aud.length;
+  if(!aud.length){alert("لم أجد ملفات صوتية مدعومة (mp3 ، m4a ، aac ، wav ، ogg ، opus ، flac)");return}
+  const col=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
+  aud.sort((a,b)=>col.compare(lcRel(a),lcRel(b)));
+  if(cur&&cur.c==="local"){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}
+  clearTimeout(lcSkipT);lcGen++;lcFails=0;
+  lcTracks=aud.map(f=>{const p=lcRel(f).split("/");p.pop();return{n:f.name.replace(/\.[^.]+$/,""),d:p.length?p[p.length-1]:"من جهازك",file:f}});
+  lcOrd(-1);lcPlay(lcOrder[0]);
+  setTimeout(()=>{if(au.paused&&cur&&cur.c==="local")status("اضغط ▶ لبدء التشغيل")},1500);
+}
+function renderLC(){
+  $("lcsh").setAttribute("aria-pressed",lcShuf?"true":"false");$("lcrp").setAttribute("aria-pressed",lcRep?"true":"false");
+  const msg=t=>{const d=document.createElement("div");d.className="empty";d.textContent=t;list.appendChild(d)};
+  if(!lcTracks.length){msg("اضغط «فتح مجلد» على الكمبيوتر أو «اختيار ملفات» على الموبايل لتشغيل أغانيك تباعًا. تبقى القائمة حتى تُغلق التطبيق.");return}
+  const q=nrm($("q").value.trim()),k0=lcK();
+  const h=document.createElement("div");h.className="tlsec";h.textContent=lcTracks.length+" أغنية"+(lcIgn?" · تم تجاهل "+lcIgn+" ملف غير صوتي":"");list.appendChild(h);
+  let shown=0;
+  lcTracks.forEach((t,i)=>{
+    if(q&&!nrm(t.n+" "+t.d).includes(q))return;shown++;
+    const on=i===k0,li=document.createElement("li");li.className="nofav"+(on?" cur":"");
+    const b=document.createElement("button");b.className="main";b.dataset.fk="l:"+i;if(on)b.setAttribute("aria-current","true");
+    const a=document.createElement("div");a.className="lg";a.style.setProperty("--sz","44px");a.textContent=i+1;a.style.background="hsl("+((i*37)%360)+" 40% 34%)";if(i>998)a.style.fontSize="13px";
+    const tx=document.createElement("div"),nm=document.createElement("div"),ds=document.createElement("div");
+    tx.className="tx";nm.className="nm";nm.dir="auto";ds.className="ds";nm.textContent=t.n;ds.textContent=on?"🔊 يعمل الآن":t.d;
+    tx.append(nm,ds);b.append(a,tx);b.onclick=()=>lcPlay(i);li.appendChild(b);
+    if(on){const eq=document.createElement("div");eq.className="eq";eq.setAttribute("aria-hidden","true");eq.innerHTML="<i></i><i></i><i></i>";li.appendChild(eq)}
+    list.appendChild(li);
+  });
+  if(!shown)msg("لا توجد نتائج");
+}
+$("lcdb").onclick=()=>{const i=$("lcdir");i.value="";i.click()};
+$("lcfb").onclick=()=>{const i=$("lcfil");i.value="";i.click()};
+$("lcdir").onchange=e=>{if(e.target.files.length)lcLoad(e.target.files)};
+$("lcfil").onchange=e=>{if(e.target.files.length)lcLoad(e.target.files)};
+$("lcsh").onclick=()=>{lcShuf=!lcShuf;sv("eg_lc_shuf",lcShuf);lcOrd(lcK());render()};
+$("lcrp").onclick=()=>{lcRep=!lcRep;sv("eg_lc_rep",lcRep);render()};
+$("lcclr").onclick=()=>{
+  if(!lcTracks.length||!confirm("مسح قائمة الأغاني من التطبيق؟ (ملفاتك على الجهاز لن تتأثر)"))return;
+  if(cur&&cur.c==="local"){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause();cur=null;$("cn").textContent="اختر محطة";status("جاهز")}
+  clearTimeout(lcSkipT);lcGen++;lcTracks=[];lcOrder=[];lcIgn=0;
+  if(lcBlob){try{URL.revokeObjectURL(lcBlob)}catch(e){}lcBlob=""}
+  render();
+};
+au.addEventListener("playing",()=>{lcFails=0});
 /* ===== زر الرجوع في الموبايل: يقفل الشاشة المفتوحة بدل الخروج من التطبيق ===== */
 (function(){
   const OV=["fp","mg","sg","fxs"].map($),stack=[];let back=false,queue=[];
@@ -1365,7 +1463,7 @@ function eqInit(){
   $("eqt").onclick=()=>{
     eq.on=!eq.on;eqSave();eqApply();eqUI();
     if(eq.on&&!eqBuilt&&cur&&!au.paused&&au.crossOrigin!=="anonymous"){
-      if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
+      if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;
       status("جاري إعادة الاتصال لتفعيل الإيكولايزر…");play(cur);
     }
   };
@@ -1375,7 +1473,7 @@ function eqInit(){
   $("fxlt").onclick=()=>{
     fxLive=!fxLive;sv("eg_fxlive",fxLive);fxStatus();
     if(fxLive&&!eqBuilt&&cur&&!au.paused&&au.crossOrigin!=="anonymous"){
-      if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
+      if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;
       status("جاري إعادة الاتصال لتفعيل التفاعل مع الصوت…");play(cur);
     }
   };
