@@ -201,9 +201,8 @@ ul.lv li.nofav .eq{left:14px}
 .fpq .sh{margin:0;font-size:11px}
 .fpq .th button{min-height:34px;padding:4px;font-size:12px}
 /* تشغيل القرآن: شريط التلاوة يزيد المحتوى، فنعطي أزرار التحكم ارتفاعها الكامل ونلغي التمرير */
-.fp.tl .fpb,.fp.hasnp .fpb{grid-template-rows:minmax(0,1fr) auto}
-.np{font-size:13px;color:var(--ac2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fp.tl .fpq,.fp.hasnp .fpq{overflow:hidden;justify-content:flex-start;gap:6px;padding-bottom:10px}
+.fp.tl .fpb{grid-template-rows:minmax(0,1fr) auto}
+.fp.tl .fpq{overflow:hidden;justify-content:flex-start;gap:6px;padding-bottom:10px}
 .fp .fpq>*{min-width:0;max-width:100%;box-sizing:border-box}
 @media (max-height:700px){.fpq .sh{display:none}.fpq h2{font-size:17px}.fpq .play.big{width:48px;height:48px;font-size:20px}.fpq .nav.big{width:38px;height:38px}.fpq .fxc button,.fpq .th button{min-height:30px}.fpq{gap:2px}}
 .fxc button{min-height:44px;padding:6px 14px;border:1px solid var(--bd);border-radius:22px;background:var(--card);color:var(--tx);font-family:inherit;font-size:13px}
@@ -217,12 +216,6 @@ ul.lv li.nofav .eq{left:14px}
 .eqr input{flex:1;min-width:0;accent-color:var(--ac)}
 .eqr output{width:52px;flex:none;direction:ltr;text-align:end;font-size:12px;color:var(--ac2)}
 #eqbox[hidden]{display:none}
-/* ملفاتي: أغاني من الجهاز */
-.lcbar{display:flex;gap:8px;padding:0 16px 8px;flex-wrap:wrap;align-items:center}
-.lcbar[hidden]{display:none}
-.lcbar .btn{flex:1;min-width:0;padding:8px;font-size:14px}
-.tg[aria-pressed="true"]{background:var(--ac);color:#fff;border-color:var(--ac)}
-body.islc #sb,body.islc .note{display:none}
 </style>
 </head>
 <body>
@@ -245,16 +238,6 @@ body.islc #sb,body.islc .note{display:none}
   <button id="tlfs" class="tlstar" aria-pressed="false" hidden>☆</button>
   <button id="tlfo" class="tlfo" aria-pressed="false">★ المفضلة فقط</button>
 </div>
-<div class="lcbar" id="lcbar" hidden>
-  <button class="tg" id="lcup" aria-label="رجوع للمجلد السابق" hidden>→</button>
-  <button class="btn" id="lcdb">📁 فتح مجلد</button>
-  <button class="btn" id="lcfb">🎵 اختيار ملفات</button>
-  <button class="tg" id="lcsh" aria-pressed="false" aria-label="تشغيل عشوائي">🔀</button>
-  <button class="tg" id="lcrp" aria-pressed="false" aria-label="تكرار القائمة">🔁</button>
-  <button class="tg" id="lcclr" aria-label="مسح القائمة">🗑</button>
-</div>
-<input type="file" id="lcdir" webkitdirectory multiple hidden>
-<input type="file" id="lcfil" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac" multiple hidden>
 </div>
 <div class="scr" id="scr">
 <ul id="list"></ul>
@@ -279,7 +262,6 @@ body.islc #sb,body.islc .note{display:none}
     <div id="fpl"></div>
     <div class="fpq">
     <h2 id="fpn">اختر محطة</h2>
-    <div class="np" id="fpnp" dir="auto" hidden></div>
     <div><span class="fmb" id="fpm" hidden></span><span class="st" id="fpd"></span></div>
     <div class="st" id="fps"></div>
     <div class="skw" id="skw" hidden><input type="range" id="sk" min="0" max="0" step="1" value="0" aria-label="موضع التلاوة"><div class="skt"><span id="skc">0:00</span><span id="skd">--:--</span></div></div>
@@ -359,7 +341,7 @@ body.islc #sb,body.islc .note{display:none}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.15.1";
+const APP_VERSION="1.11.0";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE_DEFAULT=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -454,7 +436,7 @@ async function refreshStations(){
   }catch(e){}
 }
 let urls=ld("eg_urls",{});const url=s=>s.c==="custom"?(urls[s.id]||s.u):s.u;let webs=ld("eg_webs",{});const web=s=>s.c==="custom"?(webs[s.id]||s.w||""):(s.w||"");let editing=null;
-const TABS=[["fav","المفضلة"],["recent","آخر ما سمعت"],["all","الكل"],["music","أغاني"],["ertu","حكومية"],["online","أونلاين"],["sport","رياضة"],["news","أخبار"],["quran","قرآن"],["tilawat","📖 تلاوات"],["local","🎵 ملفاتي"],["custom","إضافاتي"]];
+const TABS=[["fav","المفضلة"],["recent","آخر ما سمعت"],["all","الكل"],["music","أغاني"],["ertu","حكومية"],["online","أونلاين"],["sport","رياضة"],["news","أخبار"],["quran","قرآن"],["tilawat","📖 تلاوات"],["custom","إضافاتي"]];
 function vis(){
   const q=$("q").value.trim();
   const r=all().filter(s=>{
@@ -489,15 +471,15 @@ function render(){
   TABS.forEach(([k,l])=>{
     const b=document.createElement("button");b.textContent=l;b.dataset.fk="t:"+k;
     if(k==="settings"){b.className="tab set";b.setAttribute("aria-haspopup","dialog");b.onclick=openSettings}
-    else{b.className="tab"+(k==="tilawat"||k==="local"?" tl":"")+(tab===k?" on":"");b.setAttribute("aria-pressed",tab===k?"true":"false");b.onclick=()=>tabGo(k)}
+    else{b.className="tab"+(k==="tilawat"?" tl":"")+(tab===k?" on":"");b.setAttribute("aria-pressed",tab===k?"true":"false");b.onclick=()=>tabGo(k)}
     tabs.appendChild(b);
   });
   list.innerHTML="";
-  const isTL=tab==="tilawat",isLC=tab==="local";
-  document.body.classList.toggle("istl",isTL);document.body.classList.toggle("islc",isLC);$("tlbar").hidden=!isTL;$("lcbar").hidden=!isLC;
-  if(!isTL)$("q").placeholder=isLC?"ابحث في أغانيك…":"ابحث عن محطة…";
-  const v=isTL?(renderTL(),[]):isLC?(renderLC(),[]):vis();
-  if(!isTL&&!isLC&&!v.length){list.innerHTML='<div class="empty"></div>';list.firstChild.textContent=EMPTY[tab]||"لا توجد محطات هنا"}
+  const isTL=tab==="tilawat";
+  document.body.classList.toggle("istl",isTL);$("tlbar").hidden=!isTL;
+  if(!isTL)$("q").placeholder="ابحث عن محطة…";
+  const v=isTL?(renderTL(),[]):vis();
+  if(!isTL&&!v.length){list.innerHTML='<div class="empty"></div>';list.firstChild.textContent=EMPTY[tab]||"لا توجد محطات هنا"}
   v.forEach(s=>{
     const on=!!cur&&cur.id===s.id,isFav=favs.includes(s.id);
     const li=document.createElement("li");if(on)li.className="cur";
@@ -622,46 +604,6 @@ function edit(s){
   box.scrollIntoView({behavior:"smooth",block:"center"});
 }
 $("addbox").ontoggle=()=>{if(!$("addbox").open){editing=null;$("sl").style.display="none"}};
-/* ===== اسم الأغنية الحالية (بأفضل جهد: يظهر فقط للمحطات التي يسمح سيرفرها بذلك) ===== */
-let npTok=0,npTimer=0,npES=null,npLast="",npId="";
-function npClean(t,s){t=String(t||"").replace(/\s+/g," ").trim();if(t.length<2||/^[-–—_.|]+$/.test(t))return"";if(s&&t===(s.n||"").trim())return"";return t.slice(0,140)}
-function npShow(t){const el=$("fpnp");if(el){el.textContent=t?"🎵 "+t:"";el.hidden=!t}const f=$("fp");if(f)f.classList.toggle("hasnp",!!t)}
-function npSet(t,tok,s){
-  if(tok!==npTok)return;t=npClean(t,s);if(t===npLast)return;npLast=t;npShow(t);
-  if("mediaSession"in navigator&&cur&&cur.id===s.id){try{navigator.mediaSession.metadata=new MediaMetadata({title:t||s.n,artist:t?s.n:"راديو مصر"})}catch(e){}}
-}
-function npStop(){npTok++;npId="";clearTimeout(npTimer);if(npES){try{npES.close()}catch(e){}npES=null}npLast="";npShow("")}
-async function npJ(u){const c=new AbortController(),t=setTimeout(()=>c.abort(),6000);try{const r=await fetch(u,{cache:"no-store",signal:c.signal});if(!r.ok)throw 0;return await r.json()}finally{clearTimeout(t)}}
-const NPS={
-  az:async(o,u)=>{const m=/^\/listen\/([^/]+)\//.exec(u.pathname);if(!m)throw 0;const j=await npJ(o+"/api/nowplaying/"+m[1]),x=Array.isArray(j)?j[0]:j,g=x&&x.now_playing&&x.now_playing.song;if(!g)throw 0;return g.text||((g.artist||"")+" - "+(g.title||""))},
-  ice:async(o,u)=>{const j=await npJ(o+"/status-json.xsl");let a=j&&j.icestats&&j.icestats.source;if(!a)throw 0;if(!Array.isArray(a))a=[a];const m=a.find(x=>x.listenurl&&x.listenurl.endsWith(u.pathname))||a[0];return m.title?(m.artist?m.artist+" - ":"")+m.title:(m.yp_currently_playing||"")},
-  sc:async(o)=>{const j=await npJ(o+"/stats?sid=1&json=1");if(!j||j.songtitle==null)throw 0;return j.songtitle}
-};
-function npStart(s){
-  if(!s||isOD(s)){npStop();return}
-  if(npId===s.id)return;
-  npStop();npId=s.id;const tok=npTok;
-  let u;try{u=new URL(url(s))}catch(e){return}
-  if(u.protocol!=="https:")return;
-  const o=u.origin;
-  if(/(^|\.)zeno\.fm$/.test(u.hostname)){
-    const m=/^\/([A-Za-z0-9]+)/.exec(u.pathname);
-    if(m&&window.EventSource){try{const es=new EventSource("https://api.zeno.fm/mounts/metadata/subscribe/"+m[1]);npES=es;es.onmessage=ev=>{try{npSet(JSON.parse(ev.data).streamTitle,tok,s)}catch(e){}}}catch(e){}}
-    return;
-  }
-  const order=/^\/listen\/[^/]+\//.test(u.pathname)?["az","ice"]:["ice","sc"];
-  let fails=0,good=null;
-  const run=async()=>{
-    if(tok!==npTok)return;
-    if(au.paused&&good){npTimer=setTimeout(run,15000);return}
-    let ok=false;
-    for(const k of(good?[good]:order)){try{const t=await NPS[k](o,u);if(tok!==npTok)return;good=k;ok=true;npSet(t,tok,s);break}catch(e){}}
-    if(tok!==npTok)return;
-    if(ok)fails=0;else if(++fails>=2&&!good)return;
-    npTimer=setTimeout(run,15000);
-  };
-  run();
-}
 function play(s){
   if(!url(s)){
     if(web(s)){showWeb(s,"لا يوجد رابط بث لهذه المحطة، ");return}
@@ -670,26 +612,26 @@ function play(s){
     $("cn").textContent=s.n;status("هذه المحطة بحاجة لرابط بث، الصقه في الإعدادات",true);
     $("addbox").scrollIntoView({behavior:"smooth",block:"center"});return;
   }
-  const _rt=retrying,_new=!cur||cur.id!==s.id;if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&!isOD(s)){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
+  const _rt=retrying,_new=!cur||cur.id!==s.id;if(!retrying)tries=0;retrying=false;wantPlay=true;loading=true;clearTimeout(rt);clearTimeout(wt);cur=s;$("cn").textContent=s.n;status("جاري الاتصال…");if(s.c!=="search"&&s.c!=="tilawa"){recent=[s.id].concat(recent.filter(x=>x!==s.id)).slice(0,20);sv("eg_recent",recent)}
   const u=url(s);
   if(_new&&!_rt&&autoFP&&!noAuto&&$("fp").hidden)setTimeout(()=>{if($("fp").hidden)openFP()},0);
-  noAuto=false;npStart(s);
+  noAuto=false;
   if(eqPre(u,s))return;
   if(hls){hls.destroy();hls=null}
   if(/\.m3u8/i.test(u)&&!au.canPlayType("application/vnd.apple.mpegurl")&&window.Hls&&Hls.isSupported()){
     hls=new Hls();hls.on(Hls.Events.ERROR,(e,d)=>{if(d.fatal)au.onerror()});hls.loadSource(u);hls.attachMedia(au);
   }else{au.src=u;if(s.t>0){const t0=s.t;s.t=0;au.addEventListener("loadedmetadata",()=>{try{au.currentTime=t0}catch(e){}},{once:true})}}
   au.play().catch(()=>{});
-  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:(!isOD(s)&&npLast)||s.n,artist:isOD(s)?s.d:(npLast?s.n:"راديو مصر")})}catch(e){}}
+  if("mediaSession"in navigator){try{navigator.mediaSession.metadata=new MediaMetadata({title:s.n,artist:s.c==="tilawa"?s.d:"راديو مصر"})}catch(e){}}
   render();
 }
-function step(d){noAuto=true;setTimeout(()=>{noAuto=false},0);if(cur&&cur.c==="tilawa"){tlStep(d);return}if(cur&&cur.c==="local"){lcNext(d,false);return}const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
-$("pp").onclick=()=>{if(!cur){if(tab==="local"&&lcOrder.length){lcPlay(lcOrder[0]);return}const v=vis();if(v.length)play(v[0]);return}if(au.paused){wantPlay=true;tries=0;if(isOD(cur)&&au.src&&!au.error&&au.readyState>0){au.play().catch(()=>{})}else{if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;play(cur)}}else{wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}};
+function step(d){noAuto=true;setTimeout(()=>{noAuto=false},0);if(cur&&cur.c==="tilawa"){tlStep(d);return}const v=vis();if(!v.length)return;let i=cur?v.findIndex(s=>s.id===cur.id):-1;i=(i+d+v.length)%v.length;play(v[i])}
+$("pp").onclick=()=>{if(!cur){const v=vis();if(v.length)play(v[0]);return}if(au.paused){wantPlay=true;tries=0;if(cur.c==="tilawa"&&au.src&&!au.error&&au.readyState>0){au.play().catch(()=>{})}else{if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;play(cur)}}else{wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}};
 $("next").onclick=()=>step(-1);$("prev").onclick=()=>step(1);
-au.onplaying=()=>{loading=false;tries=0;clearTimeout(wt);setPP("❚❚");document.body.classList.add("playing");status(isOD(cur)?"يعمل الآن · "+cur.d:"يعمل الآن 🔴 مباشر");setWake()};
+au.onplaying=()=>{loading=false;tries=0;clearTimeout(wt);setPP("❚❚");document.body.classList.add("playing");status(cur&&cur.c==="tilawa"?"يعمل الآن · "+cur.d:"يعمل الآن 🔴 مباشر");setWake()};
 au.onpause=()=>{setPP("▶");document.body.classList.remove("playing");if(cur&&!au.error&&!loading){wantPlay=false;status("متوقف")}setWake()};
-au.onwaiting=()=>{document.body.classList.remove("playing");status("جاري التحميل…");clearTimeout(wt);if(!(cur&&cur.c==="local"))wt=setTimeout(()=>{if(wantPlay){loading=false;reconnect()}},15000)};
-au.onended=()=>{if(cur&&cur.c==="tilawa")tlEnded();else if(cur&&cur.c==="local")lcEnded();else reconnect()};
+au.onwaiting=()=>{document.body.classList.remove("playing");status("جاري التحميل…");clearTimeout(wt);wt=setTimeout(()=>{if(wantPlay){loading=false;reconnect()}},15000)};
+au.onended=()=>{if(cur&&cur.c==="tilawa")tlEnded();else reconnect()};
 au.onerror=()=>{document.body.classList.remove("playing");loading=false;reconnect()};
 $("vol").oninput=e=>{au.volume=+e.target.value};au.volume=.8;
 $("q").oninput=render;
@@ -708,14 +650,14 @@ function showWeb(s,msg){
   mirrorStatus();try{window.open(web(s),"_blank","noopener")}catch(e){}
 }
 function reconnect(){
-  clearTimeout(wt);if(cur&&cur.c==="local"){lcFail();return}
+  clearTimeout(wt);
   if(cur&&cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
   if(!cur||!wantPlay)return;
   if(tries>=4){wantPlay=false;setPP("▶");document.body.classList.remove("playing");if(cur.c==="tilawa"){status("تعذّر تشغيل هذه السورة. جرّب سورة أخرى أو قارئًا آخر",true);return}if(web(cur)){showWeb(cur);return}status("تعذّر تشغيل هذه المحطة. جرّب محطة أخرى أو عدّل الرابط بـ ✎",true);return}
   tries++;status("انقطع البث، إعادة الاتصال ("+tries+"/4)…",true);
   clearTimeout(rt);rt=setTimeout(()=>{retrying=true;play(cur)},Math.min(1500*tries,8000));
 }
-window.addEventListener("online",()=>{if(cur&&cur.c!=="local"&&wantPlay&&(au.paused||au.error)){tries=0;if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;play(cur)}});
+window.addEventListener("online",()=>{if(cur&&wantPlay&&(au.paused||au.error)){tries=0;if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;play(cur)}});
 async function setWake(){
   try{
     if("wakeLock"in navigator&&!au.paused&&!document.hidden){if(!wl){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",()=>{wl=null})}}
@@ -734,7 +676,7 @@ function syncFP(){
   fxMount(s?(s.c==="tilawa"?{n:s.d,id:"tl"}:s):{n:""});
   const m=$("fpm");m.hidden=!p.f;m.textContent=p.f;$("fpd").textContent=p.t;
   const on=!!s&&favs.includes(s.id),b=$("fpf");
-  b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||isOD(s);
+  b.textContent=on?"★":"☆";b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");b.disabled=!s||s.c==="tilawa";
 }
 function openFP(){$("fp").hidden=false;$("xp").setAttribute("aria-expanded","true");syncFP();mirrorStatus();$("fpx").focus()}
 function closeFP(){fxMenu(false);$("fp").hidden=true;$("xp").setAttribute("aria-expanded","false");$("xp").focus()}
@@ -790,7 +732,7 @@ function tlSave(){
   sv("eg_tl_last",tlLast);
 }
 function updProg(){
-  const on=isOD(cur),d=au.duration,ok=isFinite(d)&&d>0;
+  const on=!!cur&&cur.c==="tilawa",d=au.duration,ok=isFinite(d)&&d>0;
   $("skw").hidden=!on;$("pg").hidden=!on;$("fp").classList.toggle("tl",on);
   if(!on)return;
   const t=au.currentTime||0;
@@ -798,7 +740,7 @@ function updProg(){
   $("skc").textContent=fmt(t);$("skd").textContent=ok?fmt(d):"--:--";
   $("pg").firstChild.style.width=ok?Math.min(100,t/d*100)+"%":"0";
 }
-au.addEventListener("timeupdate",()=>{if(cur&&cur.c==="local"){updProg();return}if(!cur||cur.c!=="tilawa")return;updProg();const n=Date.now();if(n-tlSaveAt>5000){tlSaveAt=n;tlSave()}});
+au.addEventListener("timeupdate",()=>{if(!cur||cur.c!=="tilawa")return;updProg();const n=Date.now();if(n-tlSaveAt>5000){tlSaveAt=n;tlSave()}});
 ["loadedmetadata","durationchange","emptied"].forEach(ev=>au.addEventListener(ev,()=>updProg()));
 au.addEventListener("pause",()=>{if(cur&&cur.c==="tilawa")tlSave()});
 $("sk").addEventListener("pointerdown",()=>{skd=true});
@@ -844,7 +786,7 @@ window.addEventListener("popstate",e=>{
 });
 function tabGo(k){
   const was=tab==="tilawat",now=k==="tilawat";
-  if(was!==now||(tab==="local")!==(k==="local"))$("q").value="";
+  if(was!==now)$("q").value="";
   if(was&&!now&&tlHist){tlHist=false;tlIgn=true;try{history.back()}catch(e){tlIgn=false}}
   tab=k;
   if(now&&tlv.view==="sur"&&tlv.rec)tlPushH();
@@ -931,165 +873,6 @@ $("tlb").onclick=tlBack;
 $("tlfs").onclick=()=>{if(tlv.rec){tlFavToggle(tlv.rec.id);render()}};
 $("tlm").onchange=e=>{tlv.mos=+e.target.value;render()};
 $("tlfo").onclick=()=>{tlOnlyFav=!tlOnlyFav;render()};
-/* ===== ملفاتي: تشغيل أغاني من الجهاز (مجلد أو ملفات) تباعًا ===== */
-function isOD(s){return !!s&&(s.c==="tilawa"||s.c==="local")}
-const LC_EXT=/\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac|weba|aif|aiff)$/i;
-let lcPath="",lcBase="",lcScope=null,lcTracks=[],lcOrder=[],lcGen=0,lcBlob="",lcFails=0,lcSkipT=0,lcIgn=0,lcShuf=ld("eg_lc_shuf",false)===true,lcRep=ld("eg_lc_rep",false)===true;
-const lcRel=f=>f._rel||f.webkitRelativePath||f.name;
-const lcIsAudio=f=>/^audio\//i.test(f.type||"")||LC_EXT.test(f.name);
-const lcK=()=>cur&&cur.c==="local"&&String(cur.id).startsWith("lc"+lcGen+":")?cur.k:-1;
-function lcOrd(first){
-  lcOrder=lcScope?lcScope.slice():lcTracks.map((_,i)=>i);
-  if(!lcShuf)return;
-  for(let i=lcOrder.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[lcOrder[i],lcOrder[j]]=[lcOrder[j],lcOrder[i]]}
-  const p=lcOrder.indexOf(first);if(p>0){lcOrder.splice(p,1);lcOrder.unshift(first)}
-}
-function lcPlay(k){
-  const t=lcTracks[k];if(!t)return;
-  clearTimeout(lcSkipT);
-  const old=lcBlob;lcBlob=URL.createObjectURL(t.file);
-  play({id:"lc"+lcGen+":"+k,n:t.n,d:t.d,c:"local",u:lcBlob,k:k});
-  if(old){try{URL.revokeObjectURL(old)}catch(e){}}
-}
-function lcNext(d,auto){
-  const n=lcOrder.length;if(!n)return false;
-  const c=lcOrder.indexOf(lcK());let p=c<0?(d>0?0:n-1):c+d;
-  if(p>=n||p<0){if(auto&&!lcRep)return false;p=(p+n)%n}
-  lcPlay(lcOrder[p]);return true;
-}
-function lcStop(msg){wantPlay=false;setPP("▶");document.body.classList.remove("playing");status(msg)}
-function lcEnded(){
-  noAuto=true;setTimeout(()=>{noAuto=false},0);
-  if(!lcNext(1,true))lcStop("انتهت قائمة التشغيل");
-}
-function lcFail(){
-  loading=false;document.body.classList.remove("playing");
-  const n=lcOrder.length,bad=cur?cur.n:"";
-  if(!n||++lcFails>=Math.min(n,10)){wantPlay=false;setPP("▶");status("تعذّر تشغيل الملفات — قد تكون صيغتها غير مدعومة في متصفحك",true);return}
-  status("تعذّر تشغيل «"+bad+"» — جاري التخطي",true);
-  lcSkipT=setTimeout(()=>{noAuto=true;setTimeout(()=>{noAuto=false},0);if(!lcNext(1,true))lcStop("انتهت قائمة التشغيل")},700);
-}
-function lcLoad(fl,o){o=o||{play:true,save:"files"};
-  const fs=[...fl],aud=fs.filter(lcIsAudio);lcIgn=fs.length-aud.length;
-  if(!aud.length){if(o.play)alert("لم أجد ملفات صوتية مدعومة (mp3 ، m4a ، aac ، wav ، ogg ، opus ، flac)");return}
-  const col=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
-  aud.sort((a,b)=>col.compare(lcRel(a),lcRel(b)));
-  if(cur&&cur.c==="local"){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}
-  clearTimeout(lcSkipT);lcGen++;lcFails=0;
-  lcTracks=aud.map(f=>{const p=lcRel(f).split("/");p.pop();return{n:f.name.replace(/\.[^.]+$/,""),d:p.length?p[p.length-1]:"من جهازك",dir:p.join("/"),file:f}});
-  {let b=lcTracks[0].dir.split("/").filter(Boolean);lcTracks.forEach(t=>{const q=t.dir.split("/").filter(Boolean);let i=0;while(i<b.length&&b[i]===q[i])i++;b.length=i});lcBase=lcPath=b.join("/")}
-  lcScope=null;lcOrd(-1);if(o.play){lcPlay(lcOrder[0]);setTimeout(()=>{if(au.paused&&cur&&cur.c==="local")status("اضغط ▶ لبدء التشغيل")},1500)}else render();
-  lcSave(o,aud);
-}
-const lcUnder=path=>{const o=[];lcTracks.forEach((t,i)=>{if(!path||t.dir===path||t.dir.startsWith(path+"/"))o.push(i)});return o};
-function renderLC(){
-  $("lcup").hidden=!(lcTracks.length&&lcPath!==lcBase&&!$("q").value.trim());
-  $("lcsh").setAttribute("aria-pressed",lcShuf?"true":"false");$("lcrp").setAttribute("aria-pressed",lcRep?"true":"false");
-  const msg=t=>{const d=document.createElement("div");d.className="empty";d.textContent=t;list.appendChild(d)};
-  if(!lcTracks.length){if(lcSaved){const b=document.createElement("button");b.className="btn";b.style.gridColumn="1/-1";b.textContent="↻ استعادة المجلد: "+lcSaved.name;b.onclick=lcResume;list.appendChild(b)}msg((lcTouch?"اضغط «اختيار أغاني من الجهاز»، وافتح المجلد، ثم اضغط مطولًا على أي أغنية واختر «تحديد الكل» ثم «فتح» لتشغيلها تباعًا. ":"اضغط «فتح مجلد» أو «اختيار ملفات» لتشغيل أغانيك تباعًا. ")+(window.showDirectoryPicker?"سيتذكّر التطبيق مكان المجلد للمرة القادمة.":"متصفحك لا يسمح بتذكّر مكان الملفات، فتبقى القائمة حتى تُغلق التطبيق.")+"");return}
-  const q=nrm($("q").value.trim()),k0=lcK();
-  const sec=t=>{const h=document.createElement("div");h.className="tlsec";h.textContent=t;list.appendChild(h)};
-  const av=(t,bg)=>{const a=document.createElement("div");a.className="lg";a.style.setProperty("--sz","44px");a.textContent=t;a.style.background=bg;if(String(t).length>3)a.style.fontSize="13px";return a};
-  const item=(a,name,ds,on,nf,click,key)=>{
-    const li=document.createElement("li");li.className=(nf?"nofav":"")+(on?" cur":"");
-    const b=document.createElement("button");b.className="main";b.dataset.fk=key;if(on)b.setAttribute("aria-current","true");
-    const tx=document.createElement("div"),nm=document.createElement("div"),d=document.createElement("div");
-    tx.className="tx";nm.className="nm";nm.dir="auto";d.className="ds";nm.textContent=name;d.textContent=ds;
-    tx.append(nm,d);b.append(a,tx);b.onclick=click;li.appendChild(b);
-    if(on){const eq=document.createElement("div");eq.className="eq";eq.setAttribute("aria-hidden","true");eq.innerHTML="<i></i><i></i><i></i>";li.appendChild(eq)}
-    list.appendChild(li);return li};
-  let shown=0;
-  const trk=(i,n)=>{const t=lcTracks[i];shown++;item(av(n,"hsl("+((i*37)%360)+" 40% 34%)"),t.n,i===k0?"🔊 يعمل الآن":(q?t.d:"▶ تشغيل"),i===k0,true,()=>{lcScope=q?null:lcUnder(lcPath);lcOrd(i);lcPlay(i)},"l:"+i)};
-  if(q){
-    sec("نتائج البحث في كل المجلدات");
-    lcTracks.forEach((t,i)=>{if(nrm(t.n+" "+t.d).includes(q))trk(i,i+1)});
-    if(!shown)msg("لا توجد نتائج");return;
-  }
-  const pre=lcPath?lcPath+"/":"",subs=new Map(),files=[];
-  lcTracks.forEach((t,i)=>{
-    if(t.dir===lcPath)files.push(i);
-    else if(!lcPath||t.dir.startsWith(pre)){const g=t.dir.slice(pre.length).split("/")[0];subs.set(g,(subs.get(g)||0)+1)}
-  });
-  sec((lcPath?lcPath.split("/").join(" / ")+" · ":"")+lcUnder(lcPath).length+" أغنية"+(lcIgn&&lcPath===lcBase?" · تم تجاهل "+lcIgn+" ملف غير صوتي":""));
-  if(lcPath!==lcBase)item(av("⬆","hsl(0 0% 40%)"),"رجوع","المجلد السابق",false,true,lcUp,"up");
-  subs.forEach((c,g)=>{
-    const full=pre+g,li=item(av("📁","hsl(40 45% 36%)"),g,c+" أغنية",false,false,()=>lcEnter(full),"d:"+full);
-    const pb=document.createElement("button");pb.className="fav";pb.textContent="▶";pb.setAttribute("aria-label","تشغيل المجلد: "+g);
-    pb.onclick=()=>{lcScope=lcUnder(full);lcOrd(-1);if(lcOrder.length)lcPlay(lcOrder[0])};li.appendChild(pb);
-  });
-  files.forEach((i,j)=>trk(i,j+1));
-  if(!subs.size&&!files.length)msg("المجلد فارغ");
-}
-/* ---- حفظ القائمة (IndexedDB) + التنقل بين المجلدات ---- */
-let lcSaved=null;
-const lcDB=()=>new Promise((res,rej)=>{const r=indexedDB.open("eg_lc",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
-const idb=(m,k,v)=>lcDB().then(db=>new Promise((res,rej)=>{const t=db.transaction("kv",m==="get"?"readonly":"readwrite"),st=t.objectStore("kv"),q=m==="get"?st.get(k):m==="set"?st.put(v,k):st.delete(k);t.oncomplete=()=>res(q.result);t.onerror=t.onabort=()=>rej(t.error)}));
-function lcSave(o){if(o.save==="dir")idb("set","dir",o.h).catch(()=>{})}
-async function lcWalk(d,pre,out){for await(const [n,h] of d.entries()){if(h.kind==="directory")await lcWalk(h,pre+n+"/",out);else if(LC_EXT.test(n)){const f=await h.getFile();f._rel=pre+n;out.push(f)}}return out}
-async function lcOpen(h){
-  const out=await lcWalk(h,h.name+"/",[]);
-  if(!out.length)return false;
-  lcSaved=null;lcLoad(out,{play:false,save:null});return true;
-}
-async function lcRestore(){
-  try{
-    idb("del","files").catch(()=>{});
-    const h=await idb("get","dir");
-    if(!h)return;
-    lcSaved=h;
-    if((await h.queryPermission({mode:"read"}))==="granted"){if(await lcOpen(h))return}
-    if(tab==="local")render();
-  }catch(e){}
-}
-async function lcResume(){
-  const h=lcSaved;if(!h)return;
-  try{
-    if((await h.requestPermission({mode:"read"}))!=="granted")return;
-    status("جاري قراءة المجلد…");
-    if(!await lcOpen(h))alert("لا توجد ملفات صوتية في المجلد");
-  }catch(e){alert("تعذّر فتح المجلد المحفوظ. اختره من جديد بزر «فتح مجلد»")}
-}
-function lcEnter(full){lcPath=full;try{history.pushState({lc:full},"")}catch(e){}render();$("scr").scrollTop=0}
-function lcUp(){
-  if(history.state&&history.state.lc===lcPath){history.back();return}
-  lcPath=lcPath.split("/").slice(0,-1).join("/");render();$("scr").scrollTop=0;
-}
-window.addEventListener("popstate",e=>{
-  const t=e.state&&e.state.lc!=null?e.state.lc:lcBase;
-  if(t===lcPath||!lcTracks.length)return;
-  if(lcBase&&t!==lcBase&&!t.startsWith(lcBase+"/"))return;
-  lcPath=t;if(tab==="local"){render();$("scr").scrollTop=0}
-});
-$("lcup").onclick=lcUp;
-const lcTouch=!window.showDirectoryPicker&&!!window.matchMedia&&matchMedia("(pointer:coarse)").matches;
-if(lcTouch){$("lcdb").hidden=true;$("lcfb").textContent="🎵 اختيار أغاني من الجهاز"}
-$("lcdb").onclick=async()=>{
-  if(window.showDirectoryPicker){
-    try{
-      const h=await showDirectoryPicker({mode:"read"});
-      status("جاري قراءة المجلد…");
-      const out=await lcWalk(h,h.name+"/",[]);
-      if(!out.length){alert("لم أجد ملفات صوتية مدعومة في هذا المجلد");return}
-      lcLoad(out,{play:true,save:"dir",h});
-    }catch(e){}
-    return;
-  }
-  const i=$("lcdir");i.value="";i.click();
-};
-$("lcfb").onclick=()=>{const i=$("lcfil");i.value="";i.click()};
-$("lcdir").onchange=e=>{if(e.target.files.length)lcLoad(e.target.files)};
-$("lcfil").onchange=e=>{if(e.target.files.length)lcLoad(e.target.files)};
-$("lcsh").onclick=()=>{lcShuf=!lcShuf;sv("eg_lc_shuf",lcShuf);lcOrd(lcK());render()};
-$("lcrp").onclick=()=>{lcRep=!lcRep;sv("eg_lc_rep",lcRep);render()};
-$("lcclr").onclick=()=>{
-  if(!(lcTracks.length||lcSaved)||!confirm("مسح قائمة الأغاني من التطبيق؟ (ملفاتك على الجهاز لن تتأثر)"))return;
-  if(cur&&cur.c==="local"){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause();cur=null;$("cn").textContent="اختر محطة";status("جاهز")}
-  clearTimeout(lcSkipT);lcGen++;lcTracks=[];lcOrder=[];lcIgn=0;lcScope=null;lcPath=lcBase="";lcSaved=null;idb("del","dir").catch(()=>{});idb("del","files").catch(()=>{});
-  if(lcBlob){try{URL.revokeObjectURL(lcBlob)}catch(e){}lcBlob=""}
-  render();
-};
-au.addEventListener("playing",()=>{lcFails=0});
-lcRestore();
 /* ===== زر الرجوع في الموبايل: يقفل الشاشة المفتوحة بدل الخروج من التطبيق ===== */
 (function(){
   const OV=["fp","mg","sg","fxs"].map($),stack=[];let back=false,queue=[];
@@ -1540,7 +1323,7 @@ function eqInit(){
   $("eqt").onclick=()=>{
     eq.on=!eq.on;eqSave();eqApply();eqUI();
     if(eq.on&&!eqBuilt&&cur&&!au.paused&&au.crossOrigin!=="anonymous"){
-      if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;
+      if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
       status("جاري إعادة الاتصال لتفعيل الإيكولايزر…");play(cur);
     }
   };
@@ -1550,7 +1333,7 @@ function eqInit(){
   $("fxlt").onclick=()=>{
     fxLive=!fxLive;sv("eg_fxlive",fxLive);fxStatus();
     if(fxLive&&!eqBuilt&&cur&&!au.paused&&au.crossOrigin!=="anonymous"){
-      if(isOD(cur)&&au.currentTime>1)cur.t=au.currentTime;
+      if(cur.c==="tilawa"&&au.currentTime>1)cur.t=au.currentTime;
       status("جاري إعادة الاتصال لتفعيل التفاعل مع الصوت…");play(cur);
     }
   };
