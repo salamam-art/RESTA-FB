@@ -2389,9 +2389,25 @@
             try { updateNotifBadge(); } catch (e) {}
         }
 
+        // رقم الجرس = الإشعارات الجديدة فقط (اللي المستخدم لسه ما فتحش الجرس بعدها). الإشعارات نفسها بتفضل في القايمة لحد ما تتمسح.
+        function _notifSeenId() {
+            try { return Number(localStorage.getItem('hotel_notif_seen')) || 0; } catch (e) { return 0; }
+        }
+        function _unreadNotifCount() {
+            const seen = _notifSeenId();
+            return (state.notifications || []).filter(n => (Number(n.id) || 0) > seen).length;
+        }
+        function _markNotificationsSeen() {
+            try {
+                const ids = (state.notifications || []).map(n => Number(n.id) || 0);
+                if (ids.length) localStorage.setItem('hotel_notif_seen', String(Math.max.apply(null, ids)));
+            } catch (e) {}
+            try { updateNotifBadge(); } catch (e) {}
+        }
+
         // تحديث رقم الجرس فورًا بدون إعادة رسم الصفحة (عرض فقط)
         function updateNotifBadge() {
-            const n = state.notifications.length;
+            const n = _unreadNotifCount();
             document.querySelectorAll('button[title="الإشعارات"]').forEach(btn => {
                 let badge = btn.querySelector('.notif-count-badge');
                 if (n <= 0) { if (badge) badge.remove(); return; }
@@ -2533,6 +2549,7 @@
                 }
                 if(typeof lucide!=="undefined") refreshIcons('notificationsModal');
                 modal.classList.remove('hidden');
+                _markNotificationsSeen();
             } else {
                 modal.classList.add('hidden');
             }
@@ -6263,6 +6280,7 @@ ${pages}
             if (admin) {
                 exp.push({ action: 'exportFullBackup()', icon: 'database-backup', bg: 'bg-indigo-50', color: 'text-indigo-600', label: 'تصدير نسخة كاملة (شاملة الأرشيف)' });
                 exp.push({ action: 'triggerImportBackup()', icon: 'hard-drive-upload', bg: 'bg-amber-50', color: 'text-amber-600', label: 'استيراد نسخة احتياطية' });
+                exp.push({ action: '_maybeBackupReminder(true)', icon: 'bell-ring', bg: 'bg-indigo-50', color: 'text-indigo-600', label: 'تذكير النسخة الاحتياطية' });
             }
             const rec = [];
             rec.push({ action: 'toggleDeletedBookingsModal()', icon: 'trash-2', bg: 'bg-red-50', color: 'text-red-600', label: 'الحجوزات المحذوفة' });
@@ -6475,9 +6493,8 @@ ${pages}
 "   - ملاحظة الأدمن الخاصة على الحجز: نص حر (سطر أو أكثر) يراه الأدمن فقط،",
 "     ولا يرسل أي إشعار بها، وتُحذف مع الحجز، وتظهر في التصدير والأرشيف.",
 "",
-"6) الإشعارات والمحادثات",
-"   - إشعارات بالتغييرات على الحجوزات (جرس الإشعارات).",
-"   - محادثات بين المستخدمين داخل التطبيق (غير متاحة للزائر).",
+"6) الإشعارات",
+"   - إشعارات بالتغييرات على الحجوزات (جرس الإشعارات). الرقم فوق الجرس بيعدّ الإشعارات الجديدة بس، وبيتصفّر لما تفتح الجرس، والإشعارات القديمة تفضل في القايمة لحد ما تمسحها.",
 "",
 "7) السجلات والأرشيف",
 "   - الحجوزات المحذوفة: عرض بيانات الحجز ومن حذفه ومتى.",
@@ -6492,6 +6509,7 @@ ${pages}
 "9) التصدير والنسخ الاحتياطي",
 "   - تصدير الحجوزات إلى ملف Excel منسّق.",
 "   - نسخة كاملة (JSON) تشمل الأرشيف والملاحظات، واستيراد نسخة (للأدمن).",
+"   - تذكير النسخة الاحتياطية (للأدمن): لما تعدّي المدة من آخر نسخة كاملة (الافتراضي أسبوع) تظهر نافذة عند فتح التطبيق فيها «تصدير الآن» و«ذكّرني بعدين»، وتقدر تغيّر المدة أو توقف التذكير من نفس النافذة أو من قايمة التصدير.",
 "",
 "10) إدارة النظام (للأدمن)",
 "   - إدارة القاعات (الأسماء والألوان)، وإعدادات باقات الأفراح.",
@@ -6526,7 +6544,7 @@ ${pages}
 "   - إضافة حجوزات جديدة (في الأيام غير المنصرمة).",
 "   - تعديل وحذف ونقل حجوزاته هو فقط قبل موعدها، ونسخ الحجز العادي.",
 "   - التراجع والإعادة، الطباعة، الحاسبة (الأسعار للقراءة فقط).",
-"   - الإشعارات والمحادثات، والأيام الفاضية، وملاحظات الأيام (قراءة).",
+"   - الإشعارات، والأيام الفاضية، وملاحظات الأيام (قراءة).",
 "   - عرض المحذوفات وسجل التعديلات والأرشيف، وتصدير Excel.",
 "   - لا يرى ملاحظات الأدمن الخاصة ولا التفاصيل المالية الخاصة بالأدمن.",
 "",
@@ -6545,7 +6563,7 @@ ${pages}
 "3) على الموبايل زر التبديل بين عرض الشهر وعرض الأسبوع.",
 "4) اضغط على أي يوم لعرض حجوزاته أو إضافة حجز لو كان فاضياً.",
 "5) لمعرفة الأيام المتاحة اختر قاعة من شريط الأيام الفاضية.",
-"6) أيقونات الهيدر: الجرس للإشعارات، والرسالة للمحادثات، والمزامنة، و(i).",
+"6) أيقونات الهيدر: الجرس للإشعارات، والمزامنة، و(i).",
 "7) قوائم الهيدر: التصدير والنسخ، السجلات والأرشيف، الأدوات والإدارة،",
 "   وعلى الموبايل كلها داخل قائمة ⋮ مقسّمة بعناوين.",
 "",
@@ -6617,9 +6635,8 @@ ${pages}
 "     by the admin only, never sent in notifications, deleted with the",
 "     booking, and included in the export and archive.",
 "",
-"6) Notifications and chat",
-"   - Notifications about changes to bookings (bell icon).",
-"   - In-app chat between users (not available to guests).",
+"6) Notifications",
+"   - Notifications about changes to bookings (bell icon). The number on the bell counts only new notifications and resets when you open the bell; older ones stay in the list until you clear them.",
 "",
 "7) Records and archive",
 "   - Deleted bookings: view the booking, who deleted it and when.",
@@ -6662,6 +6679,7 @@ ${pages}
 "   - Edit package and extras prices in the calculator and wedding bookings.",
 "   - Manage halls, wedding packages, users and who is online.",
 "   - Financial statistics, full backup and import.",
+"   - Backup reminder (admin): once the set period passes since the last full backup (default one week), a window appears on opening the app with 'Export now' and 'Remind me later'; you can change the period or turn it off from the same window or from the export menu.",
 "   - Archive months, restore them or delete them permanently, and remove",
 "     deleted-booking records.",
 "",
@@ -6670,7 +6688,7 @@ ${pages}
 "   - Edit, delete and move only their own bookings before their date,",
 "     and copy regular bookings.",
 "   - Undo / redo, printing, calculator (prices are read-only).",
-"   - Notifications and chat, free days, and reading day notes.",
+"   - Notifications, free days, and reading day notes.",
 "   - View deleted bookings, edit history and archive, and export to Excel.",
 "   - Cannot see private admin notes or the admin-only financial details.",
 "",
@@ -6679,7 +6697,7 @@ ${pages}
 "   - Hidden booking details are not shown (hall and name only).",
 "   - View deleted bookings, edit history and archive, and export to Excel.",
 "   - Asked for a name on entry, and sees notifications.",
-"   - No adding, editing, deleting or moving; no chat and no calculator.",
+"   - No adding, editing, deleting or moving; no calculator.",
 "",
 "--------------------------------------------------",
 "4. How to browse",
@@ -6689,7 +6707,7 @@ ${pages}
 "3) On mobile, a toggle switches between month view and week view.",
 "4) Tap a day to see its bookings, or to add one if it is empty.",
 "5) To find available days, pick a hall from the free-days bar.",
-"6) Header icons: bell for notifications, message for chat, sync, and (i).",
+"6) Header icons: bell for notifications, sync, and (i).",
 "7) Header menus: Export & backup, Records & archive, Tools & management;",
 "   on mobile everything lives in the ⋮ menu, split under section titles.",
 "",
@@ -6728,8 +6746,8 @@ ${pages}
                     <div class="p-5 overflow-y-auto space-y-4">
                         <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                             <h4 class="font-black text-[#6E1418] text-base mb-1">Resta Events Booking</h4>
-                            <p class="text-sm text-slate-600 font-bold leading-relaxed">نظام لإدارة حجوزات القاعات والمناسبات (أفراح، مناسبات، فوتوسيشن) في فندق ريستا بورسعيد، مع تقويم لكل قاعة ومتابعة المدفوعات والإشعارات والمحادثات ومزامنة لحظية بين المستخدمين.</p>
-                            <p class="text-xs text-slate-500 mt-2 leading-relaxed" dir="ltr">A booking management system for halls and events at Resta Port Said Hotel, with per-hall calendars, payments, notifications, chat and real-time sync.</p>
+                            <p class="text-sm text-slate-600 font-bold leading-relaxed">نظام لإدارة حجوزات القاعات والمناسبات (أفراح، مناسبات، فوتوسيشن) في فندق ريستا بورسعيد، مع تقويم لكل قاعة ومتابعة المدفوعات والإشعارات ومزامنة لحظية بين المستخدمين.</p>
+                            <p class="text-xs text-slate-500 mt-2 leading-relaxed" dir="ltr">A booking management system for halls and events at Resta Port Said Hotel, with per-hall calendars, payments, notifications and real-time sync.</p>
                         </div>
                         <div class="rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
                             <div class="w-14 h-14 rounded-2xl bg-[#6E1418] text-white flex items-center justify-center font-black text-lg shrink-0">MS</div>
@@ -6808,17 +6826,12 @@ ${pages}
 
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
-                                ${state.notifications.length > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
-                            </button>
-
-                            <button onclick="toggleChatModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="المحادثات">
-                                <i data-lucide="message-circle" class="w-5 h-5"></i>
-                                <span id="chatCountBadge" class="${getChatUnreadCount() > 0 ? '' : 'hidden '}absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">${getChatUnreadCount()}</span>
+                                ${_unreadNotifCount() > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + _unreadNotifCount() + '</span>' : ''}
                             </button>
                             ` : `
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
-                                ${state.notifications.length > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + state.notifications.length + '</span>' : ''}
+                                ${_unreadNotifCount() > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + _unreadNotifCount() + '</span>' : ''}
                             </button>
                             `}
 
@@ -11707,6 +11720,81 @@ ${pages}
         }
 
         // --- تصدير نسخة احتياطية كاملة (تشمل الحجوزات النشطة + كل الأشهر المؤرشفة) ---
+        // ─── تذكير النسخة الاحتياطية (للأدمن فقط) ───
+        // التاريخ والمدة محفوظين على الجهاز نفسه. التذكير بيظهر لما التطبيق يتفتح وتعدّي المدة من آخر "تصدير نسخة كاملة".
+        const BK_LAST_KEY = 'hotel_backup_last', BK_DAYS_KEY = 'hotel_backup_days', BK_SNOOZE_KEY = 'hotel_backup_snooze';
+        let _bkShownThisSession = false;
+        function _bkGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function _bkSet(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) {} }
+        function _bkDays() { const v = _bkGet(BK_DAYS_KEY); return v === null ? 7 : (Number(v) || 0); } // 0 = التذكير متوقف
+        function _markBackupDone() {
+            _bkSet(BK_LAST_KEY, Date.now()); _bkSet(BK_SNOOZE_KEY, 0);
+            const m = document.getElementById('backupReminderModal'); if (m) m.remove();
+        }
+        function _backupReminderExport() {
+            const m = document.getElementById('backupReminderModal'); if (m) m.remove();
+            exportFullBackup();
+        }
+        function _backupReminderLater() {
+            _bkSet(BK_SNOOZE_KEY, Date.now() + 24 * 3600 * 1000);
+            const m = document.getElementById('backupReminderModal'); if (m) m.remove();
+        }
+        function _backupReminderClose() {
+            const m = document.getElementById('backupReminderModal'); if (m) m.remove();
+        }
+        function _maybeBackupReminder(force) {
+            if (!state.isLoggedIn || state.currentUserEmail !== ADMIN_EMAIL) return;
+            if (document.getElementById('backupReminderModal')) return;
+            if (!force) {
+                const days = _bkDays();
+                if (!days || _bkShownThisSession) return;
+                if (Date.now() < (Number(_bkGet(BK_SNOOZE_KEY)) || 0)) return;
+                const last0 = Number(_bkGet(BK_LAST_KEY)) || 0;
+                if (last0 && (Date.now() - last0) < days * 864e5) return;
+            }
+            _bkShownThisSession = true;
+            const last = Number(_bkGet(BK_LAST_KEY)) || 0;
+            const ago = last ? Math.floor((Date.now() - last) / 864e5) : null;
+            const msg = last
+                ? (ago === 0 ? 'آخر نسخة كاملة من هذا الجهاز كانت النهارده.' : 'آخر نسخة كاملة من هذا الجهاز كانت من ' + ago + ' يوم.')
+                : 'لم تعمل نسخة كاملة من هذا الجهاز من قبل.';
+            const cur = _bkDays();
+            const opts = [[1, 'كل يوم'], [3, 'كل 3 أيام'], [7, 'كل أسبوع'], [14, 'كل أسبوعين'], [30, 'كل شهر'], [0, 'إيقاف التذكير']]
+                .map(o => '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>').join('');
+            const modal = document.createElement('div');
+            modal.id = 'backupReminderModal';
+            modal.className = 'fixed inset-0 z-[300] flex items-center justify-center modal-backdrop p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden animate-fade-in border border-slate-100">
+                    <div class="px-6 py-4 bg-gradient-to-l from-indigo-700 to-indigo-900 text-white flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="database-backup" class="w-6 h-6 text-indigo-200"></i>
+                            <h3 class="font-black text-lg">تذكير النسخة الاحتياطية</h3>
+                        </div>
+                        <button onclick="_backupReminderClose()" class="w-9 h-9 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-all">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="p-5 space-y-4">
+                        <p class="text-sm text-slate-700 font-bold leading-relaxed">${msg}<br>تحب تعمل نسخة كاملة دلوقتي (الحجوزات والأرشيف والملاحظات) وتحفظها على الجهاز؟</p>
+                        <div class="flex items-center gap-2 text-sm text-slate-600 font-bold">
+                            <span class="shrink-0">تذكيري:</span>
+                            <select onchange="_bkSet(BK_DAYS_KEY, this.value)" class="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none">${opts}</select>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="_backupReminderExport()" class="flex-1 py-3 font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all">تصدير الآن</button>
+                            <button onclick="_backupReminderLater()" class="flex-1 py-3 font-black text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">ذكّرني بعدين</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            if (typeof lucide !== 'undefined') refreshIcons('backupReminderModal');
+        }
+        // أول فحص بعد الفتح بثواني، وبعدها كل 10 دقايق (لو الأدمن سايب التطبيق مفتوح)
+        setTimeout(function () { _maybeBackupReminder(false); }, 8000);
+        setInterval(function () { _maybeBackupReminder(false); }, 10 * 60 * 1000);
+
         async function exportFullBackup() {
             showSync('جاري تجهيز النسخة الاحتياطية الكاملة (شاملة الأرشيف)...');
             try {
@@ -11773,6 +11861,8 @@ ${pages}
                     setTimeout(() => URL.revokeObjectURL(url), 3000);
                     downloaded = true;
                 } catch (_) {}
+
+                _markBackupDone(); // تسجيل تاريخ آخر نسخة كاملة (لتذكير النسخة الاحتياطية)
 
                 // إذا فشل Blob (نادراً) — نعرض نافذة نسخ يدوي
                 if (!downloaded) {
