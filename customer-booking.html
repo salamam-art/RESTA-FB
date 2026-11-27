@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>طلب حجز — رستا بورسعيد</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fbf8f3;--card:#fff;--ink:#2b2320;--mute:#7a6e63;--gold:#85714d;--rose:#a8566b;--line:#e9e0d2;--soft:#f6efe3}
+*{box-sizing:border-box;margin:0}
+body{font:16px/1.7 Tajawal,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:110px}
+main{max-width:640px;margin:0 auto;padding:28px 16px}
+h1{font:700 32px/1.3 Amiri,serif;color:var(--ink)}
+.lead{color:var(--mute);margin-top:4px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin-top:18px}
+h2{font:700 22px Amiri,serif;color:var(--gold);margin-bottom:12px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.opt,.pkg{font:inherit;color:inherit;border:1.5px solid var(--line);background:#fff;border-radius:14px;padding:14px 10px;cursor:pointer;text-align:center}
+.opt small{display:block;color:var(--mute);font-size:13px}
+.opt.on,.pkg.on{border-color:var(--rose);background:#fcf3f5}
+:focus-visible{outline:2px solid var(--rose);outline-offset:2px}
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin:14px 0 6px;font-weight:700}
+.cal-h button{border:0;background:var(--soft);width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;color:var(--gold)}
+.cal-h button:disabled{opacity:.35;cursor:default}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.grid b{font-size:12px;color:var(--mute);font-weight:500}
+.d{height:40px;border:0;border-radius:10px;background:var(--soft);font:inherit;cursor:pointer;color:var(--ink)}
+.d:disabled{background:none;color:#c9bfb1;cursor:default}
+.d.bk:disabled{color:#b7727f;text-decoration:line-through}
+.d.on{background:var(--rose);color:#fff}
+.note{font-size:14px;color:var(--mute);margin-top:8px}
+label{display:block;font-weight:500;margin:12px 0 4px}
+input,textarea{width:100%;font:inherit;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;color:var(--ink)}
+.row{display:flex;gap:8px;align-items:center}
+.row button{flex:none;width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:22px;cursor:pointer;color:var(--gold)}
+.row input{text-align:center;font-size:18px}
+.pkg{display:block;width:100%;text-align:right;margin-top:10px}
+.pkg .t{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.pkg .t span:last-child{color:var(--rose);white-space:nowrap}
+.pkg small{display:block;color:var(--mute)}
+details{margin-top:6px;font-size:14px;color:var(--mute)}
+details li{margin:2px 18px 2px 0}
+.bar{position:fixed;inset:auto 0 0 0;background:#fff;border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.bar div{max-width:640px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.bar small{display:block;color:var(--mute);font-size:12px;line-height:1.3}
+.bar strong{font:700 22px Amiri,serif}
+#send{border:0;border-radius:14px;background:var(--rose);color:#fff;font:700 16px Tajawal,sans-serif;padding:12px 22px;cursor:pointer}
+#send:disabled{background:#d9cfd2;cursor:default}
+.err{color:#a1343f;margin-top:8px;font-size:14px}
+.done{text-align:center;padding:40px 8px}
+.done .no{font:700 34px Amiri,serif;color:var(--rose);margin:10px 0}
+</style>
+</head>
+<body>
+<main id="app">
+<h1>طلب حجز فرح أو خطوبة</h1>
+<p class="lead">رستا بورسعيد — أرسل طلبك وسنتواصل معك لتأكيد الحجز.</p>
+
+<section class="step">
+  <h2>المكان والمناسبة</h2>
+  <div class="opts" id="halls">
+    <button class="opt" data-h="yacht">قاعة اليخت<small>من ٤٠ إلى ١٠٠ فرد</small></button>
+    <button class="opt" data-h="pool">حمام السباحة<small>من ٧٠ إلى ٣٠٠ فرد</small></button>
+  </div>
+  <div class="opts" id="types">
+    <button class="opt" data-t="wedding">فرح</button>
+    <button class="opt" data-t="engagement">خطوبة</button>
+  </div>
+</section>
+
+<section class="step">
+  <h2>التاريخ وعدد الأفراد</h2>
+  <div id="calwrap"></div>
+  <label for="g">عدد الأفراد</label>
+  <div class="row">
+    <button type="button" id="plus" aria-label="زيادة">+</button>
+    <input id="g" type="number" inputmode="numeric" min="1" placeholder="0">
+    <button type="button" id="minus" aria-label="تقليل">−</button>
+  </div>
+  <p class="note" id="gnote"></p>
+</section>
+
+<section class="step">
+  <h2>الباقة</h2>
+  <div id="pkgs"></div>
+  <p class="note">الأسعار شاملة الخدمات والضرائب، والسعر المعروض تقديرى ويؤكده فريق رستا. ممنوع منعاً باتاً إضافة أى مأكولات من الخارج.</p>
+</section>
+
+<section class="step">
+  <h2>بياناتك</h2>
+  <label for="nm">الاسم</label><input id="nm" maxlength="60" autocomplete="name">
+  <label for="ph">رقم الموبايل</label><input id="ph" type="tel" inputmode="tel" maxlength="14" placeholder="01xxxxxxxxx" autocomplete="tel">
+  <label for="nt">ملاحظات (اختيارى)</label><textarea id="nt" rows="3" maxlength="300"></textarea>
+  <p class="err" id="err" role="alert"></p>
+</section>
+</main>
+
+<div class="bar" id="bar"><div>
+  <span><small>الإجمالى التقديرى</small><strong id="tot">—</strong></span>
+  <button id="send" disabled>إرسال الطلب</button>
+</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="wedding-data.js"></script>
+<script>
+const firebaseConfig = {
+            apiKey: "AIzaSyDHjNvsMszkSaMFcbyP9oBKtMtT5x8Z5EE",
+            authDomain: "restaevents-eeffb.firebaseapp.com",
+            databaseURL: "https://restaevents-eeffb-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "restaevents-eeffb",
+            storageBucket: "restaevents-eeffb.firebasestorage.app",
+            messagingSenderId: "689779466978",
+            appId: "1:689779466978:web:c9eff234c04df512fc34bb",
+            measurementId: "G-FLWHW5PY98"
+        };
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const $ = s => document.querySelector(s), fmt = n => n.toLocaleString('ar-EG');
+const HALLS = { yacht: { n: 'قاعة اليخت', min: 40, max: 100 }, pool: { n: 'حمام السباحة', min: 70, max: 300 } };
+const LAST = '2027-12-31';
+const addDays = (s, n) => new Date(Date.parse(s + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const cairoToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+const MIN = addDays(cairoToday(), 3);
+const S = { hall: null, type: null, date: null, guests: 0, pkg: null };
+let view = MIN.slice(0, 7), booked = {}, offs = [];
+const DAYS = ['سبت', 'أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة'];
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const isBooked = d => Object.values(booked).some(o => o && o[d]);
+const gOk = () => S.hall && S.guests >= HALLS[S.hall].min && S.guests <= HALLS[S.hall].max;
+const digits = s => s.replace(/[٠-٩]/g, c => c.charCodeAt(0) - 1632).replace(/\s/g, '');
+
+function listen(h) {
+  offs.forEach(f => f()); offs = []; booked = {};
+  ['publicAvailability', 'requestedDays'].forEach(p => {
+    const r = db.ref(p + '/' + h);
+    const cb = r.on('value', s => { booked[p] = s.val() || {}; draw(); }, () => { booked[p] = {}; draw(); });
+    offs.push(() => r.off('value', cb));
+  });
+}
+
+function drawCal() {
+  const [y, m] = view.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), lead = (dow + 1) % 7;
+  const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const prev = addDays(view + '-01', -1).slice(0, 7), next = addDays(view + '-28', 5).slice(0, 7);
+  let h = `<div class="cal-h"><button id="nx" aria-label="الشهر التالى" ${next > LAST.slice(0, 7) ? 'disabled' : ''}>›</button><span>${MONTHS[m - 1]} ${fmt(y).replace(/٬/g, '')}</span><button id="pv" aria-label="الشهر السابق" ${prev < MIN.slice(0, 7) ? 'disabled' : ''}>‹</button></div><div class="grid">`;
+  h += DAYS.map(d => `<b>${d}</b>`).join('') + '<i></i>'.repeat(lead);
+  for (let d = 1; d <= n; d++) {
+    const k = `${view}-${String(d).padStart(2, '0')}`, bk = S.hall && isBooked(k);
+    const off = !S.hall || k < MIN || k > LAST || bk;
+    h += `<button class="d${bk ? ' bk' : ''}${S.date === k ? ' on' : ''}" data-d="${k}" ${off ? 'disabled' : ''} ${bk ? 'title="محجوز"' : ''}>${fmt(d)}</button>`;
+  }
+  $('#calwrap').innerHTML = h + '</div><p class="note">' + (S.hall ? 'الأيام المشطوبة محجوزة. أقرب موعد متاح بعد ٣ أيام من اليوم.' : 'اختر المكان أولاً لعرض الأيام المتاحة.') + '</p>';
+  $('#nx').onclick = () => { view = next; drawCal(); };
+  $('#pv').onclick = () => { view = prev; drawCal(); };
+  document.querySelectorAll('.d:not(:disabled)').forEach(b => b.onclick = () => { S.date = b.dataset.d; draw(); });
+}
+
+function drawPkgs() {
+  if (!gOk()) { $('#pkgs').innerHTML = '<p class="note">اختر المكان وأدخل عدد الأفراد لعرض الباقات والأسعار.</p>'; return; }
+  $('#pkgs').innerHTML = packages.map(p => `<button class="pkg${S.pkg === p.id ? ' on' : ''}" data-p="${p.id}">
+    <span class="t"><span>${p.name}</span><span>${fmt(S.guests * p.price + FIXED)} جنيه</span></span>
+    <small>${p.subtitle}</small>
+    <details><summary>محتويات الباقة</summary><ul>${p.features.map(f => `<li>${f}</li>`).join('')}</ul></details></button>`).join('');
+  document.querySelectorAll('.pkg').forEach(b => b.onclick = e => { if (e.target.closest('details')) return; S.pkg = b.dataset.p; draw(); });
+}
+
+function valid() {
+  const ph = digits($('#ph').value);
+  return S.hall && S.type && S.date && gOk() && S.pkg && $('#nm').value.trim().length >= 2 && /^01[0125]\d{8}$/.test(ph);
+}
+
+function draw() {
+  document.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === S.hall));
+  document.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === S.type));
+  if (S.date && S.hall && isBooked(S.date)) S.date = null;
+  drawCal(); drawPkgs();
+  const p = packages.find(x => x.id === S.pkg);
+  $('#tot').textContent = p && gOk() ? fmt(S.guests * p.price + FIXED) + ' جنيه' : '—';
+  $('#gnote').textContent = S.hall ? `${HALLS[S.hall].n}: من ${fmt(HALLS[S.hall].min)} إلى ${fmt(HALLS[S.hall].max)} فرد.` : '';
+  $('#send').disabled = !valid();
+}
+
+document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { S.hall = b.dataset.h; S.date = null; listen(S.hall); draw(); });
+document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.type = b.dataset.t; draw(); });
+$('#g').oninput = e => { S.guests = parseInt(e.target.value) || 0; draw(); };
+$('#plus').onclick = () => { S.guests = (S.guests || 0) + 10; $('#g').value = S.guests; draw(); };
+$('#minus').onclick = () => { S.guests = Math.max(0, S.guests - 10); $('#g').value = S.guests || ''; draw(); };
+['#nm', '#ph', '#nt'].forEach(s => $(s).oninput = draw);
+
+$('#send').onclick = async () => {
+  const btn = $('#send'); btn.disabled = true; btn.textContent = 'جارى الإرسال'; $('#err').textContent = '';
+  const p = packages.find(x => x.id === S.pkg), key = db.ref('bookingRequests').push().key;
+  const [y, m, d] = S.date.split('-').map(Number);
+  const req = { name: $('#nm').value.trim(), phone: digits($('#ph').value), date: S.date, eventTs: Date.UTC(y, m - 1, d),
+    type: S.type, hallId: S.hall, guests: S.guests, packageId: p.id, packageName: p.name, pricePerGuest: p.price,
+    fixed: FIXED, total: S.guests * p.price + FIXED, status: 'pending', createdAt: firebase.database.ServerValue.TIMESTAMP };
+  const nt = $('#nt').value.trim(); if (nt) req.notes = nt;
+  try {
+    await db.ref().update({ ['bookingRequests/' + key]: req, ['requestedDays/' + S.hall + '/' + S.date]: key });
+    $('#bar').remove();
+    $('#app').innerHTML = `<div class="done"><h1>تم استلام طلبك</h1><div class="no">${key.slice(-6).toUpperCase()}</div>
+      <p>رقم الطلب. سيتواصل معك فريق رستا على ${req.phone} لتأكيد الحجز.</p>
+      <p class="note">${HALLS[S.hall].n} — ${S.date} — ${fmt(req.guests)} فرد — ${fmt(req.total)} جنيه (تقديرى)</p></div>`;
+  } catch (e) {
+    $('#err').textContent = 'تعذر إرسال الطلب. ربما تم حجز هذا اليوم للتو، اختر يوماً آخر وحاول مرة أخرى.';
+    btn.textContent = 'إرسال الطلب'; draw();
+  }
+};
+draw();
+</script>
+</body>
+</html>

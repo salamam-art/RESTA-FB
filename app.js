@@ -382,6 +382,21 @@
         // فايربيز للأبد — مفيش حاجة بتقوله يمسحه — وبيرجع يظهر كحجز مكرر في كل مزامنة تالية.
         // الكتابة الكاملة هنا ذاتية الإصلاح: أي حجز مش موجود في finalBookings بيتشال تلقائيًا
         // من فايربيز لأن set() بيستبدل العقدة بالكامل، فمفيش نسخ قديمة ممكن تفضل عالقة.
+        // ─── توافر عام للعملاء: أيام محجوزة فقط (بدون أي تفاصيل) لقاعة اليخت وحمام السباحة ───
+        function publishPublicAvailability(list) {
+            try {
+                const out = { yacht: {}, pool: {} };
+                (list || []).forEach(b => {
+                    if (!b || !b.startDate || (b.hallId !== 'yacht' && b.hallId !== 'pool')) return;
+                    const end = b.endDate && b.endDate >= b.startDate ? b.endDate : b.startDate;
+                    let t = Date.parse(b.startDate + 'T00:00:00Z'); const e = Date.parse(end + 'T00:00:00Z');
+                    if (isNaN(t) || isNaN(e)) return;
+                    for (let i = 0; t <= e && i < 366; i++, t += 86400000) out[b.hallId][new Date(t).toISOString().slice(0, 10)] = true;
+                });
+                db.ref('publicAvailability').set(out).catch(() => {});
+            } catch (e) {}
+        }
+
         async function pushCloudSnapshot(finalBookings, finalLogs) {
             const now = new Date().toISOString();
             const prevKnown = _lastKnownUpdatedAt;
@@ -394,6 +409,7 @@
                     db.ref('logs').set(finalLogs),
                     db.ref('meta/updatedAt').set(now)
                 ]);
+                publishPublicAvailability(finalBookings);
             } catch (e) {
                 _lastKnownUpdatedAt = prevKnown;
                 throw e;
