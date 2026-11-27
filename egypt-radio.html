@@ -246,6 +246,7 @@ body.islc #sb,body.islc .note{display:none}
   <button id="tlfo" class="tlfo" aria-pressed="false">★ المفضلة فقط</button>
 </div>
 <div class="lcbar" id="lcbar" hidden>
+  <button class="tg" id="lcup" aria-label="رجوع للمجلد السابق" hidden>→</button>
   <button class="btn" id="lcdb">📁 فتح مجلد</button>
   <button class="btn" id="lcfb">🎵 اختيار ملفات</button>
   <button class="tg" id="lcsh" aria-pressed="false" aria-label="تشغيل عشوائي">🔀</button>
@@ -358,7 +359,7 @@ body.islc #sb,body.islc .note{display:none}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.13.0";
+const APP_VERSION="1.15.0";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE_DEFAULT=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -933,12 +934,12 @@ $("tlfo").onclick=()=>{tlOnlyFav=!tlOnlyFav;render()};
 /* ===== ملفاتي: تشغيل أغاني من الجهاز (مجلد أو ملفات) تباعًا ===== */
 function isOD(s){return !!s&&(s.c==="tilawa"||s.c==="local")}
 const LC_EXT=/\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac|weba|aif|aiff)$/i;
-let lcTracks=[],lcOrder=[],lcGen=0,lcBlob="",lcFails=0,lcSkipT=0,lcIgn=0,lcShuf=ld("eg_lc_shuf",false)===true,lcRep=ld("eg_lc_rep",false)===true;
-const lcRel=f=>f.webkitRelativePath||f.name;
+let lcPath="",lcBase="",lcScope=null,lcTracks=[],lcOrder=[],lcGen=0,lcBlob="",lcFails=0,lcSkipT=0,lcIgn=0,lcShuf=ld("eg_lc_shuf",false)===true,lcRep=ld("eg_lc_rep",false)===true;
+const lcRel=f=>f._rel||f.webkitRelativePath||f.name;
 const lcIsAudio=f=>/^audio\//i.test(f.type||"")||LC_EXT.test(f.name);
 const lcK=()=>cur&&cur.c==="local"&&String(cur.id).startsWith("lc"+lcGen+":")?cur.k:-1;
 function lcOrd(first){
-  lcOrder=lcTracks.map((_,i)=>i);
+  lcOrder=lcScope?lcScope.slice():lcTracks.map((_,i)=>i);
   if(!lcShuf)return;
   for(let i=lcOrder.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[lcOrder[i],lcOrder[j]]=[lcOrder[j],lcOrder[i]]}
   const p=lcOrder.indexOf(first);if(p>0){lcOrder.splice(p,1);lcOrder.unshift(first)}
@@ -968,51 +969,125 @@ function lcFail(){
   status("تعذّر تشغيل «"+bad+"» — جاري التخطي",true);
   lcSkipT=setTimeout(()=>{noAuto=true;setTimeout(()=>{noAuto=false},0);if(!lcNext(1,true))lcStop("انتهت قائمة التشغيل")},700);
 }
-function lcLoad(fl){
+function lcLoad(fl,o){o=o||{play:true,save:"files"};
   const fs=[...fl],aud=fs.filter(lcIsAudio);lcIgn=fs.length-aud.length;
-  if(!aud.length){alert("لم أجد ملفات صوتية مدعومة (mp3 ، m4a ، aac ، wav ، ogg ، opus ، flac)");return}
+  if(!aud.length){if(o.play)alert("لم أجد ملفات صوتية مدعومة (mp3 ، m4a ، aac ، wav ، ogg ، opus ، flac)");return}
   const col=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
   aud.sort((a,b)=>col.compare(lcRel(a),lcRel(b)));
   if(cur&&cur.c==="local"){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause()}
   clearTimeout(lcSkipT);lcGen++;lcFails=0;
-  lcTracks=aud.map(f=>{const p=lcRel(f).split("/");p.pop();return{n:f.name.replace(/\.[^.]+$/,""),d:p.length?p[p.length-1]:"من جهازك",file:f}});
-  lcOrd(-1);lcPlay(lcOrder[0]);
-  setTimeout(()=>{if(au.paused&&cur&&cur.c==="local")status("اضغط ▶ لبدء التشغيل")},1500);
+  lcTracks=aud.map(f=>{const p=lcRel(f).split("/");p.pop();return{n:f.name.replace(/\.[^.]+$/,""),d:p.length?p[p.length-1]:"من جهازك",dir:p.join("/"),file:f}});
+  {let b=lcTracks[0].dir.split("/").filter(Boolean);lcTracks.forEach(t=>{const q=t.dir.split("/").filter(Boolean);let i=0;while(i<b.length&&b[i]===q[i])i++;b.length=i});lcBase=lcPath=b.join("/")}
+  lcScope=null;lcOrd(-1);if(o.play){lcPlay(lcOrder[0]);setTimeout(()=>{if(au.paused&&cur&&cur.c==="local")status("اضغط ▶ لبدء التشغيل")},1500)}else render();
+  lcSave(o,aud);
 }
+const lcUnder=path=>{const o=[];lcTracks.forEach((t,i)=>{if(!path||t.dir===path||t.dir.startsWith(path+"/"))o.push(i)});return o};
 function renderLC(){
+  $("lcup").hidden=!(lcTracks.length&&lcPath!==lcBase&&!$("q").value.trim());
   $("lcsh").setAttribute("aria-pressed",lcShuf?"true":"false");$("lcrp").setAttribute("aria-pressed",lcRep?"true":"false");
   const msg=t=>{const d=document.createElement("div");d.className="empty";d.textContent=t;list.appendChild(d)};
-  if(!lcTracks.length){msg("اضغط «فتح مجلد» على الكمبيوتر أو «اختيار ملفات» على الموبايل لتشغيل أغانيك تباعًا. تبقى القائمة حتى تُغلق التطبيق.");return}
+  if(!lcTracks.length){if(lcSaved){const b=document.createElement("button");b.className="btn";b.style.gridColumn="1/-1";b.textContent="↻ استعادة المجلد: "+lcSaved.name;b.onclick=lcResume;list.appendChild(b)}msg("اضغط «فتح مجلد» على الكمبيوتر أو «اختيار ملفات» على الموبايل لتشغيل أغانيك تباعًا. "+(window.showDirectoryPicker?"سيتذكّر التطبيق مكان المجلد للمرة القادمة.":"متصفحك لا يسمح بتذكّر مكان الملفات، فتبقى القائمة حتى تُغلق التطبيق.")+"");return}
   const q=nrm($("q").value.trim()),k0=lcK();
-  const h=document.createElement("div");h.className="tlsec";h.textContent=lcTracks.length+" أغنية"+(lcIgn?" · تم تجاهل "+lcIgn+" ملف غير صوتي":"");list.appendChild(h);
-  let shown=0;
-  lcTracks.forEach((t,i)=>{
-    if(q&&!nrm(t.n+" "+t.d).includes(q))return;shown++;
-    const on=i===k0,li=document.createElement("li");li.className="nofav"+(on?" cur":"");
-    const b=document.createElement("button");b.className="main";b.dataset.fk="l:"+i;if(on)b.setAttribute("aria-current","true");
-    const a=document.createElement("div");a.className="lg";a.style.setProperty("--sz","44px");a.textContent=i+1;a.style.background="hsl("+((i*37)%360)+" 40% 34%)";if(i>998)a.style.fontSize="13px";
-    const tx=document.createElement("div"),nm=document.createElement("div"),ds=document.createElement("div");
-    tx.className="tx";nm.className="nm";nm.dir="auto";ds.className="ds";nm.textContent=t.n;ds.textContent=on?"🔊 يعمل الآن":t.d;
-    tx.append(nm,ds);b.append(a,tx);b.onclick=()=>lcPlay(i);li.appendChild(b);
+  const sec=t=>{const h=document.createElement("div");h.className="tlsec";h.textContent=t;list.appendChild(h)};
+  const av=(t,bg)=>{const a=document.createElement("div");a.className="lg";a.style.setProperty("--sz","44px");a.textContent=t;a.style.background=bg;if(String(t).length>3)a.style.fontSize="13px";return a};
+  const item=(a,name,ds,on,nf,click,key)=>{
+    const li=document.createElement("li");li.className=(nf?"nofav":"")+(on?" cur":"");
+    const b=document.createElement("button");b.className="main";b.dataset.fk=key;if(on)b.setAttribute("aria-current","true");
+    const tx=document.createElement("div"),nm=document.createElement("div"),d=document.createElement("div");
+    tx.className="tx";nm.className="nm";nm.dir="auto";d.className="ds";nm.textContent=name;d.textContent=ds;
+    tx.append(nm,d);b.append(a,tx);b.onclick=click;li.appendChild(b);
     if(on){const eq=document.createElement("div");eq.className="eq";eq.setAttribute("aria-hidden","true");eq.innerHTML="<i></i><i></i><i></i>";li.appendChild(eq)}
-    list.appendChild(li);
+    list.appendChild(li);return li};
+  let shown=0;
+  const trk=(i,n)=>{const t=lcTracks[i];shown++;item(av(n,"hsl("+((i*37)%360)+" 40% 34%)"),t.n,i===k0?"🔊 يعمل الآن":(q?t.d:"▶ تشغيل"),i===k0,true,()=>{lcScope=q?null:lcUnder(lcPath);lcOrd(i);lcPlay(i)},"l:"+i)};
+  if(q){
+    sec("نتائج البحث في كل المجلدات");
+    lcTracks.forEach((t,i)=>{if(nrm(t.n+" "+t.d).includes(q))trk(i,i+1)});
+    if(!shown)msg("لا توجد نتائج");return;
+  }
+  const pre=lcPath?lcPath+"/":"",subs=new Map(),files=[];
+  lcTracks.forEach((t,i)=>{
+    if(t.dir===lcPath)files.push(i);
+    else if(!lcPath||t.dir.startsWith(pre)){const g=t.dir.slice(pre.length).split("/")[0];subs.set(g,(subs.get(g)||0)+1)}
   });
-  if(!shown)msg("لا توجد نتائج");
+  sec((lcPath?lcPath.split("/").join(" / ")+" · ":"")+lcUnder(lcPath).length+" أغنية"+(lcIgn&&lcPath===lcBase?" · تم تجاهل "+lcIgn+" ملف غير صوتي":""));
+  if(lcPath!==lcBase)item(av("⬆","hsl(0 0% 40%)"),"رجوع","المجلد السابق",false,true,lcUp,"up");
+  subs.forEach((c,g)=>{
+    const full=pre+g,li=item(av("📁","hsl(40 45% 36%)"),g,c+" أغنية",false,false,()=>lcEnter(full),"d:"+full);
+    const pb=document.createElement("button");pb.className="fav";pb.textContent="▶";pb.setAttribute("aria-label","تشغيل المجلد: "+g);
+    pb.onclick=()=>{lcScope=lcUnder(full);lcOrd(-1);if(lcOrder.length)lcPlay(lcOrder[0])};li.appendChild(pb);
+  });
+  files.forEach((i,j)=>trk(i,j+1));
+  if(!subs.size&&!files.length)msg("المجلد فارغ");
 }
-$("lcdb").onclick=()=>{const i=$("lcdir");i.value="";i.click()};
+/* ---- حفظ القائمة (IndexedDB) + التنقل بين المجلدات ---- */
+let lcSaved=null;
+const lcDB=()=>new Promise((res,rej)=>{const r=indexedDB.open("eg_lc",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const idb=(m,k,v)=>lcDB().then(db=>new Promise((res,rej)=>{const t=db.transaction("kv",m==="get"?"readonly":"readwrite"),st=t.objectStore("kv"),q=m==="get"?st.get(k):m==="set"?st.put(v,k):st.delete(k);t.oncomplete=()=>res(q.result);t.onerror=t.onabort=()=>rej(t.error)}));
+function lcSave(o){if(o.save==="dir")idb("set","dir",o.h).catch(()=>{})}
+async function lcWalk(d,pre,out){for await(const [n,h] of d.entries()){if(h.kind==="directory")await lcWalk(h,pre+n+"/",out);else if(LC_EXT.test(n)){const f=await h.getFile();f._rel=pre+n;out.push(f)}}return out}
+async function lcOpen(h){
+  const out=await lcWalk(h,h.name+"/",[]);
+  if(!out.length)return false;
+  lcSaved=null;lcLoad(out,{play:false,save:null});return true;
+}
+async function lcRestore(){
+  try{
+    idb("del","files").catch(()=>{});
+    const h=await idb("get","dir");
+    if(!h)return;
+    lcSaved=h;
+    if((await h.queryPermission({mode:"read"}))==="granted"){if(await lcOpen(h))return}
+    if(tab==="local")render();
+  }catch(e){}
+}
+async function lcResume(){
+  const h=lcSaved;if(!h)return;
+  try{
+    if((await h.requestPermission({mode:"read"}))!=="granted")return;
+    status("جاري قراءة المجلد…");
+    if(!await lcOpen(h))alert("لا توجد ملفات صوتية في المجلد");
+  }catch(e){alert("تعذّر فتح المجلد المحفوظ. اختره من جديد بزر «فتح مجلد»")}
+}
+function lcEnter(full){lcPath=full;try{history.pushState({lc:full},"")}catch(e){}render();$("scr").scrollTop=0}
+function lcUp(){
+  if(history.state&&history.state.lc===lcPath){history.back();return}
+  lcPath=lcPath.split("/").slice(0,-1).join("/");render();$("scr").scrollTop=0;
+}
+window.addEventListener("popstate",e=>{
+  const t=e.state&&e.state.lc!=null?e.state.lc:lcBase;
+  if(t===lcPath||!lcTracks.length)return;
+  if(lcBase&&t!==lcBase&&!t.startsWith(lcBase+"/"))return;
+  lcPath=t;if(tab==="local"){render();$("scr").scrollTop=0}
+});
+$("lcup").onclick=lcUp;
+$("lcdb").onclick=async()=>{
+  if(window.showDirectoryPicker){
+    try{
+      const h=await showDirectoryPicker({mode:"read"});
+      status("جاري قراءة المجلد…");
+      const out=await lcWalk(h,h.name+"/",[]);
+      if(!out.length){alert("لم أجد ملفات صوتية مدعومة في هذا المجلد");return}
+      lcLoad(out,{play:true,save:"dir",h});
+    }catch(e){}
+    return;
+  }
+  const i=$("lcdir");i.value="";i.click();
+};
 $("lcfb").onclick=()=>{const i=$("lcfil");i.value="";i.click()};
 $("lcdir").onchange=e=>{if(e.target.files.length)lcLoad(e.target.files)};
 $("lcfil").onchange=e=>{if(e.target.files.length)lcLoad(e.target.files)};
 $("lcsh").onclick=()=>{lcShuf=!lcShuf;sv("eg_lc_shuf",lcShuf);lcOrd(lcK());render()};
 $("lcrp").onclick=()=>{lcRep=!lcRep;sv("eg_lc_rep",lcRep);render()};
 $("lcclr").onclick=()=>{
-  if(!lcTracks.length||!confirm("مسح قائمة الأغاني من التطبيق؟ (ملفاتك على الجهاز لن تتأثر)"))return;
+  if(!(lcTracks.length||lcSaved)||!confirm("مسح قائمة الأغاني من التطبيق؟ (ملفاتك على الجهاز لن تتأثر)"))return;
   if(cur&&cur.c==="local"){wantPlay=false;clearTimeout(rt);clearTimeout(wt);au.pause();cur=null;$("cn").textContent="اختر محطة";status("جاهز")}
-  clearTimeout(lcSkipT);lcGen++;lcTracks=[];lcOrder=[];lcIgn=0;
+  clearTimeout(lcSkipT);lcGen++;lcTracks=[];lcOrder=[];lcIgn=0;lcScope=null;lcPath=lcBase="";lcSaved=null;idb("del","dir").catch(()=>{});idb("del","files").catch(()=>{});
   if(lcBlob){try{URL.revokeObjectURL(lcBlob)}catch(e){}lcBlob=""}
   render();
 };
 au.addEventListener("playing",()=>{lcFails=0});
+lcRestore();
 /* ===== زر الرجوع في الموبايل: يقفل الشاشة المفتوحة بدل الخروج من التطبيق ===== */
 (function(){
   const OV=["fp","mg","sg","fxs"].map($),stack=[];let back=false,queue=[];
