@@ -6544,7 +6544,7 @@ ${pages}
 "   - إضافة حجوزات جديدة (في الأيام غير المنصرمة).",
 "   - تعديل وحذف ونقل حجوزاته هو فقط قبل موعدها، ونسخ الحجز العادي.",
 "   - التراجع والإعادة، الطباعة، الحاسبة (الأسعار للقراءة فقط).",
-"   - الإشعارات، والأيام الفاضية، وملاحظات الأيام (قراءة).",
+"   - الإشعارات، والأيام الفاضية، وملاحظات الأيام (قراءة)، ومحتويات الـ Set Menus وباقات الأفراح بأسعارها.",
 "   - عرض المحذوفات وسجل التعديلات والأرشيف، وتصدير Excel.",
 "   - لا يرى ملاحظات الأدمن الخاصة ولا التفاصيل المالية الخاصة بالأدمن.",
 "",
@@ -6645,7 +6645,7 @@ ${pages}
 "",
 "8) Calculator and statistics",
 "   - Quick wedding package calculator.",
-"   - Two top-bar icons show the contents of the Set Menus (and Coffee Breaks) and of the wedding packages with prices — read-only, available to all signed-in users.",
+"   - Two top-bar icons show the contents of the Set Menus (and Coffee Breaks) and of the wedding packages with prices — read-only, available to all users including visitors.",
 "   - Booking statistics for all halls, and financial statistics (admin).",
 "",
 "9) Export and backup",
@@ -6688,7 +6688,7 @@ ${pages}
 "   - Edit, delete and move only their own bookings before their date,",
 "     and copy regular bookings.",
 "   - Undo / redo, printing, calculator (prices are read-only).",
-"   - Notifications, free days, and reading day notes.",
+"   - Notifications, free days, reading day notes, and the Set Menus and wedding package contents with prices.",
 "   - View deleted bookings, edit history and archive, and export to Excel.",
 "   - Cannot see private admin notes or the admin-only financial details.",
 "",
@@ -6829,6 +6829,12 @@ ${pages}
                                 ${_unreadNotifCount() > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + _unreadNotifCount() + '</span>' : ''}
                             </button>
                             ` : `
+                            <button onclick="toggleMenuViewer('set')" class="hdr-mv-btn relative p-1.5 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="محتويات Set Menus">
+                                <i data-lucide="utensils-crossed" class="w-[18px] h-[18px] sm:w-5 sm:h-5"></i>
+                            </button>
+                            <button onclick="toggleMenuViewer('wedding')" class="hdr-mv-btn relative p-1.5 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="محتويات باقات الأفراح">
+                                <i data-lucide="cake" class="w-[18px] h-[18px] sm:w-5 sm:h-5"></i>
+                            </button>
                             <button onclick="toggleNotificationsModal()" class="relative p-2 sm:p-2.5 text-slate-500 hover:text-[#6E1418] hover:bg-slate-100 rounded-xl transition-all shrink-0" title="الإشعارات">
                                 <i data-lucide="bell" class="w-5 h-5"></i>
                                 ${_unreadNotifCount() > 0 ? '<span class="notif-count-badge absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#6E1418] text-white text-[10px] font-black flex items-center justify-center leading-none">' + _unreadNotifCount() + '</span>' : ''}
@@ -9838,7 +9844,7 @@ ${pages}
         let _menuViewerKind = '';
         function toggleMenuViewer(kind) {
             const modal = document.getElementById('menuViewerModal');
-            if (!modal || isGuest()) return;
+            if (!modal) return;
             const isOpen = !modal.classList.contains('hidden');
             if (isOpen && _menuViewerKind === kind) { modal.classList.add('hidden'); return; }
             _menuViewerKind = kind;
