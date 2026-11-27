@@ -161,7 +161,7 @@ function drawCal() {
   document.querySelectorAll('.d:not(:disabled)').forEach(b => b.onclick = () => { S.date = b.dataset.d; draw(); });
 }
 
-let pk;
+let pk, finished = false;
 function drawPkgs() {
   const k = gOk() ? [S.hall, S.guests, S.pkg].join() : 'none';
   if (k === pk) return; pk = k;
@@ -186,6 +186,7 @@ function missing() {
 const valid = () => !missing();
 
 function draw() {
+  if (finished) return;
   document.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === S.hall));
   document.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === S.type));
   if (S.date && S.hall && isBooked(S.date)) S.date = null;
@@ -214,10 +215,11 @@ $('#send').onclick = async () => {
   const nt = $('#nt').value.trim(); if (nt) req.notes = nt;
   try {
     await db.ref().update({ ['bookingRequests/' + key]: req, ['requestedDays/' + S.hall + '/' + S.date]: key });
+    finished = true; offs.forEach(f => f()); offs = [];
     $('#bar').remove();
     $('#app').innerHTML = `<div class="done"><h1>تم استلام طلبك</h1><div class="no">${key.slice(-6).toUpperCase()}</div>
       <p>رقم الطلب. سيتواصل معك فريق رستا على ${req.phone} لتأكيد الحجز.</p>
-      <p class="note">${HALLS[S.hall].n} — ${S.date} — ${fmt(req.guests)} فرد — ${fmt(req.total)} جنيه (تقديرى)</p></div>`;
+      <p class="note">${HALLS[S.hall].n} — ${req.date} — ${fmt(req.guests)} فرد — ${fmt(req.total)} جنيه (تقديرى)</p></div>`;
   } catch (e) {
     $('#err').textContent = 'تعذر إرسال الطلب. ربما تم حجز هذا اليوم للتو، اختر يوماً آخر وحاول مرة أخرى.';
     btn.textContent = 'إرسال الطلب'; draw();
