@@ -359,7 +359,7 @@ body.islc #sb,body.islc .note{display:none}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script>
-const APP_VERSION="1.15.0";
+const APP_VERSION="1.15.1";
 let hls=null,tries=0,wantPlay=false,retrying=false,loading=false,rt=null,wt=null,wl=null;
 const BASE_DEFAULT=[
 {id:"nile",n:"نايل إف إم",d:"104.2 · أغاني أجنبية",c:"music",u:"https://audio.nrpstream.com/listen/nile_fm/radio.mp3",w:"https://www.nilefm.com/listen-live"},
@@ -986,7 +986,7 @@ function renderLC(){
   $("lcup").hidden=!(lcTracks.length&&lcPath!==lcBase&&!$("q").value.trim());
   $("lcsh").setAttribute("aria-pressed",lcShuf?"true":"false");$("lcrp").setAttribute("aria-pressed",lcRep?"true":"false");
   const msg=t=>{const d=document.createElement("div");d.className="empty";d.textContent=t;list.appendChild(d)};
-  if(!lcTracks.length){if(lcSaved){const b=document.createElement("button");b.className="btn";b.style.gridColumn="1/-1";b.textContent="↻ استعادة المجلد: "+lcSaved.name;b.onclick=lcResume;list.appendChild(b)}msg("اضغط «فتح مجلد» على الكمبيوتر أو «اختيار ملفات» على الموبايل لتشغيل أغانيك تباعًا. "+(window.showDirectoryPicker?"سيتذكّر التطبيق مكان المجلد للمرة القادمة.":"متصفحك لا يسمح بتذكّر مكان الملفات، فتبقى القائمة حتى تُغلق التطبيق.")+"");return}
+  if(!lcTracks.length){if(lcSaved){const b=document.createElement("button");b.className="btn";b.style.gridColumn="1/-1";b.textContent="↻ استعادة المجلد: "+lcSaved.name;b.onclick=lcResume;list.appendChild(b)}msg((lcTouch?"اضغط «اختيار أغاني من الجهاز»، وافتح المجلد، ثم اضغط مطولًا على أي أغنية واختر «تحديد الكل» ثم «فتح» لتشغيلها تباعًا. ":"اضغط «فتح مجلد» أو «اختيار ملفات» لتشغيل أغانيك تباعًا. ")+(window.showDirectoryPicker?"سيتذكّر التطبيق مكان المجلد للمرة القادمة.":"متصفحك لا يسمح بتذكّر مكان الملفات، فتبقى القائمة حتى تُغلق التطبيق.")+"");return}
   const q=nrm($("q").value.trim()),k0=lcK();
   const sec=t=>{const h=document.createElement("div");h.className="tlsec";h.textContent=t;list.appendChild(h)};
   const av=(t,bg)=>{const a=document.createElement("div");a.className="lg";a.style.setProperty("--sz","44px");a.textContent=t;a.style.background=bg;if(String(t).length>3)a.style.fontSize="13px";return a};
@@ -1061,6 +1061,8 @@ window.addEventListener("popstate",e=>{
   lcPath=t;if(tab==="local"){render();$("scr").scrollTop=0}
 });
 $("lcup").onclick=lcUp;
+const lcTouch=!window.showDirectoryPicker&&!!window.matchMedia&&matchMedia("(pointer:coarse)").matches;
+if(lcTouch){$("lcdb").hidden=true;$("lcfb").textContent="🎵 اختيار أغاني من الجهاز"}
 $("lcdb").onclick=async()=>{
   if(window.showDirectoryPicker){
     try{
