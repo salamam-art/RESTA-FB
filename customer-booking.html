@@ -38,6 +38,10 @@ input,textarea{width:100%;font:inherit;border:1.5px solid var(--line);border-rad
 .pkg .t{display:flex;justify-content:space-between;gap:8px;font-weight:700}
 .pkg .t span:last-child{color:var(--rose);white-space:nowrap}
 .pkg small{display:block;color:var(--mute)}
+.pkgbox{border:1.5px solid var(--line);border-radius:14px;margin-top:10px;background:#fff}
+.pkgbox.on{border-color:var(--rose);background:#fcf3f5}
+.pkgbox .pkg{border:0;background:none;margin-top:0}
+.pkgbox details{margin:0;padding:0 14px 12px}
 details{margin-top:6px;font-size:14px;color:var(--mute)}
 details li{margin:2px 18px 2px 0}
 .bar{position:fixed;inset:auto 0 0 0;background:#fff;border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
@@ -96,7 +100,7 @@ details li{margin:2px 18px 2px 0}
 </main>
 
 <div class="bar" id="bar"><div>
-  <span><small>الإجمالى التقديرى</small><strong id="tot">—</strong></span>
+  <span><small>الإجمالى التقديرى</small><strong id="tot">—</strong><small id="miss" style="color:#a1343f"></small></span>
   <button id="send" disabled>إرسال الطلب</button>
 </div></div>
 
@@ -157,19 +161,29 @@ function drawCal() {
   document.querySelectorAll('.d:not(:disabled)').forEach(b => b.onclick = () => { S.date = b.dataset.d; draw(); });
 }
 
+let pk;
 function drawPkgs() {
+  const k = gOk() ? [S.hall, S.guests, S.pkg].join() : 'none';
+  if (k === pk) return; pk = k;
   if (!gOk()) { $('#pkgs').innerHTML = '<p class="note">اختر المكان وأدخل عدد الأفراد لعرض الباقات والأسعار.</p>'; return; }
-  $('#pkgs').innerHTML = packages.map(p => `<button class="pkg${S.pkg === p.id ? ' on' : ''}" data-p="${p.id}">
+  $('#pkgs').innerHTML = packages.map(p => `<div class="pkgbox${S.pkg === p.id ? ' on' : ''}"><button class="pkg" data-p="${p.id}">
     <span class="t"><span>${p.name}</span><span>${fmt(S.guests * p.price + FIXED)} جنيه</span></span>
-    <small>${p.subtitle}</small>
-    <details><summary>محتويات الباقة</summary><ul>${p.features.map(f => `<li>${f}</li>`).join('')}</ul></details></button>`).join('');
-  document.querySelectorAll('.pkg').forEach(b => b.onclick = e => { if (e.target.closest('details')) return; S.pkg = b.dataset.p; draw(); });
+    <small>${p.subtitle}</small></button>
+    <details><summary>محتويات الباقة</summary><ul>${p.features.map(f => `<li>${f}</li>`).join('')}</ul></details></div>`).join('');
+  document.querySelectorAll('.pkg').forEach(b => b.onclick = () => { S.pkg = b.dataset.p; draw(); });
 }
 
-function valid() {
-  const ph = digits($('#ph').value);
-  return S.hall && S.type && S.date && gOk() && S.pkg && $('#nm').value.trim().length >= 2 && /^01[0125]\d{8}$/.test(ph);
+function missing() {
+  if (!S.hall) return 'اختر المكان';
+  if (!S.type) return 'اختر نوع المناسبة (فرح أو خطوبة)';
+  if (!S.date) return 'اختر التاريخ من التقويم';
+  if (!gOk()) return 'أدخل عدد الأفراد ضمن الحدود المسموحة';
+  if (!S.pkg) return 'اختر الباقة';
+  if ($('#nm').value.trim().length < 2) return 'اكتب اسمك';
+  if (!/^01[0125]\d{8}$/.test(digits($('#ph').value))) return 'اكتب رقم موبايل صحيح من ١١ رقم';
+  return '';
 }
+const valid = () => !missing();
 
 function draw() {
   document.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === S.hall));
@@ -179,6 +193,7 @@ function draw() {
   const p = packages.find(x => x.id === S.pkg);
   $('#tot').textContent = p && gOk() ? fmt(S.guests * p.price + FIXED) + ' جنيه' : '—';
   $('#gnote').textContent = S.hall ? `${HALLS[S.hall].n}: من ${fmt(HALLS[S.hall].min)} إلى ${fmt(HALLS[S.hall].max)} فرد.` : '';
+  $('#miss').textContent = missing();
   $('#send').disabled = !valid();
 }
 
