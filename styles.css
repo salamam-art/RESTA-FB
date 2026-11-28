@@ -2854,3 +2854,33 @@ html.dark .th-btn-del { background: rgba(220,38,38,.15); color: #fca5a5; border-
 html.dark .th-day { background: #3b2a0b; color: #fcd34d; border-color: #92400e; }
 html.dark .th-day-off { background: #1e293b; color: #64748b; border-color: #334155; }
 html.dark .th-day-clash { background: rgba(220,38,38,.18); color: #fca5a5; border-color: rgba(248,113,113,.5); }
+
+/* ───────────── أزرار رأس نافذة تفاصيل اليوم: بالعرض بدل التكدس ───────────── */
+#detailsModalActions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+}
+#detailsModalActions:empty { display: none; }
+#detailsModalActions > button {
+    flex: 0 0 auto;
+    margin: 0;
+    white-space: nowrap;
+}
+/* الموبايل: أزرار أيقونات فقط بحجم مضغوط حتى تتسع كلها جنب العنوان */
+@media (max-width: 639px) {
+    #detailsModalActions { gap: 4px; }
+    #detailsModalActions > button {
+        width: 36px;
+        height: 36px;
+        padding: 0 !important;
+        justify-content: center;
+        gap: 0 !important;
+    }
+    #detailsModal .day-panel > div:first-child { gap: 8px; padding-left: 14px; padding-right: 14px; }
+    #detailsModal .day-panel > div:first-child > div:first-child { min-width: 0; gap: 10px; }
+    #detailsModal .day-panel #modalDateTitle { font-size: 1rem; line-height: 1.35; }
+    #detailsModal .day-panel #modalHallTitle { font-size: .75rem; }
+}
