@@ -1229,12 +1229,14 @@
         }
 
         // ── نافذة القائمة / التفاصيل ──
+        function closeTempEditor() { const w = document.getElementById('tempEditorOverlay'); if (w) w.remove(); }
         function closeTempModal() { const w = document.getElementById('tempHoldOverlay'); if (w) w.remove(); }
         function openTempModal(opts) {
             let wrap = document.getElementById('tempHoldOverlay');
             if (!wrap) {
                 wrap = document.createElement('div');
                 wrap.id = 'tempHoldOverlay';
+                wrap.className = 'fixed inset-0'; // عشان زر الرجوع في الموبايل يلقط الشاشة ويقفلها
                 wrap.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(15,23,42,.6)');
                 wrap.addEventListener('click', (e) => { if (e.target === wrap) closeTempModal(); });
                 document.body.appendChild(wrap);
@@ -1334,11 +1336,15 @@
 
             const wrap = document.createElement('div');
             wrap.id = 'tempEditorOverlay';
+            wrap.className = 'fixed inset-0'; // عشان زر الرجوع في الموبايل يلقط الشاشة ويقفلها
             wrap.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(15,23,42,.6)');
             const inp = 'w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-bold outline-none focus:border-[#A88A45]';
             wrap.innerHTML = `
                 <form class="bg-white w-full max-w-lg rounded-3xl p-5 shadow-2xl" style="direction:rtl;max-height:92vh;overflow-y:auto" autocomplete="off">
-                    <h3 class="text-lg font-black text-slate-800 mb-1">⏳ ${editing ? 'تعديل حجز مؤقت' : 'حجز مؤقت جديد'}</h3>
+                    <div class="flex items-start justify-between gap-3 mb-1">
+                        <h3 class="text-lg font-black text-slate-800">⏳ ${editing ? 'تعديل حجز مؤقت' : 'حجز مؤقت جديد'}</h3>
+                        <button type="button" id="thX" aria-label="إغلاق" class="shrink-0 w-9 h-9 rounded-full bg-slate-100 text-slate-500 font-black">✕</button>
+                    </div>
                     <p class="text-xs text-slate-500 font-bold mb-3 leading-relaxed">القاعة بتتقفل طوال اليوم لحد ما الحجز يتأكد أو يتلغي، والكل بيشوفه. ومش بيتحسب في الإحصائيات ومفيش إشعار أندرويد له.</p>
                     <label class="block text-xs font-black text-slate-500 mb-1">القاعة</label>
                     <select name="hall" class="${inp} mb-3">${HALLS.map(h => `<option value="${escapeHtml(h.id)}">${escapeHtml(h.name)}</option>`).join('')}</select>
@@ -1415,6 +1421,7 @@
             drawDays();
 
             wrap.querySelector('#thCancel').addEventListener('click', close);
+            wrap.querySelector('#thX').addEventListener('click', close);
             f.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 clearErr();
@@ -12596,7 +12603,9 @@ ${pages}
                 copyBookingModal: 'closeCopyBookingModal',
                 printRangeModal: 'closePrintRangeModal',
                 deleteConfirmModal: 'closeDeleteConfirmModal',
-                imageLightbox: 'closeImageLightbox'
+                imageLightbox: 'closeImageLightbox',
+                tempEditorOverlay: 'closeTempEditor',
+                tempHoldOverlay: 'closeTempModal'
             };
             const stack = [];           // الشاشات المفتوحة بترتيب فتحها
             const closing = new Set();  // شاشات بنقفلها بسبب زر الرجوع
