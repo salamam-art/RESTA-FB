@@ -2810,3 +2810,47 @@ html body header.glass-panel #syncDropdownContainer > button i {
     color: #fff !important;
     stroke: currentColor;
 }
+
+/* ═══════════ الحجز المؤقت (Temp Hold) ═══════════ */
+.booking-tag.temp-hold-tag {
+    background: repeating-linear-gradient(45deg, #fffbeb, #fffbeb 6px, #fef3c7 6px, #fef3c7 12px);
+    color: #92400e;
+    border: 1px dashed #d97706;
+    border-right: 4px solid var(--hc, #d97706);
+    opacity: 1;
+}
+.agenda-item.temp-hold-item {
+    background: repeating-linear-gradient(45deg, #fffbeb, #fffbeb 8px, #fef3c7 8px, #fef3c7 16px);
+    color: #92400e;
+    border: 1px dashed #d97706;
+}
+.temp-strip { margin-top: 12px; padding: 10px 12px; border: 1px dashed #d97706; border-radius: 14px; background: #fffbeb; }
+.temp-strip-title { font-size: 12px; font-weight: 900; color: #92400e; margin-bottom: 6px; }
+.temp-strip-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: right; padding: 7px 10px; margin-top: 4px; border-radius: 10px; background: #fff; border: 1px solid #fde68a; font-weight: 800; font-size: 13px; color: #78350f; }
+.temp-strip-item small { font-weight: 700; color: #a16207; flex-shrink: 0; }
+.th-card { background: #fffdf5; border: 1px dashed #d97706; border-radius: 16px; padding: 14px; margin-bottom: 12px; }
+.th-badge { font-size: 11px; font-weight: 900; padding: 2px 10px; border-radius: 8px; background: #fef3c7; color: #92400e; }
+.th-rows { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid #fde68a; border-radius: 12px; padding: 10px; }
+.th-row { display: flex; gap: 10px; align-items: flex-start; }
+.th-k { flex-shrink: 0; min-width: 82px; font-size: 12px; font-weight: 800; color: #a16207; }
+.th-wa { font-size: 11px; font-weight: 800; color: #15803d; background: #dcfce7; padding: 1px 8px; border-radius: 8px; margin-right: 6px; }
+.th-btn { font-size: 13px; font-weight: 900; padding: 8px 14px; border-radius: 10px; border: 1px solid transparent; }
+.th-btn-ok { background: #6E1418; color: #fff; }
+.th-btn-edit { background: #fff; color: #334155; border-color: #cbd5e1; }
+.th-btn-del { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.th-day { font-size: 12px; font-weight: 800; padding: 5px 9px; border-radius: 9px; border: 1px solid #fcd34d; background: #fffbeb; color: #92400e; }
+.th-day-off { background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; text-decoration: line-through; }
+.th-day-clash { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+html.dark .booking-tag.temp-hold-tag,
+html.dark .agenda-item.temp-hold-item { background: repeating-linear-gradient(45deg, #3b2a0b, #3b2a0b 6px, #4a3410 6px, #4a3410 12px); color: #fcd34d; border-color: #b45309; }
+html.dark .temp-strip, html.dark .th-card { background: #2b210c; border-color: #b45309; }
+html.dark .temp-strip-title, html.dark .th-k { color: #fcd34d; }
+html.dark .temp-strip-item { background: #3b2a0b; border-color: #92400e; color: #fde68a; }
+html.dark .temp-strip-item small { color: #fbbf24; }
+html.dark .th-rows { background: #1f1809; border-color: #92400e; }
+html.dark .th-badge { background: #4a3410; color: #fcd34d; }
+html.dark .th-btn-edit { background: transparent; color: #e2e8f0; border-color: #64748b; }
+html.dark .th-btn-del { background: rgba(220,38,38,.15); color: #fca5a5; border-color: rgba(248,113,113,.4); }
+html.dark .th-day { background: #3b2a0b; color: #fcd34d; border-color: #92400e; }
+html.dark .th-day-off { background: #1e293b; color: #64748b; border-color: #334155; }
+html.dark .th-day-clash { background: rgba(220,38,38,.18); color: #fca5a5; border-color: rgba(248,113,113,.5); }

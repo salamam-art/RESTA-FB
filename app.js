@@ -803,6 +803,7 @@
             weekStart: null, // أول يوم (سبت) في الأسبوع المعروض YYYY-MM-DD
             freeHallId: null, // موبايل: قاعة مختارة لتمييز أيامها الفاضية (عرض فقط — لا يُحفظ)
             editingBookingId: null,
+            confirmingTempId: null, // حجز مؤقت بيتأكد حاليًا عن طريق فورم الحجز (بيتجاهل نفسه في فحص التعارض)
             isSyncing: false,
             // --- Race condition fix ---
             // يُزاد بمقدار 1 في كل عملية حذف/تعديل قبل أي fetch
@@ -925,7 +926,7 @@
         }
         // القراءة تحتاج جلسة Firebase صالحة (زائر أو موظف)، فنشغّل/نوقف الاشتراك مع حالة الدخول
         auth.onAuthStateChanged((u) => {
-            if (u) { setupWeddingSettingsListener(); setupHallsListener(); setupDayNotesListener(); } else { teardownWeddingSettingsListener(); teardownHallsListener(); teardownDayNotesListener(); }
+            if (u) { setupWeddingSettingsListener(); setupHallsListener(); setupDayNotesListener(); setupTempBookingsListener(); } else { teardownWeddingSettingsListener(); teardownHallsListener(); teardownDayNotesListener(); teardownTempBookingsListener(); }
             // ملاحظات الحجوزات الخاصة: بتتحمّل للأدمن بس (بالإيميل وكلمة المرور، مش الزائر)
             if (u && !u.isAnonymous && u.email === ADMIN_EMAIL) { setupAdminNotesListener(); } else { teardownAdminNotesListener(); }
         });
@@ -979,6 +980,490 @@
         function teardownDayNotesListener() {
             try { db.ref('dayNotes').off('value'); } catch (e) {}
         }
+
+        // ─── الحجز المؤقت (Temp Hold) ────────────────────────────────────────────
+        // مخزّن في عقدة مستقلة tempBookings/<id> في Firebase — مش جوه bookings ولا logs ولا meta/updatedAt.
+        // يعني: مفيش أي إشعار أندرويد بيتولّد منه، ومش داخل في الإحصائيات ولا التصدير ولا الطباعة.
+        // لما الحجز يتأكد بيتحوّل لحجز فعلي بالطريقة العادية (فورم الحجز) → وساعتها بس بيتبعت إشعار الأندرويد.
+        // الحجز المؤقت: طول اليوم، مفتوح المدة لحد التأكيد أو الإلغاء، وبيقفل القاعة قدام أي حجز تاني.
+        // الإشعارات الداخلية (جرس + رسالة) بتظهر لكل المستخدمين والزوار أول ما يفتحوا التطبيق.
+        let TEMP_BOOKINGS = {};
+        const TEMP_KNOWN_KEY = 'resta_temp_known_v1';
+        const TEMP_TOMBSTONE_MS = 3 * 24 * 3600 * 1000; // الحجز المؤقت المنتهي (متأكد/ملغي) بيتشال بعد 3 أيام
+        const TEMP_MAX_DAYS = 120;
+
+        function tempDatesOf(t) {
+            if (!t) return [];
+            let d = t.dates;
+            if (d && !Array.isArray(d) && typeof d === 'object') d = Object.keys(d).map(k => d[k]);
+            return (Array.isArray(d) ? d : []).filter(x => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)).sort();
+        }
+        function tempIsHeld(t) { return !!t && (t.status || 'held') === 'held' && tempDatesOf(t).length > 0; }
+        function activeTempHolds() { return Object.keys(TEMP_BOOKINGS).map(k => TEMP_BOOKINGS[k]).filter(tempIsHeld); }
+        function tempHoldsOn(dateStr, hallId) {
+            return activeTempHolds()
+                .filter(t => (!hallId || t.hallId === hallId) && tempDatesOf(t).indexOf(dateStr) !== -1)
+                .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+        }
+        // أول حجز مؤقت بيقفل القاعة في اليوم ده (ignoreId = حجز مؤقت نتجاهله، مثلًا اللي بيتأكد أو بيتعدّل)
+        function tempHoldBlocks(hallId, dateStr, ignoreId) {
+            if (!hallId || hallId === PHOTO_HALL_ID) return null;
+            return tempHoldsOn(dateStr, hallId).filter(t => !ignoreId || t.id !== ignoreId)[0] || null;
+        }
+        // الأيام اللي اتشالت من وسط نطاق الحجز المؤقت (أيام منفصلة)
+        function tempExcludedDays(id) {
+            const out = new Set();
+            const ds = tempDatesOf(TEMP_BOOKINGS[id]);
+            if (!ds.length) return out;
+            let cur = ds[0], guard = 0;
+            while (cur <= ds[ds.length - 1] && guard++ < 400) {
+                if (ds.indexOf(cur) === -1) out.add(cur);
+                cur = addDaysStr(cur, 1);
+            }
+            return out;
+        }
+        function tempDatesLabel(dates) {
+            const f = d => d.split('-').reverse().join('/');
+            const runs = [];
+            let s = null, p = null;
+            dates.forEach(d => {
+                if (s === null) { s = p = d; }
+                else if (addDaysStr(p, 1) === d) { p = d; }
+                else { runs.push([s, p]); s = p = d; }
+            });
+            if (s !== null) runs.push([s, p]);
+            return runs.map(r => r[0] === r[1] ? f(r[0]) : f(r[0]) + ' إلى ' + f(r[1])).join(' ، ');
+        }
+        function tempHallName(t) { const h = findHall(t && t.hallId); return (h && h.name) || (t && t.hallName) || ''; }
+        function tempCountLabel(nBookings, nHolds) {
+            const parts = [];
+            if (nBookings) parts.push(nBookings + ' حجز');
+            if (nHolds) parts.push(nHolds + ' مؤقت');
+            return parts.length ? parts.join(' + ') : 'لا توجد حجوزات';
+        }
+        // الأدمن + صاحب الحجز المؤقت يقدروا يعدّلوا/يأكدوا/يلغوا (نفس منطق صلاحيات الحجوزات العادية)
+        function canManageTemp(t) {
+            return !!t && state.isLoggedIn && !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || t.createdBy === state.currentUserEmail);
+        }
+        // يوم فيه حجوزات مؤقتة بس (من غير حجوزات فعلية في نفس العرض)
+        function _tempOnlyDay(dateStr) {
+            const hallId = (state.view !== 'dashboard' && state.selectedHall) ? state.selectedHall.id : null;
+            const real = state.bookings.some(b => b.startDate === dateStr && (!hallId || b.hallId === hallId));
+            return !real && tempHoldsOn(dateStr, hallId).length > 0;
+        }
+
+        // ── عناصر العرض في التقويم ──
+        function tempTagHtml(t, dateStr) {
+            const name = escapeHtml(t.company || '');
+            return `<div class="booking-tag temp-hold-tag" style="--hc:${hallDotColor(t.hallId)};"
+                         title="${escapeHtml(tempHallName(t))}: ${name} — حجز مؤقت"
+                         onclick="event.stopPropagation(); openTempModal({date:'${dateStr}', focus:'${escapeHtml(t.id)}'})">
+                        <span>⏳ ${name}</span>
+                    </div>`;
+        }
+        function tempAgendaItemHtml(t, dateStr) {
+            return `<div onclick="openTempModal({date:'${dateStr}', focus:'${escapeHtml(t.id)}'})"
+                         style="border-right:4px solid ${hallDotColor(t.hallId)};"
+                         class="agenda-item temp-hold-item flex items-center gap-2 rounded-xl px-3 py-2 shadow-sm active:opacity-80">
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-black truncate">⏳ ${escapeHtml(t.company || '')}</div>
+                            <div class="text-[11px] font-bold opacity-70 truncate">${escapeHtml(tempHallName(t))} · حجز مؤقت</div>
+                        </div>
+                        <div class="text-[11px] font-black shrink-0">طوال اليوم</div>
+                    </div>`;
+        }
+        function tempAddBtnHtml(dateStr, iconOnly) {
+            return `<button onclick="openTempHoldEditor({date:'${dateStr}'})" title="حجز مؤقت" class="shrink-0 flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 text-xs font-black rounded-lg px-2 py-1.5 active:scale-95 transition-transform temp-add-btn"><span>⏳</span>${iconOnly ? '' : '<span>مؤقت</span>'}</button>`;
+        }
+        // شريط الحجوزات المؤقتة داخل نافذة تفاصيل اليوم
+        function tempDayStripHtml(dateStr) {
+            const hallId = (state.view !== 'dashboard' && state.selectedHall) ? state.selectedHall.id : null;
+            const list = tempHoldsOn(dateStr, hallId);
+            if (!list.length) return '';
+            return `<div class="temp-strip">
+                        <div class="temp-strip-title">⏳ حجوزات مؤقتة في هذا اليوم</div>
+                        ${list.map(t => `<button type="button" class="temp-strip-item" onclick="openTempModal({date:'${dateStr}', focus:'${escapeHtml(t.id)}'})"><span class="truncate">${escapeHtml(t.company || '')}</span><small>${escapeHtml(tempHallName(t))}</small></button>`).join('')}
+                    </div>`;
+        }
+
+        // ── الاشتراك اللحظي ──
+        function setupTempBookingsListener() {
+            if (!CLOUD_ENABLED) return;
+            teardownTempBookingsListener();
+            db.ref('tempBookings').on('value', (snap) => {
+                try {
+                    const raw = snap.val() || {};
+                    const next = {};
+                    Object.keys(raw).forEach(k => {
+                        const t = raw[k];
+                        if (t && typeof t === 'object') next[k] = Object.assign({}, t, { id: k });
+                    });
+                    const changed = JSON.stringify(next) !== JSON.stringify(TEMP_BOOKINGS);
+                    TEMP_BOOKINGS = next;
+                    _tempScheduleDiff();
+                    _tempPruneOld();
+                    if (!changed) return;
+                    if (state.isLoggedIn && document.getElementById('app').style.display !== 'none'
+                        && !(state.view === 'hall_detail' && state.activeTab === 'form')) render();
+                    const dm = document.getElementById('detailsModal');
+                    if (dm && !dm.classList.contains('hidden')) {
+                        const d = document.getElementById('modalDateTitle').dataset.date;
+                        if (d) refreshDayDetails(d);
+                    }
+                    _tempRenderModal();
+                } catch (e) { console.warn('tempBookings update failed:', e); }
+            }, (err) => { console.warn('tempBookings listener cancelled:', err && err.code); });
+        }
+        function teardownTempBookingsListener() {
+            try { db.ref('tempBookings').off('value'); } catch (e) {}
+            TEMP_BOOKINGS = {};
+        }
+
+        // ── الإشعارات الداخلية (من غير أندرويد) ──
+        // بنقارن آخر حالة شافها الجهاز ده (محفوظة محليًا) بالحالة الحالية، فالمستخدم/الزائر اللي يفتح التطبيق
+        // بعد غياب يلاقي إشعارات بكل حجز مؤقت اتضاف/اتعدّل/اتلغى وهو مش موجود.
+        function _tempSig(t) {
+            return [t.status || 'held', t.hallId || '', t.company || '', t.phone || '', t.notes || '', tempDatesOf(t).join(',')].join('|');
+        }
+        let _tempDiffTimer = null;
+        function _tempScheduleDiff() {
+            if (_tempDiffTimer) return;
+            let tries = 0;
+            const tick = () => {
+                _tempDiffTimer = null;
+                const appEl = document.getElementById('app');
+                const ready = state.isLoggedIn && appEl && appEl.style.display !== 'none';
+                if (!ready) { if (++tries < 180) _tempDiffTimer = setTimeout(tick, 1000); return; }
+                try { _tempRunDiff(); } catch (e) { console.warn('temp diff failed', e); }
+            };
+            _tempDiffTimer = setTimeout(tick, 300);
+        }
+        function _tempRunDiff() {
+            let known = null;
+            try { known = JSON.parse(localStorage.getItem(TEMP_KNOWN_KEY) || 'null'); } catch (e) { known = null; }
+            const cur = {};
+            Object.keys(TEMP_BOOKINGS).forEach(id => { cur[id] = _tempSig(TEMP_BOOKINGS[id]); });
+            if (known && typeof known === 'object') {
+                const me = state.currentUserEmail;
+                const msgs = [];
+                Object.keys(TEMP_BOOKINGS).forEach(id => {
+                    const t = TEMP_BOOKINGS[id];
+                    const held = tempIsHeld(t);
+                    const prev = known[id];
+                    const lastBy = t.updatedBy || t.createdBy || '';
+                    if (lastBy === me) return; // عمليتي أنا — مفيش داعي أنبّه نفسي
+                    const who = _nameFromEmail(lastBy) || 'مستخدم آخر';
+                    const hall = tempHallName(t);
+                    const first = tempDatesOf(t)[0] || undefined;
+                    if (prev === undefined) {
+                        if (held) msgs.push({ type: 'add', date: first, text: `حجز مؤقت جديد من ${who}: ${t.company || ''} - ${hall} - ${tempDatesLabel(tempDatesOf(t))}` });
+                    } else if (prev !== cur[id]) {
+                        const prevHeld = String(prev).indexOf('held|') === 0;
+                        if (prevHeld && held) msgs.push({ type: 'add', date: first, text: `تم تعديل حجز مؤقت بواسطة ${who}: ${t.company || ''} - ${hall} - ${tempDatesLabel(tempDatesOf(t))}` });
+                        else if (prevHeld && t.status === 'cancelled') msgs.push({ type: 'delete', date: undefined, text: `تم إلغاء حجز مؤقت بواسطة ${who}: ${t.company || ''} - ${hall} - ${tempDatesLabel(tempDatesOf(t))}` });
+                        // status=confirmed: الحجز الفعلي بيوصل بإشعاره العادي (حجز جديد)، فمفيش إشعار تاني هنا
+                    }
+                });
+                if (msgs.length > 3) {
+                    addNotification(`تحديثات على ${msgs.length} حجوزات مؤقتة`, 'add');
+                } else {
+                    msgs.forEach(m => {
+                        addNotification(m.text, m.type, m.date);
+                        showToast(m.text, m.type === 'delete' ? 'error' : 'success', m.date);
+                    });
+                }
+            }
+            try { localStorage.setItem(TEMP_KNOWN_KEY, JSON.stringify(cur)); } catch (e) {}
+        }
+        // تنضيف الحجوزات المنتهية (متأكدة/ملغية) القديمة
+        function _tempPruneOld() {
+            if (!state.isLoggedIn || isGuest()) return;
+            const now = Date.now();
+            Object.keys(TEMP_BOOKINGS).forEach(id => {
+                const t = TEMP_BOOKINGS[id];
+                if ((t.status || 'held') === 'held') return;
+                const at = Date.parse(t.resolvedAt || t.updatedAt || '');
+                if (isFinite(at) && now - at > TEMP_TOMBSTONE_MS) db.ref('tempBookings/' + id).remove().catch(() => {});
+            });
+        }
+
+        // ── الكتابة ──
+        function _tempResolve(id, status) {
+            const now = new Date().toISOString();
+            return db.ref('tempBookings/' + id).update({
+                status: status, resolvedAt: now, resolvedBy: state.currentUserEmail,
+                updatedBy: state.currentUserEmail, updatedAt: now
+            });
+        }
+        async function cancelTempHold(id) {
+            const t = TEMP_BOOKINGS[id];
+            if (!t || !tempIsHeld(t) || !canManageTemp(t)) return;
+            if (!confirm('إلغاء الحجز المؤقت لـ "' + (t.company || '') + '"؟ القاعة هتتفتح للحجز تاني.')) return;
+            try {
+                await _tempResolve(id, 'cancelled');
+                showToast('تم إلغاء الحجز المؤقت', 'success');
+            } catch (err) {
+                showToast('تعذر إلغاء الحجز المؤقت: ' + (err && err.message || ''), 'error');
+            }
+        }
+        // تأكيد: بنفتح فورم الحجز العادي مليان ببيانات الحجز المؤقت، وبمجرد الحفظ الحجز المؤقت بيتقفل والحجز الفعلي بيتكتب (ومعاه إشعار الأندرويد)
+        function confirmTempHold(id) {
+            const t = TEMP_BOOKINGS[id];
+            if (!t || !tempIsHeld(t) || !canManageTemp(t)) return;
+            const dates = tempDatesOf(t);
+            let from = dates[0];
+            if (state.currentUserEmail !== ADMIN_EMAIL) { const fut = dates.find(d => !isPastDateStr(d)); if (fut) from = fut; }
+            closeTempModal();
+            openNewBookingForDate(from, t.hallId, id);
+            const modal = document.getElementById('globalBookingModal');
+            if (!modal || modal.classList.contains('hidden') || state.confirmingTempId !== id) return;
+            const form = document.getElementById('globalBookingForm');
+            form.hallId.value = t.hallId;
+            form.company.value = t.company || '';
+            form.phone.value = t.phone || '';
+            form.notes.value = t.notes || '';
+            form.dateFrom.value = from;
+            form.dateTo.value = dates[dates.length - 1];
+            const titleEl = document.getElementById('globalModalTitle');
+            if (titleEl) titleEl.textContent = 'تأكيد حجز مؤقت';
+        }
+
+        // ── نافذة القائمة / التفاصيل ──
+        function closeTempModal() { const w = document.getElementById('tempHoldOverlay'); if (w) w.remove(); }
+        function openTempModal(opts) {
+            let wrap = document.getElementById('tempHoldOverlay');
+            if (!wrap) {
+                wrap = document.createElement('div');
+                wrap.id = 'tempHoldOverlay';
+                wrap.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(15,23,42,.6)');
+                wrap.addEventListener('click', (e) => { if (e.target === wrap) closeTempModal(); });
+                document.body.appendChild(wrap);
+            }
+            wrap._opts = opts || {};
+            _tempRenderModal();
+        }
+        function _tempCardHtml(t) {
+            const dates = tempDatesOf(t);
+            const manage = canManageTemp(t);
+            const id = escapeHtml(t.id);
+            const phone = t.phone
+                ? `<a href="tel:${escapeHtml(t.phone)}" class="font-mono font-bold hover:underline" dir="ltr">${escapeHtml(t.phone)}</a>
+                   <a href="${getWhatsAppLink(t.phone)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="th-wa">واتساب</a>`
+                : '<span class="text-slate-400">لا يوجد رقم</span>';
+            const created = t.createdAt && isFinite(Date.parse(t.createdAt))
+                ? new Date(t.createdAt).toLocaleDateString('ar-EG') + ' ' + new Date(t.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '';
+            return `<div class="th-card" data-tid="${id}" style="border-right:5px solid ${hallDotColor(t.hallId)};">
+                <div class="flex items-center gap-2 flex-wrap mb-1">
+                    <span class="th-badge">⏳ حجز مؤقت — طوال اليوم</span>
+                    <span class="text-xs font-black px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700">${escapeHtml(tempHallName(t))}</span>
+                </div>
+                <h4 class="font-black text-lg text-[#6E1418] mb-2">${escapeHtml(t.company || '')}</h4>
+                <div class="th-rows text-sm text-slate-600">
+                    <div class="th-row"><span class="th-k">📅 التواريخ</span><span class="font-bold">${escapeHtml(tempDatesLabel(dates))} <small class="text-slate-400">(${dates.length} يوم)</small></span></div>
+                    <div class="th-row"><span class="th-k">📞 التليفون</span><span>${phone}</span></div>
+                    ${t.notes ? `<div class="th-row"><span class="th-k">📝 ملاحظات</span><span class="whitespace-pre-wrap break-words font-medium">${escapeHtml(t.notes)}</span></div>` : ''}
+                    <div class="th-row"><span class="th-k">👤 بواسطة</span><span class="font-medium">${escapeHtml(_nameFromEmail(t.createdBy) || '-')}${created ? ' <small class="text-slate-400">· ' + created + '</small>' : ''}</span></div>
+                </div>
+                ${manage ? `<div class="flex gap-2 mt-3 flex-wrap">
+                    <button type="button" onclick="confirmTempHold('${id}')" class="th-btn th-btn-ok">✓ تأكيد الحجز</button>
+                    <button type="button" onclick="openTempHoldEditor({id:'${id}'})" class="th-btn th-btn-edit">تعديل</button>
+                    <button type="button" onclick="cancelTempHold('${id}')" class="th-btn th-btn-del">إلغاء الحجز</button>
+                </div>` : ''}
+            </div>`;
+        }
+        function _tempRenderModal() {
+            const wrap = document.getElementById('tempHoldOverlay');
+            if (!wrap) return;
+            const opts = wrap._opts || {};
+            let list = activeTempHolds();
+            let title = '⏳ الحجوزات المؤقتة', sub = '';
+            if (opts.date) {
+                list = list.filter(t => tempDatesOf(t).indexOf(opts.date) !== -1);
+                sub = new Date(opts.date + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                if (!list.length) { closeTempModal(); return; }
+            } else {
+                sub = list.length ? list.length + ' حجز مؤقت مفتوح — القاعات مقفولة لحد التأكيد أو الإلغاء' : '';
+            }
+            list.sort((a, b) => (tempDatesOf(a)[0] || '').localeCompare(tempDatesOf(b)[0] || '') || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+            const canAdd = state.isLoggedIn && !isGuest();
+            const addDate = opts.date ? `{date:'${opts.date}'}` : '';
+            wrap.innerHTML = `
+                <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col" style="direction:rtl;max-height:90vh;">
+                    <div class="flex items-start justify-between gap-3 p-5 pb-3">
+                        <div class="min-w-0">
+                            <h3 class="text-lg font-black text-slate-800">${title}</h3>
+                            ${sub ? `<p class="text-xs text-slate-500 font-bold mt-0.5">${escapeHtml(sub)}</p>` : ''}
+                        </div>
+                        <button type="button" onclick="closeTempModal()" class="shrink-0 w-9 h-9 rounded-full bg-slate-100 text-slate-500 font-black">✕</button>
+                    </div>
+                    <div class="px-5 pb-2 overflow-y-auto flex-1" id="tempHoldBody">
+                        ${list.length ? list.map(_tempCardHtml).join('') : '<div class="text-center text-sm font-bold text-slate-400 py-10">لا توجد حجوزات مؤقتة حاليًا</div>'}
+                    </div>
+                    ${canAdd ? `<div class="p-5 pt-3"><button type="button" onclick="openTempHoldEditor(${addDate})" class="w-full bg-[#6E1418] text-white font-black py-3 rounded-xl">+ حجز مؤقت جديد</button></div>` : '<div class="pb-3"></div>'}
+                </div>`;
+            if (opts.focus && !wrap._focused) {
+                wrap._focused = true;
+                const el = wrap.querySelector('[data-tid="' + opts.focus + '"]');
+                if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+            }
+        }
+
+        // ── فورم إنشاء/تعديل حجز مؤقت ──
+        function _tempDayClash(hallId, dateStr, ignoreTempId) {
+            const t = tempHoldBlocks(hallId, dateStr, ignoreTempId);
+            if (t) return 'محجوزة مؤقتًا: ' + (t.company || '');
+            if (checkConflict(hallId, dateStr, '', '', null, false, ignoreTempId || null)) return 'القاعة محجوزة';
+            return null;
+        }
+        function openTempHoldEditor(opts) {
+            opts = opts || {};
+            if (!state.isLoggedIn || isGuest()) { showToast('الحجز المؤقت متاح للمستخدمين المسجلين فقط.', 'error'); return; }
+            const editing = opts.id ? TEMP_BOOKINGS[opts.id] : null;
+            if (opts.id && (!editing || !tempIsHeld(editing) || !canManageTemp(editing))) { showToast('الحجز المؤقت ده مش متاح للتعديل.', 'error'); return; }
+            closeTempModal();
+            const old = document.getElementById('tempEditorOverlay');
+            if (old) old.remove();
+
+            const isAdm = state.currentUserEmail === ADMIN_EMAIL;
+            const today = new Date().toISOString().split('T')[0];
+            const eDates = editing ? tempDatesOf(editing) : [];
+            const startDate = editing ? eDates[0] : (opts.date || today);
+            const endDate = editing ? eDates[eDates.length - 1] : startDate;
+            const excluded = new Set(editing ? Array.from(tempExcludedDays(editing.id)) : []);
+            const editId = editing ? editing.id : null;
+
+            const wrap = document.createElement('div');
+            wrap.id = 'tempEditorOverlay';
+            wrap.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(15,23,42,.6)');
+            const inp = 'w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-bold outline-none focus:border-[#A88A45]';
+            wrap.innerHTML = `
+                <form class="bg-white w-full max-w-lg rounded-3xl p-5 shadow-2xl" style="direction:rtl;max-height:92vh;overflow-y:auto" autocomplete="off">
+                    <h3 class="text-lg font-black text-slate-800 mb-1">⏳ ${editing ? 'تعديل حجز مؤقت' : 'حجز مؤقت جديد'}</h3>
+                    <p class="text-xs text-slate-500 font-bold mb-3 leading-relaxed">القاعة بتتقفل طوال اليوم لحد ما الحجز يتأكد أو يتلغي، والكل بيشوفه. ومش بيتحسب في الإحصائيات ومفيش إشعار أندرويد له.</p>
+                    <label class="block text-xs font-black text-slate-500 mb-1">القاعة</label>
+                    <select name="hall" class="${inp} mb-3">${HALLS.map(h => `<option value="${escapeHtml(h.id)}">${escapeHtml(h.name)}</option>`).join('')}</select>
+                    <label class="block text-xs font-black text-slate-500 mb-1">اسم الجهة</label>
+                    <input name="company" maxlength="120" class="${inp} mb-3" placeholder="اسم الجهة / العميل">
+                    <label class="block text-xs font-black text-slate-500 mb-1">رقم التليفون</label>
+                    <input name="phone" type="tel" maxlength="30" dir="ltr" class="${inp} mb-3" style="text-align:right" placeholder="01xxxxxxxxx">
+                    <div class="grid grid-cols-2 gap-3 mb-2">
+                        <div><label class="block text-xs font-black text-slate-500 mb-1">من تاريخ</label><input name="dateFrom" type="date" class="${inp}"></div>
+                        <div><label class="block text-xs font-black text-slate-500 mb-1">إلى تاريخ</label><input name="dateTo" type="date" class="${inp}"></div>
+                    </div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-black text-slate-500">الأيام (اضغط على يوم لاستبعاده)</span>
+                        <span id="thCount" class="text-xs font-black text-[#6E1418]"></span>
+                    </div>
+                    <div id="thDays" class="flex flex-wrap gap-1.5 mb-3"></div>
+                    <label class="block text-xs font-black text-slate-500 mb-1">ملاحظات</label>
+                    <textarea name="notes" rows="3" maxlength="500" class="${inp} mb-2" style="resize:none"></textarea>
+                    <p id="thErr" class="hidden text-xs font-bold text-red-500 mb-2 leading-relaxed"></p>
+                    <div class="flex gap-2 mt-3">
+                        <button type="submit" id="thSave" class="flex-1 bg-[#6E1418] text-white font-black py-3 rounded-xl">${editing ? 'حفظ التعديل' : 'حفظ الحجز المؤقت'}</button>
+                        <button type="button" id="thCancel" class="px-5 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">إلغاء</button>
+                    </div>
+                </form>`;
+            document.body.appendChild(wrap);
+
+            const f = wrap.querySelector('form');
+            const daysBox = wrap.querySelector('#thDays');
+            const errEl = wrap.querySelector('#thErr');
+            const showErr = (m) => { errEl.textContent = m; errEl.classList.remove('hidden'); };
+            const clearErr = () => errEl.classList.add('hidden');
+            const close = () => wrap.remove();
+
+            f.hall.value = editing ? editing.hallId : (opts.hallId && HALLS.some(h => h.id === opts.hallId) ? opts.hallId : (HALLS[0] ? HALLS[0].id : ''));
+            f.company.value = editing ? (editing.company || '') : '';
+            f.phone.value = editing ? (editing.phone || '') : '';
+            f.notes.value = editing ? (editing.notes || '') : '';
+            f.dateFrom.value = startDate;
+            f.dateTo.value = endDate;
+
+            const rangeDays = () => {
+                const a = f.dateFrom.value, b = f.dateTo.value;
+                if (!a || !b || b < a) return [];
+                const out = [];
+                let cur = a, guard = 0;
+                while (cur <= b && guard++ <= TEMP_MAX_DAYS) { out.push(cur); cur = addDaysStr(cur, 1); }
+                return out;
+            };
+            const drawDays = () => {
+                const days = rangeDays();
+                Array.from(excluded).forEach(d => { if (days.indexOf(d) === -1) excluded.delete(d); });
+                const hallId = f.hall.value;
+                let included = 0;
+                daysBox.innerHTML = days.map(d => {
+                    const off = excluded.has(d);
+                    if (!off) included++;
+                    const clash = (hallId && !off) ? _tempDayClash(hallId, d, editId) : null;
+                    const lbl = parseDateStr(d).toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'numeric' });
+                    return `<button type="button" data-d="${d}" class="th-day ${off ? 'th-day-off' : ''} ${clash ? 'th-day-clash' : ''}" title="${clash ? escapeHtml(clash) : (off ? 'مستبعد — اضغط لإرجاعه' : 'اضغط لاستبعاد اليوم')}">${lbl}${clash ? ' ⛔' : ''}</button>`;
+                }).join('');
+                wrap.querySelector('#thCount').textContent = days.length ? included + ' يوم' : '';
+            };
+            daysBox.addEventListener('click', (e) => {
+                const b = e.target.closest('button[data-d]');
+                if (!b) return;
+                const d = b.getAttribute('data-d');
+                if (excluded.has(d)) excluded.delete(d); else excluded.add(d);
+                clearErr(); drawDays();
+            });
+            ['dateFrom', 'dateTo', 'hall'].forEach(n => f[n].addEventListener('change', () => {
+                if (n === 'dateFrom' && f.dateTo.value < f.dateFrom.value) f.dateTo.value = f.dateFrom.value;
+                clearErr(); drawDays();
+            }));
+            drawDays();
+
+            wrap.querySelector('#thCancel').addEventListener('click', close);
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                clearErr();
+                const hallId = f.hall.value;
+                const hall = findHall(hallId);
+                const company = f.company.value.trim();
+                if (!hall) { showErr('اختر القاعة'); return; }
+                if (!company) { showErr('اكتب اسم الجهة'); f.company.focus(); return; }
+                if (!f.dateFrom.value || !f.dateTo.value || f.dateTo.value < f.dateFrom.value) { showErr('تاريخ النهاية لازم يكون بعد أو يساوي تاريخ البداية'); return; }
+                if (diffDaysDateStr(f.dateFrom.value, f.dateTo.value) > TEMP_MAX_DAYS) { showErr('أقصى مدة للحجز المؤقت ' + TEMP_MAX_DAYS + ' يوم'); return; }
+                const dates = rangeDays().filter(d => !excluded.has(d));
+                if (!dates.length) { showErr('كل الأيام مستبعدة — اترك يوم واحد على الأقل'); return; }
+                if (!isAdm) {
+                    const bad = dates.filter(d => isPastDateStr(d) && !(editing && eDates.indexOf(d) !== -1));
+                    if (bad.length) { showErr('لا يمكن الحجز في أيام منصرمة (' + bad.map(d => d.split('-').reverse().join('/')).join(' ، ') + '). هذه الصلاحية للأدمن فقط.'); return; }
+                }
+                const clashes = dates.map(d => ({ d: d, why: _tempDayClash(hallId, d, editId) })).filter(x => x.why);
+                if (clashes.length) {
+                    showErr('القاعة مش متاحة في: ' + clashes.map(x => x.d.split('-').reverse().join('/') + ' (' + x.why + ')').join(' ، ') + ' — استبعد الأيام دي أو غيّر القاعة.');
+                    return;
+                }
+                if (editing && !tempIsHeld(TEMP_BOOKINGS[editing.id])) { showErr('الحجز المؤقت ده اتأكد أو اتلغى من مستخدم تاني.'); return; }
+                const btn = wrap.querySelector('#thSave');
+                btn.disabled = true; btn.textContent = 'جاري الحفظ...';
+                const now = new Date().toISOString();
+                const me = state.currentUserEmail;
+                try {
+                    const id = editing ? editing.id : db.ref('tempBookings').push().key;
+                    const rec = {
+                        hallId: hall.id, hallName: hall.name,
+                        company: company, phone: f.phone.value.trim(), notes: f.notes.value.trim(),
+                        dates: dates, status: 'held',
+                        createdBy: editing ? (editing.createdBy || me) : me,
+                        createdAt: editing ? (editing.createdAt || now) : now,
+                        updatedBy: me, updatedAt: now
+                    };
+                    await db.ref('tempBookings/' + id).set(rec);
+                    close();
+                    showToast(editing ? 'تم تعديل الحجز المؤقت' : 'تم الحجز المؤقت — القاعة مقفولة لحد التأكيد أو الإلغاء', 'success');
+                } catch (err) {
+                    btn.disabled = false; btn.textContent = editing ? 'حفظ التعديل' : 'حفظ الحجز المؤقت';
+                    showErr(err && err.code === 'PERMISSION_DENIED'
+                        ? 'مفيش صلاحية للحفظ — لازم تضيف قواعد Firebase الخاصة بـ tempBookings.'
+                        : 'تعذر الحفظ: ' + (err && err.message || ''));
+                }
+            });
+            setTimeout(() => { try { f.company.focus(); } catch (e) {} }, 50);
+        }
+
 
         // ─── ملاحظات الحجوزات الخاصة بالأدمن ──────────────────────────────────
         // مخزّنة في عقدة منفصلة adminNotes/<مفتاح الحجز> (مش جوه الحجز نفسه) عشان:
@@ -3870,9 +4355,10 @@
             });
         }
 
-        function checkConflict(hallId, date, startTime, endTime, ignoreId = null, ignoreGroup = false) {
+        function checkConflict(hallId, date, startTime, endTime, ignoreId = null, ignoreGroup = false, ignoreTempId = state.confirmingTempId) {
             if (hallId === PHOTO_HALL_ID) return false; // فوتوسيشن: أكتر من حجز في نفس اليوم مسموح
             if (menuHallBlocks(hallId, date, startTime, endTime, ignoreId, ignoreGroup)) return true;
+            if (tempHoldBlocks(hallId, date, ignoreTempId)) return true; // حجز مؤقت (طول اليوم) بيقفل القاعة
             return state.bookings.some(b => {
                 if (ignoreId) {
                     if (ignoreGroup && (b.groupId === ignoreId || b.id === ignoreId)) return false;
@@ -4372,6 +4858,8 @@
         // ─── نافذة اليوم: قائمة كروت الحجوزات ← تفاصيل الحجز ─────────────────
         // فتح جديد (ضغط على يوم / إشعار / قائمة الحجوزات)
         function showDayDetails(dateStr, bookingId) {
+            // يوم فيه حجوزات مؤقتة بس (من غير حجوزات فعلية): نفتح قائمة الحجوزات المؤقتة
+            if (!bookingId && _tempOnlyDay(dateStr)) { openTempModal({ date: dateStr }); return; }
             renderDayDetails(dateStr, { bookingId: bookingId || null, fresh: true });
         }
         // تحديث بعد تعديل/حذف/مزامنة — يحافظ على الشاشة الحالية بدون إعادة الحركات
@@ -4449,7 +4937,8 @@
             if (actionsEl) {
                 const fullDayBookedHallIds = state.bookings
                     .filter(b => b.startDate === dateStr && (!b.startTime || !b.endTime))
-                    .map(b => b.hallId);
+                    .map(b => b.hallId)
+                    .concat(tempHoldsOn(dateStr).map(t => t.hallId));
                 const availableCount = HALLS.filter(h => !fullDayBookedHallIds.includes(h.id)).length;
                 actionsEl.innerHTML = (availableCount > 0 && !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr))) ? `
                     <button onclick="openNewBookingForDate('${dateStr}')"
@@ -4467,6 +4956,17 @@
                         class="flex items-center gap-2 bg-white/10 hover:bg-pink-400/30 border border-white/20 rounded-xl px-3 py-2 text-sm font-bold transition-all duration-200"
                         title="إضافة حجز فوتوسيشن لهذا اليوم">
                         <span>📷</span><span class="hidden sm:inline text-white">فوتوسيشن</span>
+                    </button>`);
+            }
+
+            // زر "حجز مؤقت" في رأس نافذة التفاصيل
+            if (actionsEl && !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr))) {
+                const _thHall = (state.view !== 'dashboard' && state.selectedHall) ? `,hallId:'${state.selectedHall.id}'` : '';
+                actionsEl.insertAdjacentHTML('beforeend', `
+                    <button onclick="openTempHoldEditor({date:'${dateStr}'${_thHall}})"
+                        class="flex items-center gap-2 bg-white/10 hover:bg-amber-400/30 border border-white/20 rounded-xl px-3 py-2 text-sm font-bold transition-all duration-200"
+                        title="حجز مؤقت لهذا اليوم">
+                        <span>⏳</span><span class="hidden sm:inline text-white">حجز مؤقت</span>
                     </button>`);
             }
 
@@ -4773,12 +5273,12 @@
             }
 
             if (mode === 'list') {
-                content.innerHTML = `<div class="day-view ${viewCls}">${dayNoteBoxHtml(dateStr, false)}${allBookings.map(renderListCard).join('')}</div>`;
+                content.innerHTML = `<div class="day-view ${viewCls}">${dayNoteBoxHtml(dateStr, false)}${allBookings.map(renderListCard).join('')}${tempDayStripHtml(dateStr)}</div>`;
             } else {
                 const backBar = allBookings.length > 1
                     ? `<button type="button" onclick="backToDayList()" class="day-back-btn"><i data-lucide="arrow-right" class="w-4 h-4"></i><span>كل حجوزات اليوم (${allBookings.length})</span></button>`
                     : '';
-                content.innerHTML = `<div class="day-view ${viewCls}">${dayNoteBoxHtml(dateStr, false)}${backBar}${bookings.map(renderFullCard).join('')}</div>`;
+                content.innerHTML = `<div class="day-view ${viewCls}">${dayNoteBoxHtml(dateStr, false)}${backBar}${bookings.map(renderFullCard).join('')}${tempDayStripHtml(dateStr)}</div>`;
             }
             if (animate) content.scrollTop = 0;
 
@@ -5935,6 +6435,7 @@ ${pages}
                     if (!y.startTime) return 1;
                     return x.startTime.localeCompare(y.startTime);
                 });
+                const holds = tempHoldsOn(dateStr);
                 const hasNote = !!getDayNote(dateStr);
                 const canAdd = !isGuest() && (isAdm || !isPast);
                 const addBtn = canAdd ? `
@@ -5960,6 +6461,8 @@ ${pages}
                             <div class="text-[11px] font-black text-slate-500 shrink-0" dir="ltr">${time}</div>
                         </div>`;
                 }).join('');
+                const holdItems = holds.map(t => tempAgendaItemHtml(t, dateStr)).join('');
+                const thBtn = canAdd ? tempAddBtnHtml(dateStr, true) : '';
                 const dayNum = d.toLocaleDateString('ar-EG', { day: 'numeric' });
                 const monthName = d.toLocaleDateString('ar-EG', { month: 'long' });
                 blocks.push(`
@@ -5969,14 +6472,14 @@ ${pages}
                                 <div class="week-day-num">${dayNum}</div>
                                 <div class="min-w-0">
                                     <div class="text-sm font-black truncate ${isToday ? 'text-[#6E1418]' : 'text-slate-800'}">${dayName}${isToday ? ' <span class="text-[10px] font-black text-white bg-[#6E1418] rounded-md px-1.5 py-0.5 align-middle">اليوم</span>' : ''}</div>
-                                    <div class="text-[11px] font-bold text-slate-500">${monthName} · ${bookings.length ? bookings.length + ' حجز' : 'لا توجد حجوزات'}${isFreeDay ? ' · <span class="week-free-pill">فاضية ✓</span>' : ''}</div>
+                                    <div class="text-[11px] font-bold text-slate-500">${monthName} · ${tempCountLabel(bookings.length, holds.length)}${isFreeDay ? ' · <span class="week-free-pill">فاضية ✓</span>' : ''}</div>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-1.5 shrink-0">${noteBtn}${psBtn}${addBtn}</div>
+                            <div class="flex items-center gap-1.5 shrink-0">${noteBtn}${psBtn}${thBtn}${addBtn}</div>
                         </div>
-                        ${(bookings.length || hasNote) ? `<div class="week-day-body">
+                        ${(bookings.length || holds.length || hasNote) ? `<div class="week-day-body">
                             ${dayNoteBoxHtml(dateStr, false)}
-                            ${bookings.length ? `<div class="flex flex-col gap-1.5">${items}</div>` : ''}
+                            ${(bookings.length || holds.length) ? `<div class="flex flex-col gap-1.5">${items}${holdItems}</div>` : ''}
                         </div>` : ''}
                     </div>`);
             }
@@ -5989,6 +6492,7 @@ ${pages}
         function freeDaysModeOn() { return !!state.freeHallId && !!findHall(state.freeHallId); }
         function isHallFreeOn(hallId, dateStr) {
             if (isPastDateStr(dateStr)) return false;
+            if (tempHoldBlocks(hallId, dateStr)) return false;
             return !state.bookings.some(b => b.hallId === hallId && b.startDate === dateStr);
         }
         function setFreeHall(id) {
@@ -6107,6 +6611,7 @@ ${pages}
                 if (!b.startTime) return 1;
                 return a.startTime.localeCompare(b.startTime);
             });
+            const holds = tempHoldsOn(dateStr);
             const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
             const canAdd = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr));
             const addBtn = canAdd ? `
@@ -6143,8 +6648,10 @@ ${pages}
                     </div>`;
             }).join('');
 
-            const body = bookings.length
-                ? `<div class="flex flex-col gap-1.5">${items}</div>`
+            const holdItems = holds.map(t => tempAgendaItemHtml(t, dateStr)).join('');
+            const thBtn = canAdd ? tempAddBtnHtml(dateStr, false) : '';
+            const body = (bookings.length || holds.length)
+                ? `<div class="flex flex-col gap-1.5">${items}${holdItems}</div>`
                 : `<div class="flex flex-col items-center gap-1 py-5 text-slate-400">
                         <i data-lucide="calendar-check" class="w-7 h-7 text-[#A88A45]/60"></i>
                         <div class="text-xs font-bold">لا توجد حجوزات في هذا اليوم</div>
@@ -6154,9 +6661,9 @@ ${pages}
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <div class="min-w-0">
                             <div class="text-sm font-black text-[#6E1418] truncate">${pretty}</div>
-                            ${bookings.length ? `<div class="text-[11px] font-bold text-slate-400">${bookings.length} حجز</div>` : ''}
+                            ${(bookings.length || holds.length) ? `<div class="text-[11px] font-bold text-slate-400">${tempCountLabel(bookings.length, holds.length)}</div>` : ''}
                         </div>
-                        <div class="flex items-center gap-1.5 shrink-0">${psBtn}${addBtn}</div>
+                        <div class="flex items-center gap-1.5 shrink-0">${psBtn}${thBtn}${addBtn}</div>
                     </div>
                     ${dayNoteBoxHtml(dateStr, true)}
                     ${body}
@@ -6283,10 +6790,12 @@ ${pages}
                 exp.push({ action: '_maybeBackupReminder(true)', icon: 'bell-ring', bg: 'bg-indigo-50', color: 'text-indigo-600', label: 'تذكير النسخة الاحتياطية' });
             }
             const rec = [];
+            rec.push({ action: 'openTempModal({all:true})', icon: 'hourglass', bg: 'bg-amber-50', color: 'text-amber-600', label: 'الحجوزات المؤقتة' });
             rec.push({ action: 'toggleDeletedBookingsModal()', icon: 'trash-2', bg: 'bg-red-50', color: 'text-red-600', label: 'الحجوزات المحذوفة' });
             rec.push({ action: 'toggleEditedBookingsModal()', icon: 'history', bg: 'bg-amber-50', color: 'text-amber-600', label: 'سجل التعديلات' });
             rec.push({ action: 'toggleArchiveModal()', icon: 'archive', bg: 'bg-amber-50', color: 'text-[#A88A45]', label: 'الأرشيف' });
             const tools = [];
+            if (!guest) tools.push({ action: 'openTempHoldEditor()', icon: 'hourglass', bg: 'bg-amber-50', color: 'text-amber-600', label: 'حجز مؤقت جديد' });
             if (!guest) tools.push({ action: 'toggleQuickCalcModal()', icon: 'gem', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'حاسبة باقة فرح سريعة' });
             if (admin) {
                 tools.push({ action: 'toggleHallsManageModal()', icon: 'building-2', bg: 'bg-pink-50', color: 'text-[#6E1418]', label: 'إدارة القاعات' });
@@ -7360,9 +7869,12 @@ ${pages}
                     return a.startTime.localeCompare(b.startTime);
                 });
 
-                const totalCount = dayBookings.length;
+                const dayHolds = tempHoldsOn(dateStr, isDashboard ? null : state.selectedHall.id);
+                const totalCount = dayBookings.length + dayHolds.length;
                 const visibleBookings = dayBookings.slice(0, MAX_VISIBLE);
-                const hiddenCount = totalCount - visibleBookings.length;
+                const visibleHolds = dayHolds.slice(0, Math.max(0, MAX_VISIBLE - visibleBookings.length));
+                const hiddenCount = totalCount - visibleBookings.length - visibleHolds.length;
+                const holdTagsHtml = visibleHolds.map(t => tempTagHtml(t, dateStr)).join('');
 
                 const tagsHtml = visibleBookings.map(b => {
                     const hall = findHall(b.hallId) || { name: b.hallId || 'غير معروف', color: 'bg-gray-100 text-gray-500', border: 'border-gray-200' };
@@ -7410,7 +7922,7 @@ ${pages}
                         </div>
                         <div class="day-bookings-container">
                             ${dayNoteChipHtml(dateStr)}
-                            ${tagsHtml}
+                            ${tagsHtml}${holdTagsHtml}
                             ${moreHtml}
                         </div>
                         <div class="day-dots">${dotsHtml}</div>
@@ -7466,9 +7978,11 @@ ${pages}
         }
 
         // ─── Open New Booking Modal Pre-filled for a Specific Date ───────
-        function openNewBookingForDate(dateStr, preHallId) {
+        function openNewBookingForDate(dateStr, preHallId, confirmTempId) {
             if (isGuest()) return;
+            state.confirmingTempId = confirmTempId || null;
             if (state.currentUserEmail !== ADMIN_EMAIL && isPastDateStr(dateStr)) {
+                state.confirmingTempId = null;
                 showToast('لا يمكن إضافة حجوزات في الأيام المنصرمة.', 'error');
                 return;
             }
@@ -7487,9 +8001,12 @@ ${pages}
                     });
                 }
             });
+            // قاعات عليها حجز مؤقت في اليوم ده = مقفولة (إلا الحجز المؤقت اللي بيتأكد دلوقتي)
+            tempHoldsOn(dateStr).forEach(t => { if (t.id !== state.confirmingTempId) fullDayBookedHallIds.push(t.hallId); });
             const availableHalls = HALLS.filter(h => !fullDayBookedHallIds.includes(h.id));
 
             if (availableHalls.length === 0) {
+                state.confirmingTempId = null;
                 showToast('جميع القاعات محجوزة بشكل كامل في هذا اليوم', 'error');
                 return;
             }
@@ -8166,6 +8683,7 @@ ${pages}
             const resolvedGroupId = groupId || booking.groupId || id;
             // في وضع النسخ لا نعدّل الحجز الأصلي: editingBookingId = null فيُحفظ كحجز جديد
             state.editingBookingId = copyOpts ? null : resolvedGroupId;
+            state.confirmingTempId = null;
 
             const modal = document.getElementById('globalBookingModal');
             const select = document.getElementById('globalHallSelect');
@@ -8261,6 +8779,7 @@ ${pages}
 
             if (modal.classList.contains('hidden')) {
                 state.editingBookingId = null;
+                state.confirmingTempId = null;
                 const select = document.getElementById('globalHallSelect');
                 select.innerHTML = '<option value="">-- يرجى تحديد القاعة --</option>' +
                     HALLS.map(h => '<option value="' + h.id + '">' + h.name + '</option>').join('');
@@ -8291,6 +8810,7 @@ ${pages}
                 if(typeof lucide!=="undefined") refreshIcons('globalBookingModal');
             } else {
                 state.editingBookingId = null;
+                state.confirmingTempId = null;
                 modal.classList.add('hidden');
                 { const _sb = document.getElementById('otherStickyTotalBar'); if (_sb) _sb.classList.add('hidden'); }
             }
@@ -10287,6 +10807,7 @@ ${pages}
             for (const m of (menus || [])) {
                 if (!m || !m.hallId || !m.date || m.hallId === PHOTO_HALL_ID) continue;
                 if (m.hallId === mainHallId) continue; // القاعة الأساسية بتتفحص في الفحص العادي
+                { const _th = tempHoldBlocks(m.hallId, m.date, state.confirmingTempId); if (_th) return { menu: m, other: { companyName: (_th.company || '') + ' — حجز مؤقت' } }; }
                 for (const b of state.bookings) {
                     if (ignoreId && (b.groupId === ignoreId || b.id === ignoreId)) continue;
                     // 1) حجز عادي في نفس القاعة نفس اليوم
@@ -10366,6 +10887,15 @@ ${pages}
             while (cur <= end) {
                 newDates.push(cur.toISOString().split('T')[0]);
                 cur.setDate(cur.getDate() + 1);
+            }
+
+            // تأكيد حجز مؤقت: الأيام اللي اتشالت من الحجز المؤقت (أيام منفصلة) ما بتتحجزش
+            const _confirmTemp = (!isEditing && state.confirmingTempId && TEMP_BOOKINGS[state.confirmingTempId] && tempIsHeld(TEMP_BOOKINGS[state.confirmingTempId]))
+                ? state.confirmingTempId : null;
+            if (_confirmTemp) {
+                const _exDays = tempExcludedDays(_confirmTemp);
+                for (let _i = newDates.length - 1; _i >= 0; _i--) { if (_exDays.has(newDates[_i])) newDates.splice(_i, 1); }
+                if (!newDates.length) { alert('كل أيام الحجز المؤقت مستبعدة — اختر تواريخ فيها أيام فعلية.'); return; }
             }
 
             // Conflict check – ignore all days in the group being edited
@@ -10515,6 +11045,8 @@ ${pages}
             }
 
             state.editingBookingId = null;
+            // الحجز المؤقت اتحوّل لحجز فعلي: نقفله (status=confirmed) — الحجز الفعلي بيتكتب في bookings بالطريقة العادية (ومنها إشعار الأندرويد)
+            if (_confirmTemp) { _tempResolve(_confirmTemp, 'confirmed').catch(() => {}); state.confirmingTempId = null; }
             saveLocal();
             _confirmBookingSavedOnServer(groupId, logMsg, bookingData.startDate);
             toggleGlobalBookingModal();
