@@ -6612,7 +6612,8 @@ ${pages}
                 return a.startTime.localeCompare(b.startTime);
             });
             const holds = tempHoldsOn(dateStr);
-            const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
+            const _pd = new Date(dateStr + 'T00:00:00');
+            const pretty = _pd.toLocaleDateString('ar-EG', { weekday: 'long' }) + ' ' + _pd.toLocaleDateString('ar-EG', { day: 'numeric' }) + '/' + _pd.toLocaleDateString('ar-EG', { month: 'numeric' });
             const canAdd = !isGuest() && (state.currentUserEmail === ADMIN_EMAIL || !isPastDateStr(dateStr));
             const addBtn = canAdd ? `
                 <button onclick="${_newBookingCall(dateStr)}" class="shrink-0 flex items-center gap-1 bg-[#6E1418] text-white text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
@@ -6620,8 +6621,8 @@ ${pages}
                 </button>` : '';
 
             const psBtn = canAdd ? `
-                <button onclick="openPhotoshootModal({date:'${dateStr}'})" class="shrink-0 flex items-center gap-1 bg-pink-50 text-pink-700 border border-pink-200 text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
-                    <span>📷</span><span>فوتوسيشن</span>
+                <button onclick="openPhotoshootModal({date:'${dateStr}'})" title="فوتوسيشن" aria-label="فوتوسيشن" class="shrink-0 flex items-center gap-1 bg-pink-50 text-pink-700 border border-pink-200 text-xs font-black rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform">
+                    <span>📷</span>
                 </button>` : '';
 
             const items = bookings.map(b => {
@@ -6649,7 +6650,7 @@ ${pages}
             }).join('');
 
             const holdItems = holds.map(t => tempAgendaItemHtml(t, dateStr)).join('');
-            const thBtn = canAdd ? tempAddBtnHtml(dateStr, false) : '';
+            const thBtn = canAdd ? tempAddBtnHtml(dateStr, true) : '';
             const body = (bookings.length || holds.length)
                 ? `<div class="flex flex-col gap-1.5">${items}${holdItems}</div>`
                 : `<div class="flex flex-col items-center gap-1 py-5 text-slate-400">
